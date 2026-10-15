@@ -1,8 +1,8 @@
 # @shirahcan/ai-ui
 
 The front-end half of [`ai-service`](https://github.com/Shirahcan/ai-service): a streamed
-assistant turn, a stop that really stops, the confirm card, and the one Markdown map an
-assistant's words are rendered with.
+assistant turn, a stop that really stops, the panel they happen in, the confirm card, and
+the one Markdown map an assistant's words are rendered with.
 
 Pairs with [`shirahcan/ai-client`](https://github.com/Shirahcan/ai-waterfall) on the server
 side, exactly as `@shirahcan/calendar-ui` pairs with `shirahcan/calendar-client`.
@@ -16,13 +16,25 @@ own routes**, which proxy the turn server-side with the product's trust key.
 That is also why the event names are configurable: your route is yours, and this package
 adapts to it rather than demanding you rewrite a working backend.
 
-## ⚠ It owns no layout
+## ⚠ It owns the mechanics, not the chrome
 
-The bubble, the avatar, the timestamp, the panel chrome and the palette stay in the product.
-That is where assistant surfaces differ most between products, and a shared component that
-owned them would be forked within a month - and the fork would drift.
+**1.0 owned no layout at all**, on the reasoning that a shared panel would be forked within
+a month. That was the wrong call, and the evidence is why: the package had no consumers while
+four hand-built panels already existed, and only one of them streamed. The fork had already
+happened. The narrowing's only real effect was that the lessons in here reached nobody.
 
-What is shared is what was genuinely broken for want of one owner.
+**1.1 ships `<AssistantPanel>`**, and answers the fork risk by design instead of by omission.
+It owns only the parts every panel got wrong and nothing a product wants to change:
+
+| the package owns | the product owns |
+|---|---|
+| the turn lifecycle and `discard` handling | the bubble, the avatar, the timestamp |
+| scroll that follows the answer without fighting the reader | the empty state, the header, the footer |
+| the streaming cursor, Stop, the error row + retry | the palette, the fonts, the icons |
+| the `aria-live` region and the keyboard contract | the composer, if the default is not enough |
+
+Chrome arrives through **slots**; colour arrives through **CSS custom properties**. There is
+nothing left in the component worth copying out.
 
 ## Install
 
@@ -69,6 +81,110 @@ stops, and a truncated sentence reads as a complete one often enough to matter.
 ⚠ **The terminal event's text wins over the accumulated tokens.** A provider can emit
 tokens that differ from its final answer (a repaired field, a trimmed ending), and showing
 the accumulation leaves the user reading something the model did not finally say.
+
+## The panel
+
+One required prop, and you have a working streamed conversation:
+
+```tsx
+import { AssistantPanel } from '@shirahcan/ai-ui';
+
+<AssistantPanel url="/api/proxy/assistant/chat/stream" />;
+```
+
+Add the cancel route and Stop stops the **provider**, not just the spinner:
+
+```tsx
+<AssistantPanel
+  url="/api/proxy/assistant/chat/stream"
+  cancelUrl="/api/proxy/assistant/chat/stream/{id}"
+  headers={() => ({ Authorization: `Bearer ${token}` })}
+  body={{ conversation_id: conversationId }}
+/>;
+```
+
+### Controlled, for a panel that already has a history
+
+A product that owns its own turn (a query-library mutation, its own persistence, its own
+cache) keeps all of it and still gets the mechanics:
+
+```tsx
+<AssistantPanel
+  messages={messages}
+  busy={mutation.isPending}
+  stage={stage}
+  error={error}
+  onSend={send}
+  onStop={stopTurn}
+  onRetry={retry}
+  renderBubble={(message) => <MyBubble message={message} />}
+/>;
+```
+
+In controlled mode `url` is unused. In uncontrolled mode it is required, and a panel given
+neither renders a visible **"not configured"** notice rather than a Send button that quietly
+swallows every question.
+
+### Theming
+
+Set the custom properties on any ancestor. Nothing to configure in JavaScript, and nothing
+in this package imports a palette:
+
+```css
+.my-panel {
+  --ai-surface: #ffffff;
+  --ai-fg: #0f172a;
+  --ai-muted: #64748b;
+  --ai-border: #e2e8f0;
+  --ai-accent: #4361ee;
+  --ai-accent-fg: #ffffff;
+  --ai-danger: #b91c1c;
+  --ai-radius: 1.25rem;
+  --ai-bubble-user-bg: #4361ee;
+  --ai-bubble-user-fg: #ffffff;
+  --ai-bubble-assistant-bg: transparent;
+  --ai-bubble-assistant-fg: #0f172a;
+}
+```
+
+The defaults are deliberately plain, so an unfinished adoption **looks** unfinished rather
+than looking like a different product.
+
+### ⚠ The scroll rule, because every panel gets it wrong
+
+`scrollTo({ top: scrollHeight })` on every message change is the obvious implementation and
+it is unusable: during a streamed answer it fires on a token cadence, so a reader who scrolls
+up to re-read something is dragged back to the bottom several times a second. `useAutoscroll`
+follows the stream **only while the reader is already at the bottom**, reports `isPinned` when
+they are not, and offers them the way back instead of taking the decision from them.
+
+## Stop, without giving up your turn loop
+
+`useTurnCancel` is the cancel discipline on its own, for a panel that keeps its own turn:
+
+```tsx
+const cancel = useTurnCancel({
+  cancelUrl: '/api/proxy/assistant/chat/stream/{id}',
+  headers: () => ({ Authorization: `Bearer ${token}` }),
+  onStop: () => { setStreamingText(''); setStage(null); },
+});
+
+const controller = cancel.startTurn();      // 1. a fresh signal for this turn
+// on the stream's open frame:
+cancel.trackTurn(data.stream_id);           // 2. the id the server cancels by
+// in a finally:
+cancel.endTurn();
+
+{cancel.isStoppable ? <StopButton onStop={cancel.stop} /> : null}
+```
+
+Stop is **three things in this order**, and the order is the point:
+
+1. **local state**, on the same tick as the click, or the user presses it twice;
+2. **abort the fetch**, so this tab stops receiving;
+3. **DELETE the stream**, so the provider stops generating - and stops billing.
+
+Skip (3) and the spinner stops while the money does not.
 
 ## The Markdown map
 

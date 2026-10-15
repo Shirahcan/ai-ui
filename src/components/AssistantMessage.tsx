@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import { assistantMarkdownComponents, assistantRemarkPlugins, type MarkdownTheme } from '../markdown';
+import { STREAMING_CURSOR_CLASS, StreamingCursor } from './StreamingCursor';
 
 /**
  * One assistant message, rendered.
@@ -36,7 +37,7 @@ export function AssistantMessage({
   streaming = false,
   theme,
   className,
-  cursorClassName = 'ml-0.5 inline-block h-[1em] w-[2px] animate-pulse align-text-bottom bg-current',
+  cursorClassName = STREAMING_CURSOR_CLASS,
 }: AssistantMessageProps) {
   /*
    * ⚠ THE EMPTY-WHILE-STREAMING CASE IS NOT NOTHING. Between "open" and the
@@ -47,8 +48,7 @@ export function AssistantMessage({
   if (text === '' && streaming) {
     return (
       <div className={className}>
-        <span className={cursorClassName} aria-hidden="true" />
-        <span className="sr-only">The assistant is writing.</span>
+        <StreamingCursor className={cursorClassName} label="The assistant is writing." />
       </div>
     );
   }
@@ -63,10 +63,7 @@ export function AssistantMessage({
       </ReactMarkdown>
 
       {streaming ? (
-        <>
-          <span className={cursorClassName} aria-hidden="true" />
-          <span className="sr-only">The assistant is still writing.</span>
-        </>
+        <StreamingCursor className={cursorClassName} />
       ) : null}
     </div>
   );

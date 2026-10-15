@@ -111,9 +111,22 @@ export function parseFrame(frame: string): StreamFrame | null {
   }
 }
 
-/** Did the caller abort this themselves? Then it is not an error to report. */
+/**
+ * Did the caller abort this themselves? Then it is not an error to report.
+ *
+ * ⚠ THREE SHAPES, BECAUSE ONE CANCELLATION HAS THREE NAMES. A bare `fetch`
+ * rejects with a DOMException named `AbortError`; axios rejects with its own
+ * `CanceledError`, whose `code` is `ERR_CANCELED` and whose `name` is
+ * `CanceledError` only on recent versions. Every product in the estate reaches
+ * its API through axios somewhere, so a check that knew only the fetch shape
+ * would report a user's own deliberate Stop as a failure in exactly the
+ * products this package is for.
+ */
 export function isAbortError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
 
-  return (error as { name?: string }).name === 'AbortError';
+  const name = (error as { name?: unknown }).name;
+  const code = (error as { code?: unknown }).code;
+
+  return name === 'AbortError' || name === 'CanceledError' || code === 'ERR_CANCELED';
 }

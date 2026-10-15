@@ -6,11 +6,16 @@
  * not be able to. Everything here talks to the PRODUCT's own routes, which
  * proxy the turn server-side with the product's trust key.
  *
- * ⚠ AND IT OWNS NO LAYOUT. The bubble, the avatar, the panel chrome and the
- * palette stay in the product: that is where assistant surfaces differ most,
- * and a shared component that owned them would be forked within a month. What
- * is shared is what was genuinely broken for want of one owner - the SSE frame
- * reader, the discard handling, a stop that really stops, and the Markdown map.
+ * ⚠ IT OWNS THE PANEL'S MECHANICS AND NONE OF ITS CHROME. 1.0 owned no
+ * layout at all, on the reasoning that a shared panel "would be forked within a
+ * month". The measurement that reversed it (P13): the package had ZERO
+ * consumers while FOUR hand-built panels already existed, and only one of them
+ * streamed - so the fork had already happened, and the narrowing's only real
+ * effect was that the SSE lessons in here reached nobody. 1.1 therefore ships
+ * `<AssistantPanel>`: the turn lifecycle, the scroll that does not fight the
+ * reader, Stop, the error row and the `aria-live` region. The bubble, the
+ * composer, the empty state, the header and the footer are SLOTS, and the
+ * palette is CSS custom properties - so there is nothing left worth forking.
  *
  * Pairs with `shirahcan/ai-client` on the server side, exactly as
  * `@shirahcan/calendar-ui` pairs with `shirahcan/calendar-client`.
@@ -18,6 +23,12 @@
 
 export { useAssistantStream } from './useAssistantStream';
 export type { AssistantStreamOptions } from './useAssistantStream';
+
+export { useTurnCancel } from './useTurnCancel';
+export type { TurnCancel, TurnCancelOptions } from './useTurnCancel';
+
+export { useAutoscroll } from './useAutoscroll';
+export type { Autoscroll, AutoscrollOptions } from './useAutoscroll';
 
 export { readSseFrames, parseFrame, isAbortError } from './sse';
 
@@ -30,9 +41,28 @@ export type { AssistantMessageProps } from './components/AssistantMessage';
 export { ConfirmCard } from './components/ConfirmCard';
 export type { ConfirmCardProps } from './components/ConfirmCard';
 
+export { AssistantPanel } from './components/AssistantPanel';
+export type { AssistantPanelProps, ComposerSlotProps } from './components/AssistantPanel';
+
+export { MessageBubble } from './components/MessageBubble';
+export type { MessageBubbleProps } from './components/MessageBubble';
+
+export { Composer } from './components/Composer';
+export type { ComposerProps } from './components/Composer';
+
+export { StreamingCursor, STREAMING_CURSOR_CLASS } from './components/StreamingCursor';
+export type { StreamingCursorProps } from './components/StreamingCursor';
+
+export { StopButton } from './components/StopButton';
+export type { StopButtonProps } from './components/StopButton';
+
+export { aiVar, AI_UI_CSS_VARIABLES } from './theme';
+export type { AiUiCssVariable } from './theme';
+
 export { DEFAULT_EVENT_NAMES } from './types';
 export type {
   AssistantTurnState,
+  PanelMessage,
   StreamEventNames,
   StreamFrame,
   ToolTrailEntry,

@@ -83,3 +83,37 @@ export interface AssistantTurnState {
   payload: Record<string, unknown> | null;
   tools: ToolTrailEntry[];
 }
+
+/**
+ * One message in a panel's list.
+ *
+ * ⚠ `id` IS REQUIRED AND MUST BE STABLE. It is the React key for a list that
+ * re-renders on a token cadence; an index key makes React reconcile the wrong
+ * bubble when a turn is retried or a failed message is dropped, and the symptom
+ * is one speaker's words appearing under the other's name.
+ *
+ * ⚠ AND THE STREAMING MESSAGE IS A MESSAGE, not a special case bolted beside
+ * the list. Every panel this package replaces keeps the in-flight answer in
+ * separate state from the history, and each then has to re-implement the
+ * ordering, the keys and the empty-while-thinking case. Here the panel appends
+ * one message with `streaming: true` and the list stays the list.
+ */
+export interface PanelMessage {
+  id: string;
+  role: 'user' | 'assistant';
+
+  /** Markdown. Rendered through the shared map unless `content` is given. */
+  text: string;
+
+  /**
+   * A product's own rendering, instead of the text - a confirm card, a data
+   * table, an action launcher. The panel does not inspect it.
+   */
+  content?: import('react').ReactNode;
+
+  /** True while tokens are still arriving, which is what draws the cursor. */
+  streaming?: boolean;
+
+  /** Set on a turn that failed, so the row can offer a retry. */
+  error?: string | null;
+}
