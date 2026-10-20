@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssistantPanel } from '../src/components/AssistantPanel';
+import { Composer } from '../src/components/Composer';
 import type { PanelMessage } from '../src/types';
 
 const URL_ = '/api/proxy/assistant/chat/stream';
@@ -309,4 +310,35 @@ describe('AssistantPanel, controlled', () => {
     rerender(<AssistantPanel messages={messages} onSend={vi.fn()} busy />);
     expect(screen.getByRole('log').getAttribute('aria-busy')).toBe('true');
   });
+
+  /**
+   * ⚠ A FORM FIELD WITH NO `id` AND NO `name` IS A REAL DEFECT, and Chrome's
+   * issues panel reports it on every page this panel renders on. Without a
+   * `name` the browser cannot restore a half-typed question on a session restore
+   * or a back-navigation; without an `id` a product cannot attach its own
+   * visible `<label>`. finance-suite hit exactly that in P14c, where the only
+   * accessible name was coming from the placeholder and so disappeared the
+   * moment anybody typed.
+   */
+  it('gives the composer an id and a name out of the box', () => {
+    const { container } = render(<AssistantPanel url={URL_} />);
+
+    const box = container.querySelector('textarea');
+    expect(box?.id).toBe('ai-composer');
+    expect(box?.getAttribute('name')).toBe('message');
+    // And it is still named for a screen reader without any product configuration.
+    expect(box?.getAttribute('aria-label')).toBeTruthy();
+  });
+
+  /** A product with two panels on one page needs its own ids, so both are props. */
+  it('lets a product name the field itself', () => {
+    const { container } = render(
+      <Composer id="reeve-question" name="question" value="" onChange={vi.fn()} onSend={vi.fn()} />,
+    );
+
+    const box = container.querySelector('textarea');
+    expect(box?.id).toBe('reeve-question');
+    expect(box?.getAttribute('name')).toBe('question');
+  });
+
 });

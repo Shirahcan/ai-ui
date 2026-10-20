@@ -26,6 +26,25 @@ export interface ComposerProps {
   busy?: boolean;
   onStop?: () => void;
 
+  /**
+   * The field's `id` and `name`.
+   *
+   * ⚠ A FIELD WITH NEITHER IS A REAL DEFECT, not a lint preference, and Chrome's
+   * issues panel says so on every page this panel renders on: "a form field
+   * element should have an id or name attribute". Two consequences, both real.
+   * Without a `name` the browser cannot restore the field on a session restore
+   * or a back-navigation, so a half-typed question is lost by a mis-click.
+   * Without an `id` a PRODUCT cannot associate its own visible `<label>` with
+   * it - which is exactly what finance-suite needed in P14c, where the only
+   * accessible name was coming from the PLACEHOLDER and therefore vanished the
+   * moment anybody typed.
+   *
+   * `aria-label` is still set from the placeholder as a floor, so a product that
+   * passes neither is named rather than anonymous.
+   */
+  id?: string;
+  name?: string;
+
   placeholder?: string;
   sendLabel?: string;
   stopLabel?: string;
@@ -42,6 +61,8 @@ export function Composer({
   onSend,
   busy = false,
   onStop,
+  id = 'ai-composer',
+  name = 'message',
   placeholder = 'Ask a question',
   sendLabel = 'Send',
   stopLabel = 'Stop',
@@ -86,6 +107,8 @@ export function Composer({
     >
       <textarea
         ref={ref}
+        id={id}
+        name={name}
         rows={1}
         value={value}
         onChange={(event) => onChange(event.target.value)}

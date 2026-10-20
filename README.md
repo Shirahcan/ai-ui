@@ -44,6 +44,33 @@ npm i @shirahcan/ai-ui
 
 Peer dependencies: `react`, `react-dom`, `react-markdown`, `remark-gfm`.
 
+### ⚠ Tailwind must be told to scan this package
+
+`AssistantPanel` emits classes of its own for the parts you do NOT override: the scrolling
+list, the status line, the error row, the screen-reader live region and the "Jump to the
+latest" button. Tailwind only generates classes it finds by scanning `content`, and
+`node_modules` is not scanned by default - so without this line those classes are simply
+absent from your stylesheet.
+
+```js
+// tailwind.config.ts
+content: [
+  './app/**/*.{ts,tsx}',
+  './components/**/*.{ts,tsx}',
+  './node_modules/@shirahcan/ai-ui/dist/**/*.{js,cjs,mjs}',
+],
+```
+
+**This is not a nicety.** Measured across two adopters on 2026-10-20: Portify's panel
+rendered correctly *by coincidence*, because every class this package uses internally
+already appeared somewhere else in that frontend. finance-suite had **zero** files using
+`rounded-full`, `self-start` or `min-h-0` - and `min-h-0` is load-bearing. A flex child's
+automatic minimum height is its content, so without it the message list refuses to shrink,
+grows past its container and never scrolls. The symptom is a panel that looks broken and a
+cause that lives in a config file nobody is looking at.
+
+Tailwind 4 users: the equivalent is `@source "../node_modules/@shirahcan/ai-ui/dist";`.
+
 ## A streamed turn
 
 ```tsx
@@ -220,6 +247,45 @@ Three things the map does that are security rather than style:
 
 The classes are **yours**. A package shipping Portify's `#4361EE` would be unusable by
 MployNow without a fork.
+
+## A grounded answer
+
+Not every assistant streams prose. An answer whose SAFETY lives in its structure - a figure
+out of a ledger kept apart from a statement about a regulation - must not be flattened into
+one paragraph, and `GroundedAnswer` is the surface for it.
+
+```tsx
+<GroundedAnswer
+  caveats={answer.could_not_verify}
+  sections={[
+    { label: 'What the books say', body: answer.what_the_books_say },
+    { label: 'What the rule says', body: answer.what_the_rule_says,
+      note: 'What the regulation requires. Not a verdict on this file.' },
+  ]}
+  citations={answer.facts_used}
+  refusal={answer.answered ? null : answer.refusal}
+  attribution={<>Written by {answer.provider}.</>}
+/>
+```
+
+⚠ **The caveats render above the answer.** A caveat printed under a figure is read once the
+figure has already been believed. The tests assert the ORDER by position, because a test
+for presence passes while the defect is live.
+
+⚠ **A refusal is an answer, and carries no `role="alert"`.** "The books do not contain
+that", "the spend cap is reached", "no provider has been cleared to read this" all arrive as
+successful responses. An alert role makes a deliberate, correct silence read as a broken
+screen.
+
+⚠ **Two parts stay two elements.** There is no prop that merges them. The reason the
+consumer keeps them in separate fields is that asking a model to hold them apart inside one
+paragraph is a request, not a control.
+
+⚠ **It names no product noun.** The labels are yours, so a second consumer needs no fork.
+
+It pairs with `AssistantPanel` in controlled mode: keep the rows as pure data, hold the
+structured answers in a map beside them, and render one in `renderBubble`. That is how
+finance-suite's Reeve - which does not stream at all - runs on the same panel as Porter.
 
 ## The confirm card
 
