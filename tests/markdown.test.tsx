@@ -81,6 +81,57 @@ describe('the assistant markdown map', () => {
    * nothing makes the panel look as though the turn finished instantly with no
    * answer.
    */
+  /**
+   * ⚠ ADDED IN 1.2 AFTER THE FIRST REAL ADOPTION FOUND THE GAP. Porter's own
+   * map styled `thead` with a bottom rule and `tbody` with row dividers, and
+   * the theme had no slot for either - so adopting this map would have silently
+   * flattened its tables into an undivided block. A product that cannot express
+   * its own table keeps its own copy of the whole map, which is the duplication
+   * this package exists to end.
+   */
+  it('lets a product style the table head and body rows', () => {
+    const markdown = `| a | b |
+|---|---|
+| 1 | 2 |`;
+
+    const { container } = render(
+      <AssistantMessage
+        text={markdown}
+        theme={{ tableHeadRow: 'border-b-2', tableBody: 'divide-y' }}
+      />,
+    );
+
+    expect(container.querySelector('thead')?.className).toContain('border-b-2');
+    expect(container.querySelector('tbody')?.className).toContain('divide-y');
+  });
+
+  /**
+   * ⚠ ONE CLASS FOR EVERY LEVEL LOSES THE HIERARCHY THE AUTHOR WROTE. A
+   * knowledge entry written as a document arrives with h1, h2 and h3 in it, and
+   * rendering all three identically turns its sections into undifferentiated
+   * bold lines. Each level falls back to `heading` when not overridden, so a
+   * product that does not care passes nothing and sees no change.
+   */
+  it('allows a per-level heading class and falls back to the shared one', () => {
+    const { container } = render(
+      <AssistantMessage
+        text={`# one
+
+## two
+
+### three`}
+        theme={{ heading: 'shared', heading1: 'big', heading2: 'medium' }}
+      />,
+    );
+
+    const headings = [...container.querySelectorAll('h3, h4')];
+
+    expect(headings[0]?.className).toContain('big');
+    expect(headings[1]?.className).toContain('medium');
+    // `heading3` was not given, so level three keeps the shared class.
+    expect(headings[2]?.className).toContain('shared');
+  });
+
   it('shows a cursor while there is nothing to show yet', () => {
     const { container } = render(<AssistantMessage text="" streaming />);
 
