@@ -10,7 +10,14 @@ const CANCEL = '/api/proxy/assistant/chat/stream/{id}';
 function sseFetch(frames: string[], hold = false) {
   let release: (() => void) | undefined;
 
-  const fn = vi.fn(async () => {
+  /*
+   * ⚠ THE PARAMETERS ARE DECLARED EVEN THOUGH THE BODY IGNORES THEM. Without
+   * them `vi.fn` infers a zero-argument mock, so `fn.mock.calls` is typed as a
+   * list of EMPTY tuples - and every assertion below that reads the request init
+   * off a call needs a cast that `tsc --noEmit` then rejects. The test still
+   * passed; only the typecheck failed, which is how three errors sat in here.
+   */
+  const fn = vi.fn(async (_input?: RequestInfo | URL, _init?: RequestInit) => {
     const encoder = new TextEncoder();
 
     return {
@@ -115,9 +122,7 @@ describe('AssistantPanel, uncontrolled', () => {
     expect(screen.queryByText('Try again')).toBeNull();
 
     // And the DELETE went out, so the provider stopped billing.
-    const deletes = fn.mock.calls.filter(
-      (call) => (call[1] as RequestInit | undefined)?.method === 'DELETE',
-    );
+    const deletes = fn.mock.calls.filter((call) => call[1]?.method === 'DELETE');
     expect(deletes.length).toBe(1);
 
     release();
@@ -151,7 +156,7 @@ describe('AssistantPanel, uncontrolled', () => {
     });
 
     // Retried with the SAME question, without making the user retype it.
-    const body = JSON.parse((succeeding.fn.mock.calls[0]?.[1] as RequestInit).body as string);
+    const body = JSON.parse(String(succeeding.fn.mock.calls[0]?.[1]?.body));
     expect(body.message).toBe('Why?');
   });
 

@@ -41,6 +41,9 @@ export type { AssistantMessageProps } from './components/AssistantMessage';
 export { ConfirmCard } from './components/ConfirmCard';
 export type { ConfirmCardProps } from './components/ConfirmCard';
 
+export { GroundedAnswer } from './components/GroundedAnswer';
+export type { GroundedAnswerProps, GroundedAnswerSection } from './components/GroundedAnswer';
+
 export { AssistantPanel } from './components/AssistantPanel';
 export type { AssistantPanelProps, ComposerSlotProps } from './components/AssistantPanel';
 
