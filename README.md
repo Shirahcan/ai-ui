@@ -36,6 +36,12 @@ It owns only the parts every panel got wrong and nothing a product wants to chan
 Chrome arrives through **slots**; colour arrives through **CSS custom properties**. There is
 nothing left in the component worth copying out.
 
+**1.8 finishes the panel**: `AssistantIntro` (the empty state's shape, the product's copy),
+`AssistantHistory` (thread history, which only ONE product had, while another had shipped the
+endpoints for it with no caller), and the composer's **recall ring** - ArrowUp walks back
+through what you sent, ArrowDown returns the draft it stashed, and both stay out of the way
+unless the caret is at the very edge of the box.
+
 **1.7 moves the bubble's generic half in** (`MessageBubble`), because the first table said
 the bubble was the product's and three products then proved what that costs: each handed back
 its own, and they drifted on the thing that is not decoration. Porter labelled an answer it

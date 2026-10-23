@@ -54,6 +54,15 @@ export type {
 export { OnDemandAsk } from './components/OnDemandAsk';
 export type { OnDemandAskProps } from './components/OnDemandAsk';
 
+export { AssistantHistory } from './components/AssistantHistory';
+export type {
+  AssistantHistoryProps,
+  AssistantThread,
+} from './components/AssistantHistory';
+
+export { AssistantIntro } from './components/AssistantIntro';
+export type { AssistantIntroProps } from './components/AssistantIntro';
+
 export { AssistantPanel } from './components/AssistantPanel';
 export type { AssistantPanelProps, ComposerSlotProps } from './components/AssistantPanel';
 
