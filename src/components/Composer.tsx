@@ -63,6 +63,23 @@ export interface ComposerProps {
   sendDisabled?: boolean;
 
   /**
+   * Lets a question be sent while a turn is already running.
+   *
+   * ⚠ IT EXISTS BECAUSE BLOCKING IT BROKE A DOCUMENTED CAPABILITY, which is the
+   * most useful kind of reason. Porter supersedes: send "actually, LMIA only"
+   * mid-answer and the backend takes both messages as one question, so a reader
+   * who spots their own mistake does not have to wait for an answer they no
+   * longer want. Porter's own knowledge base promises it in three bullets. The
+   * default here refuses it - a second turn painting into one message list is a
+   * real defect for a panel with no supersede path - so the product that HAS one
+   * says so.
+   *
+   * Enter is the way in. The button is Stop while busy, deliberately: two live
+   * buttons during a turn invite exactly the double-send this guards against.
+   */
+  sendWhileBusy?: boolean;
+
+  /**
    * Longest question the box accepts.
    *
    * ⚠ IT IS AN ABUSE CONTROL ON A PUBLIC SURFACE, not a tidiness one. Porter's
@@ -104,6 +121,7 @@ export function Composer({
   stopLabel = 'Stop',
   disabled = false,
   sendDisabled = false,
+  sendWhileBusy = false,
   maxLength,
   history = [],
   className,
@@ -137,7 +155,8 @@ export function Composer({
     el.style.height = `${Math.min(el.scrollHeight + border, MAX_HEIGHT)}px`;
   }, [value]);
 
-  const canSend = !disabled && !sendDisabled && !busy && value.trim() !== '';
+  const canSend =
+    !disabled && !sendDisabled && (sendWhileBusy || !busy) && value.trim() !== '';
 
   const recallOlder = () => {
     const next = Math.min(recallIndex + 1, history.length - 1);

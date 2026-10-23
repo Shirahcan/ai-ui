@@ -148,6 +148,44 @@ describe('Composer', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  /**
+   * ⚠ THE DEFAULT IS WHAT MOST PANELS WANT, AND THE OPT-IN IS WHAT SAVED A
+   * DOCUMENTED CAPABILITY. Porter supersedes - a second message mid-answer is taken
+   * together with the first - and its knowledge base promises that in three bullets.
+   * Swapping its hand-built composer for this one silently swallowed the keystroke,
+   * because a panel WITHOUT a supersede path must not start a second turn into one
+   * message list.
+   */
+  describe('sending while a turn is running', () => {
+    it('refuses by default, because a second turn into one list is a defect', () => {
+      const onSend = vi.fn();
+      render(<Harness value="a follow-up" busy onSend={onSend} />);
+
+      fireEvent.keyDown(box(), { key: 'Enter' });
+
+      expect(onSend).not.toHaveBeenCalled();
+    });
+
+    it('allows it for a product that supersedes', () => {
+      const onSend = vi.fn();
+      render(<Harness value="actually, LMIA only" busy sendWhileBusy onSend={onSend} />);
+
+      fireEvent.keyDown(box(), { key: 'Enter' });
+
+      expect(onSend).toHaveBeenCalledTimes(1);
+    });
+
+    /** Still nothing to send is still nothing to send. */
+    it('does not fire an empty turn either way', () => {
+      const onSend = vi.fn();
+      render(<Harness busy sendWhileBusy onSend={onSend} />);
+
+      fireEvent.keyDown(box(), { key: 'Enter' });
+
+      expect(onSend).not.toHaveBeenCalled();
+    });
+  });
+
   it('swaps Send for Stop while a turn is running', () => {
     const onStop = vi.fn();
     render(<Harness busy onStop={onStop} stopClassName="porter-stop" />);
