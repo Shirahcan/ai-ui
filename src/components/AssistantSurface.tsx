@@ -53,9 +53,19 @@ export interface AssistantSurfaceProps {
   subtitleClassName?: string;
   closeClassName?: string;
 
-  /** Passed through so a product can exclude the panel from its own DOM reads. */
-  'data-testid'?: string;
 }
+
+/**
+ * ⚠ `data-*` ATTRIBUTES PASS THROUGH, and that is not a convenience. Porter marks its
+ * panel `data-porter-ui="assistant-panel"` because its IT-support snapshot collector
+ * EXCLUDES everything under that attribute: the snapshot is meant to describe the page
+ * somebody needs help with, and the panel is always open while they are asking for it.
+ * A card that could not carry the mark would quietly put Porter's own chat into every
+ * diagnostic it sends.
+ */
+export type AssistantSurfaceAttributes = {
+  [key: `data-${string}`]: string | undefined;
+};
 
 export function AssistantSurface({
   title,
@@ -71,7 +81,7 @@ export function AssistantSurface({
   subtitleClassName,
   closeClassName,
   ...rest
-}: AssistantSurfaceProps) {
+}: AssistantSurfaceProps & AssistantSurfaceAttributes) {
   return (
     <div
       className={`flex flex-col overflow-hidden ${className ?? ''}`}

@@ -56,6 +56,20 @@ describe('AssistantSurface', () => {
     expect(title.className).toContain('text-[#152237]');
   });
 
+  /**
+   * ⚠ PORTER'S IT SNAPSHOT DEPENDS ON THIS. Its collector excludes everything under
+   * `[data-porter-ui]`, because the snapshot describes the page somebody needs help
+   * with and the panel is always open while they ask. A card that could not carry the
+   * mark would put Porter's own chat into every diagnostic it sends.
+   */
+  it("carries a product's own data attributes", () => {
+    const { container } = render(
+      <AssistantSurface title="Porter" data-porter-ui="assistant-panel" />,
+    );
+
+    expect(container.querySelector('[data-porter-ui="assistant-panel"]')).toBeTruthy();
+  });
+
   it('is a named dialog, because a keyboard user lands in it from nowhere', () => {
     const { container } = render(<AssistantSurface title="Porter" />);
 
