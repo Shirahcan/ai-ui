@@ -54,6 +54,11 @@ export type {
 export { OnDemandAsk } from './components/OnDemandAsk';
 export type { OnDemandAskProps } from './components/OnDemandAsk';
 
+export { AssistantSurface } from './components/AssistantSurface';
+export type { AssistantSurfaceProps } from './components/AssistantSurface';
+
+export { ASSISTANT_GEOMETRY, ASSISTANT_PANEL_SIZE } from './geometry';
+
 export { AssistantHistory } from './components/AssistantHistory';
 export type {
   AssistantHistoryProps,
