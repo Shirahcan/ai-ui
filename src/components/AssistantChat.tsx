@@ -14,6 +14,7 @@ import { AssistantSurface, type AssistantSurfaceAttributes } from './AssistantSu
 import { Composer } from './Composer';
 import { MessageBubble } from './MessageBubble';
 import { ASSISTANT_GEOMETRY } from '../geometry';
+import { readKind } from '../messages/kinds';
 import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { PanelMessage } from '../types';
@@ -269,11 +270,29 @@ export function AssistantChat({
    */
   const [draft, setDraft] = useState('');
 
-  const filled = theme.assistantBubble === 'filled';
+  const plain = theme.assistantBubble === 'plain';
 
-  const assistantBubble = filled
-    ? `${ASSISTANT_GEOMETRY.bubble} bg-[var(--ai-bubble-assistant-bg)] text-[var(--ai-bubble-assistant-fg)]`
-    : `${ASSISTANT_GEOMETRY.bubblePlain} text-[var(--ai-bubble-assistant-fg)]`;
+  /*
+   * ⚠ THE WIDTH DEPENDS ON THE KIND, exactly as Porter's has since it shipped.
+   * An action form, a research answer and a table set their own layout inside the
+   * bubble, and 85% of a 34rem panel is not enough to hold one. Prose keeps the
+   * cap, which is what makes the two speakers tell apart by shape.
+   */
+  const WIDE_KINDS = ['action_module', 'research', 'data_table', 'data_tables'];
+
+  const assistantBubble = (message: PanelMessage): string => {
+    if (plain) {
+      return `w-full text-[15px] leading-relaxed text-[var(--ai-bubble-assistant-fg)]`;
+    }
+
+    const wide = WIDE_KINDS.includes(readKind(message.kind));
+    const shape = wide
+      ? ASSISTANT_GEOMETRY.bubbleSurfaceWide
+      : ASSISTANT_GEOMETRY.bubbleSurface;
+
+    return `${shape} border-[var(--ai-bubble-assistant-border)]`
+      + ' bg-[var(--ai-bubble-assistant-bg)] text-[var(--ai-bubble-assistant-fg)]';
+  };
 
   const userBubble =
     `${ASSISTANT_GEOMETRY.bubble} bg-[var(--ai-bubble-user-bg)] text-[var(--ai-bubble-user-fg)]`;
@@ -391,7 +410,7 @@ export function AssistantChat({
                 className={`${ASSISTANT_GEOMETRY.row} ${
                   message.role === 'user' ? 'justify-end' : 'justify-start'
                 }`}
-                bubbleClassName={assistantBubble}
+                bubbleClassName={assistantBubble(message)}
                 userBubbleClassName={userBubble}
                 contentClassName="break-words [&_a]:break-words"
                 confidenceClassName={`${ASSISTANT_GEOMETRY.caveat} text-[var(--ai-muted)]`}

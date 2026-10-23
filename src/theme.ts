@@ -39,6 +39,7 @@ export const AI_UI_CSS_VARIABLES = [
   '--ai-bubble-user-bg',
   '--ai-bubble-user-fg',
   '--ai-bubble-assistant-bg',
+  '--ai-bubble-assistant-border',
   '--ai-bubble-assistant-fg',
 ] as const;
 
@@ -58,6 +59,7 @@ const FALLBACK: Record<AiUiCssVariable, string> = {
   '--ai-bubble-user-bg': '#f1f5f9',
   '--ai-bubble-user-fg': '#0f172a',
   '--ai-bubble-assistant-bg': 'transparent',
+  '--ai-bubble-assistant-border': 'transparent',
   '--ai-bubble-assistant-fg': '#0f172a',
 };
 
@@ -116,17 +118,21 @@ export interface AssistantTheme {
   /**
    * How an assistant's answer is drawn.
    *
-   * ⚠ `plain` IS THE ESTATE DEFAULT, AND IT IS PORTER'S. An answer is prose a
-   * person reads, often several paragraphs with a list in it; a tinted box with a
-   * 85% width cap turns it into a quoted fragment and halves the reading width of
-   * a 34rem panel. The user's own line is short and belongs in a pill, which is
-   * what makes the two speakers tell apart by shape. A product that genuinely
-   * wants filled bubbles says so by name here - it cannot arrive by a stray class.
+   * ⚠ `surface` IS THE ESTATE DEFAULT AND IT IS PORTER'S: a bubble whose fill
+   * and border are both the card's own colour, so there is nothing to SEE and
+   * the inset is still there. It reads as prose and measures as a bubble. The
+   * first cut of this set the default to `plain` by copying the look off a
+   * screenshot, which cost 16px of inset and the width cap.
+   *
+   * `filled` is a visible tinted box; `plain` is genuinely nothing at all. Both
+   * have to be asked for by name - neither can arrive through a stray class.
    */
-  assistantBubble?: 'plain' | 'filled';
-  /** Only read when `assistantBubble` is `filled`. */
+  assistantBubble?: 'surface' | 'filled' | 'plain';
+  /** The bubble's fill. Defaults to the card's own surface colour. */
   assistantBubbleBg?: string;
   assistantBubbleFg?: string;
+  /** Its hairline. Defaults to the fill, which is what makes it invisible. */
+  assistantBubbleBorder?: string;
 
   /** Position, shadow, blur. NOT size, radius, padding or type. */
   card?: string;
@@ -143,6 +149,13 @@ export interface AssistantTheme {
  */
 export function themeToVars(theme: AssistantTheme): Record<string, string> {
   const accentSoft = theme.accentSoft ?? theme.accentFg;
+  const variant = theme.assistantBubble ?? 'surface';
+  const assistantBg =
+    variant === 'plain'
+      ? 'transparent'
+      : variant === 'filled'
+        ? (theme.assistantBubbleBg ?? theme.accentSoft ?? '#f1f5f9')
+        : (theme.assistantBubbleBg ?? theme.surface);
 
   return {
     '--ai-surface': theme.surface,
@@ -160,10 +173,13 @@ export function themeToVars(theme: AssistantTheme): Record<string, string> {
      * set here while the geometry says `plain` would paint a box around prose
      * that has no padding to hold it.
      */
-    '--ai-bubble-assistant-bg':
-      theme.assistantBubble === 'filled'
-        ? (theme.assistantBubbleBg ?? theme.accentSoft ?? '#f1f5f9')
-        : 'transparent',
+    '--ai-bubble-assistant-bg': assistantBg,
+    /*
+     * ⚠ THE BORDER DEFAULTS TO THE FILL, which is the whole trick. Porter's
+     * bubble is `border border-white` on a white card: present, measurable, and
+     * invisible. A product that wants the bubble to show sets this.
+     */
+    '--ai-bubble-assistant-border': theme.assistantBubbleBorder ?? assistantBg,
     '--ai-bubble-assistant-fg': theme.assistantBubbleFg ?? theme.fg,
   };
 }

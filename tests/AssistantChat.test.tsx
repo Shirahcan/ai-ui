@@ -76,17 +76,50 @@ describe('AssistantChat', () => {
     expect(card.style.getPropertyValue('--ai-fg')).toBe('#152237');
   });
 
-  it('draws an assistant answer as prose and a person as a pill, by default', () => {
+  it("draws Porter's surface bubble by default: invisible, but inset and capped", () => {
     const { container } = mount(PORTER);
+    const card = dialog(container);
 
-    expect(bubble(container, 'assistant').className).toContain(ASSISTANT_GEOMETRY.bubblePlain);
+    expect(bubble(container, 'assistant').className).toContain(
+      ASSISTANT_GEOMETRY.bubbleSurface,
+    );
     expect(bubble(container, 'user').className).toContain('max-w-[85%]');
+
+    /*
+     * ⚠ THE FILL AND THE BORDER ARE BOTH THE CARD'S OWN COLOUR. That is what
+     * makes the bubble read as prose while still measuring 16px of inset - the
+     * property a first pass lost by copying the look instead of the geometry.
+     */
+    expect(card.style.getPropertyValue('--ai-bubble-assistant-bg')).toBe(PORTER.surface);
+    expect(card.style.getPropertyValue('--ai-bubble-assistant-border')).toBe(PORTER.surface);
   });
 
-  it('fills the assistant bubble only when a product asks for it by name', () => {
-    const { container } = mount({ ...MIRA, assistantBubble: 'filled' });
+  it('widens the bubble for a kind that sets its own layout', () => {
+    const { container } = render(
+      <AssistantChat
+        theme={PORTER}
+        title="Porter"
+        onSend={vi.fn()}
+        messages={[
+          { id: 'p', role: 'assistant', text: 'prose' },
+          { id: 't', role: 'assistant', text: 'rows', kind: 'data_table' },
+        ]}
+      />,
+    );
+    const rows = [...container.querySelectorAll('[data-role="assistant"] > div')];
 
-    expect(bubble(container, 'assistant').className).toContain('max-w-[85%]');
+    expect(rows[0]?.className).toContain('max-w-[85%]');
+    expect(rows[1]?.className).toContain('w-full');
+  });
+
+  it('fills or empties the assistant bubble only when asked for by name', () => {
+    const filled = mount({ ...MIRA, assistantBubble: 'filled' });
+    expect(dialog(filled.container).style.getPropertyValue('--ai-bubble-assistant-bg'))
+      .toBe(MIRA.accentSoft);
+
+    const plain = mount({ ...MIRA, assistantBubble: 'plain' });
+    expect(bubble(plain.container, 'assistant').className).toContain('w-full');
+    expect(bubble(plain.container, 'assistant').className).not.toContain('px-4');
   });
 
   it("renders the assistant markdown but never a person's own words", () => {

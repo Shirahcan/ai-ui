@@ -40,15 +40,33 @@ export const ASSISTANT_GEOMETRY = {
    */
   bubble: 'max-w-[85%] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed',
   /**
-   * An assistant answer drawn as PROSE rather than a bubble - the estate default.
+   * An assistant answer: PORTER'S BUBBLE, which is the estate default.
    *
-   * ⚠ NO PADDING AND NO WIDTH CAP, BECAUSE IT IS NOT A BOX. An answer runs to
-   * several paragraphs with lists and links in it; capping it at 85% of a 34rem
-   * panel and insetting it by another 32px leaves prose reading in a column barely
-   * wider than a phone. The user's own line is short, so it keeps the pill - which
-   * is what makes the two speakers tell apart by SHAPE rather than by colour.
+   * ⚠ IT IS A BUBBLE, AND IT READS AS PROSE. That is not a contradiction and it
+   * is the thing a first pass at this got wrong. Porter draws
+   * `border border-white bg-white/80` on a `bg-white/70` glass card - a bubble
+   * whose border and fill are both the surface colour, so there is nothing to
+   * SEE but the 16px of inset is still there. Copying the LOOK (transparent, no
+   * padding, full width) rather than the GEOMETRY put Mira's answers 16px further
+   * left than Porter's and removed the width cap, which is a deviation of exactly
+   * the kind this whole phase exists to stop.
+   *
+   * ⚠ AND THE 85% CAP IS NOT DECORATION. A bubble that can reach the full width
+   * of a 34rem panel gives the eye no edge to return to, and the two speakers
+   * stop being distinguishable by shape.
    */
-  bubblePlain: 'w-full text-[15px] leading-relaxed',
+  bubbleSurface:
+    'max-w-[85%] rounded-2xl border px-4 py-2.5 text-[15px] leading-relaxed',
+
+  /**
+   * The same bubble, full width.
+   *
+   * ⚠ A TABLE, AN ACTION FORM AND A RESEARCH ANSWER SET THEIR OWN LAYOUT, and
+   * 85% of a 34rem panel is not enough to hold one. Porter has widened for these
+   * three kinds since it shipped.
+   */
+  bubbleSurfaceWide:
+    'w-full rounded-2xl border px-4 py-2.5 text-[15px] leading-relaxed',
 
   /** For a row that sets its own layout inside: a data table, an action module. */
   bubbleWide: 'w-full rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed',
