@@ -44,6 +44,13 @@ export type { ConfirmCardProps } from './components/ConfirmCard';
 export { GroundedAnswer } from './components/GroundedAnswer';
 export type { GroundedAnswerProps, GroundedAnswerSection } from './components/GroundedAnswer';
 
+export { AssistantFeedback, ASSISTANT_FEEDBACK_REASONS } from './components/AssistantFeedback';
+export type {
+  AssistantFeedbackProps,
+  AssistantFeedbackPayload,
+  AssistantFeedbackReason,
+} from './components/AssistantFeedback';
+
 export { OnDemandAsk } from './components/OnDemandAsk';
 export type { OnDemandAskProps } from './components/OnDemandAsk';
 

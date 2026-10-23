@@ -88,6 +88,30 @@ Tailwind, which no consumer in this estate is. Auto-importing a stylesheet from 
 point is worse again: the CJS build exists so a product's jest can `require()` this package,
 and a `.css` side-effect import breaks exactly that.
 
+## One feedback control: `<AssistantFeedback>`
+
+```tsx
+<AssistantFeedback
+  onSubmit={async ({ sentiment, reasonCode, reasonText }) => { /* your endpoint */ }}
+  upIcon={<ThumbsUp />}
+  downIcon={<ThumbsDown />}
+  buttonClassName="..." chipClassName="..." chipSelectedClassName="..." submitClassName="..."
+/>
+```
+
+⚠ **The reason CODES are a contract with two backends; the LABELS are settled here.** Two
+products posted the same five codes to the same kind of analytics while asking the user in
+different words - four of five labels differed - so a backlog grouped by code was grouping
+answers to five differently worded questions. `ASSISTANT_FEEDBACK_REASONS` is exported so a
+product can render the vocabulary elsewhere without restating it.
+
+⚠ **The reasons reveal INLINE, not in a popover.** A popover needs a positioning library, and
+a shared component that pulls in Radix makes itself unadoptable by a product that has none.
+
+⚠ **It makes no request.** `onSubmit` is yours, because the endpoints differ (one product has
+a guest variant). **Throw to report a failure** - a client that resolves on a refusal will
+show the reader "Thanks for the feedback" for feedback that never landed.
+
 ## Asking for something, once: `<OnDemandAsk>`
 
 ```tsx
