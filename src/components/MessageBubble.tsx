@@ -56,6 +56,18 @@ export interface MessageBubbleProps {
   className?: string;
 
   /**
+   * The wrapper around the assistant's rendered Markdown.
+   *
+   * ⚠ IT EXISTS FOR `break-words`, WHICH IS LOAD-BEARING IN A NARROW PANEL. An
+   * answer can contain a long URL, and an unbroken one in a ~330px bubble pushes
+   * the whole conversation sideways. Porter has carried `break-words
+   * [&_a]:break-words` since its own panel shipped, and adopting this bubble
+   * without somewhere to put it would have cost that. Not applied to a user's
+   * own row, which keeps `whitespace-pre-wrap` and nothing else.
+   */
+  contentClassName?: string;
+
+  /**
    * The bubble itself, per speaker.
    *
    * ⚠ PASSING ONE REPLACES THE PACKAGE'S OWN COLOURS FOR THAT SPEAKER, inline
@@ -98,6 +110,7 @@ export function MessageBubble({
   markdownTheme,
   footer,
   className,
+  contentClassName,
   bubbleClassName,
   userBubbleClassName,
   confidenceClassName,
@@ -151,6 +164,7 @@ export function MessageBubble({
               text={message.text}
               streaming={message.streaming}
               theme={markdownTheme}
+              className={contentClassName}
             />
           )
         )}

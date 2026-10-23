@@ -141,6 +141,27 @@ describe('MessageBubble', () => {
     expect(container.querySelector('.assistant-frame')).toBeNull();
   });
 
+  /**
+   * ⚠ A LONG URL IS THE CASE THIS PROTECTS. Without somewhere to put
+   * `break-words`, one unbroken link pushes a 330px panel sideways - which is why
+   * Porter could not have adopted this bubble without the slot.
+   */
+  it('lets a product wrap the rendered answer, but not the user\'s own row', () => {
+    const { container, rerender } = render(
+      <MessageBubble message={message()} contentClassName="break-words" />,
+    );
+    expect(container.querySelector('.break-words')).toBeTruthy();
+
+    rerender(
+      <MessageBubble
+        message={message({ role: 'user', text: 'hi' })}
+        contentClassName="break-words"
+      />,
+    );
+    expect(container.querySelector('.break-words')).toBeNull();
+    expect(container.querySelector('.whitespace-pre-wrap')).toBeTruthy();
+  });
+
   it('states a failure pinned to one message, as an alarm', () => {
     render(<MessageBubble message={message({ error: 'That answer did not arrive.' })} />);
 
