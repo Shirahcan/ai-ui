@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { assertTailwindReachesThisPackage } from '../assertTailwindReachesThisPackage';
 import { Composer, type ComposerProps } from './Composer';
 import { MessageBubble } from './MessageBubble';
 import { aiVar } from '../theme';
@@ -183,6 +184,17 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const { scrollRef, onScroll, isPinned, scrollToBottom } = useAutoscroll({
     watch: `${rows.length}:${rows[rows.length - 1]?.text.length ?? 0}:${String(busy)}`,
   });
+
+  /*
+   * ⚠ SAY SO WHEN THE HOST IS NOT GENERATING THIS PACKAGE'S CLASSES. Development only,
+   * once per page. The README has documented the one line needed since 1.3 and it has still
+   * bitten three adopters, because the failure is invisible: a host that happens to use the
+   * same utilities elsewhere renders correctly by coincidence. See the check's own file for
+   * why this is a console error rather than a shipped stylesheet.
+   */
+  useEffect(() => {
+    assertTailwindReachesThisPackage();
+  }, []);
 
   const send = useCallback(() => {
     const text = draft.trim();

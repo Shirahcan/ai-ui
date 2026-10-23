@@ -71,6 +71,23 @@ cause that lives in a config file nobody is looking at.
 
 Tailwind 4 users: the equivalent is `@source "../node_modules/@shirahcan/ai-ui/dist";`.
 
+### ✅ And since 1.4 it TELLS YOU when you have forgotten
+
+Documenting this was not enough - it has bitten three adopters, because the failure is
+invisible: a host that happens to use the same utilities elsewhere renders correctly BY
+COINCIDENCE, and only a host that does not loses `min-h-0` and therefore its scrolling. So
+`AssistantPanel` now probes one marker class on mount, in development only, once per page,
+and `console.error`s the exact line you are missing for whichever Tailwind major you are on.
+
+⚠ **It is not a shipped stylesheet, and that was a deliberate choice** (2026-10-23).
+`calendar-ui` and `video-embed` each ship `dist/styles.css` with namespaced classes and need
+no host scanning, so they look like the pattern to copy. Here it would mean adding Tailwind
+and a CSS build to a tsup-only bundle, rewriting every component's class names, and changing
+the appearance of a live panel - and it buys only the ability to run in a host with no
+Tailwind, which no consumer in this estate is. Auto-importing a stylesheet from the entry
+point is worse again: the CJS build exists so a product's jest can `require()` this package,
+and a `.css` side-effect import breaks exactly that.
+
 ## A streamed turn
 
 ```tsx
