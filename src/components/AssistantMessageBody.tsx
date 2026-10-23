@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { AssistantMessage } from './AssistantMessage';
 import {
   ActionConfirm,
@@ -224,19 +224,23 @@ export function AssistantMessageBody({
         />
       ) : null}
 
-      {kind === 'data_table' || kind === 'data_tables'
-        ? readTables(meta).map((table, index) => (
-            <DataTable
-              key={table.id ?? index}
-              table={table}
-              onOpen={
-                table.href && handlers.onOpenTable
-                  ? () => handlers.onOpenTable?.(table, message)
-                  : undefined
-              }
-            />
-          ))
-        : null}
+      {kind === 'data_table' || kind === 'data_tables' ? (
+        <NarratedTables
+          tables={readTables(meta)}
+          /*
+           * ⚠ `narrated` MEANS THE PROSE ALREADY ANSWERED, so the rows are a
+           * DISCLOSURE rather than the answer, and repeating them as a table says
+           * the same facts twice. The escape hatch stays either way: a reader who
+           * wants the rows can open them.
+           */
+          narrated={meta.narrated === true}
+          onOpen={
+            handlers.onOpenTable
+              ? (table) => handlers.onOpenTable?.(table, message)
+              : undefined
+          }
+        />
+      ) : null}
 
       {kind === 'research_dispatched' ? (
         <PendingWork
@@ -307,6 +311,45 @@ export function AssistantMessageBody({
           }
         />
       ) : null}
+    </>
+  );
+}
+
+/** Tables, collapsed when the answer above them already said it in prose. */
+function NarratedTables({
+  tables,
+  narrated,
+  onOpen,
+}: {
+  tables: AssistantTable[];
+  narrated: boolean;
+  onOpen?: (table: AssistantTable) => void;
+}) {
+  const [shown, setShown] = useState(!narrated);
+
+  if (tables.length === 0) return null;
+
+  if (!shown) {
+    return (
+      <button
+        type="button"
+        onClick={() => setShown(true)}
+        className="mt-2 whitespace-nowrap text-[13px] font-medium text-[var(--ai-accent)] outline-none hover:opacity-80"
+      >
+        Show the data
+      </button>
+    );
+  }
+
+  return (
+    <>
+      {tables.map((table, index) => (
+        <DataTable
+          key={table.id ?? index}
+          table={table}
+          onOpen={table.href && onOpen ? () => onOpen(table) : undefined}
+        />
+      ))}
     </>
   );
 }

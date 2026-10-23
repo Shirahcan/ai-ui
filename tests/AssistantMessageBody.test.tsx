@@ -138,6 +138,50 @@ describe('AssistantMessageBody', () => {
     expect(single.container.querySelectorAll('td')).toHaveLength(2);
   });
 
+  it("reads the service's targets shape without the product mapping it", () => {
+    const { container } = body({
+      id: 'm',
+      text: '',
+      kind: 'data_table',
+      meta: {
+        result: {
+          targets: [
+            {
+              entity: 'cases',
+              status: 'ok',
+              columns: [
+                { key: 'name', label: 'Client', type: 'text' },
+                { key: 'fee', label: 'Fee', type: 'currency' },
+              ],
+              rows: [{ name: 'Maria Garcia', fee: '1,200' }],
+            },
+          ],
+        },
+      },
+    });
+
+    expect(container.textContent).toContain('Maria Garcia');
+    // The currency column is right-aligned without the product saying so.
+    const cells = [...container.querySelectorAll('td')];
+    expect(cells[1]?.className).toContain('text-right');
+  });
+
+  it('holds a narrated table back, because the prose already answered', () => {
+    const { container, getByRole } = body({
+      id: 'm',
+      text: 'You have one open case.',
+      kind: 'data_table',
+      meta: {
+        narrated: true,
+        result: { columns: [{ key: 'name', label: 'Client' }], rows: [{ name: 'Maria' }] },
+      },
+    });
+
+    expect(container.querySelector('table')).toBeNull();
+    fireEvent.click(getByRole('button', { name: 'Show the data' }));
+    expect(container.querySelector('table')).toBeTruthy();
+  });
+
   it('survives a meta bag that is missing what its kind promised', () => {
     expect(() =>
       body({ id: 'm', text: 'Here.', kind: 'data_table', meta: { result: 'not a table' } }),

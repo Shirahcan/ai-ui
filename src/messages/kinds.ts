@@ -58,8 +58,18 @@ export interface AssistantCta {
 export interface AssistantTableColumn {
   key: string;
   label: string;
-  /** Right-aligns the cell, for money and counts. */
+  /**
+   * Right-aligns the cell, for money and counts.
+   *
+   * ⚠ DERIVED FROM THE SERVICE'S `type`/`format` WHEN IT IS NOT SET. ai-service
+   * describes a column as `number`, `currency` or `integer`; a product should not
+   * have to translate that into an alignment, and two products translating it
+   * separately is how one ends up with left-aligned money.
+   */
   numeric?: boolean;
+  /** The service's own word for the column: number, currency, date, text. */
+  type?: string;
+  format?: string;
 }
 
 /**
@@ -187,20 +197,65 @@ export function readCtas(meta: AssistantMeta): AssistantCta[] {
  * bubble handled both with one branch for exactly this reason.
  */
 export function readTables(meta: AssistantMeta): AssistantTable[] {
-  const raw = meta.result;
-  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const raw = meta.result as unknown;
 
   /*
-   * ⚠ AN UNAVAILABLE TABLE IS KEPT EVEN WITH NO COLUMNS. It is the one case
-   * where there is nothing to draw and something to SAY, and dropping it here
-   * would silently turn "I could not read that" into no answer at all.
+   * ⚠ THE SERVICE SENDS THREE SHAPES AND A PRODUCT MAPS NONE OF THEM. A single
+   * table, a list of tables, or `{ targets: [...] }` - Porter's query layer uses
+   * the last and Porter was the only frontend that knew. Normalising here is what
+   * keeps adoption to a theme and a handler object.
    */
-  return list.filter(
-    (table): table is AssistantTable =>
-      table?.status === 'unavailable'
-      || (Array.isArray(table?.columns) && Array.isArray(table?.rows)),
-  );
+  const list: unknown[] = Array.isArray(raw)
+    ? raw
+    : record(raw) && Array.isArray((record(raw) as { targets?: unknown }).targets)
+      ? ((record(raw) as { targets: unknown[] }).targets)
+      : raw
+        ? [raw]
+        : [];
+
+  return list
+    .map((item) => {
+      const t = record(item);
+      if (!t) return null;
+
+      const columns = Array.isArray(t.columns)
+        ? (t.columns as Array<Record<string, unknown>>).map((c) => ({
+            key: String(c.key ?? ''),
+            label: String(c.label ?? c.key ?? ''),
+            type: typeof c.type === 'string' ? c.type : undefined,
+            format: typeof c.format === 'string' ? c.format : undefined,
+            numeric:
+              typeof c.numeric === 'boolean'
+                ? c.numeric
+                : NUMERIC_TYPES.includes(String(c.type ?? c.format ?? '')),
+          }))
+        : [];
+
+      const table: AssistantTable = {
+        id: readString(t.id) ?? undefined,
+        entity: readString(t.entity) ?? undefined,
+        title: readString(t.title) ?? undefined,
+        columns,
+        rows: Array.isArray(t.rows) ? (t.rows as AssistantTable['rows']) : [],
+        total: typeof t.total === 'number' ? t.total : undefined,
+        status: t.status === 'unavailable' ? 'unavailable' : 'ok',
+        notes: Array.isArray(t.notes) ? (t.notes as string[]) : undefined,
+        interpretation: readString(t.interpretation) ?? undefined,
+        href: readString(t.href) ?? readString(t.deepLinkTemplate) ?? undefined,
+      };
+
+      /*
+       * ⚠ AN UNAVAILABLE TABLE IS KEPT EVEN WITH NO COLUMNS. It is the one case
+       * where there is nothing to draw and something to SAY, and dropping it
+       * would silently turn "I could not read that" into no answer at all.
+       */
+      return table.status === 'unavailable' || table.columns.length > 0 ? table : null;
+    })
+    .filter((t): t is AssistantTable => t !== null);
 }
+
+/** The service's column types that mean "right-align this". */
+const NUMERIC_TYPES = ['number', 'integer', 'currency', 'money', 'decimal', 'percent'];
 
 /** Sources on a research answer, dropping anything with no title to show. */
 export function readSources(meta: AssistantMeta): AssistantSource[] {
