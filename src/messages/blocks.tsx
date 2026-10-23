@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { AssistantCta, AssistantSource, AssistantTable } from './kinds';
 
 /**
@@ -115,13 +115,54 @@ export function ModuleCard({
  * ⚠ IT SCROLLS IN ITSELF, NOT IN THE PANEL. A six-column table inside a 34rem
  * card will overflow; letting the panel scroll sideways takes the composer and
  * every other message with it.
+ *
+ * ⚠ AND IT IS CAPPED, WITH THE REAL TOTAL SAID OUT LOUD. Porter has shown ten
+ * rows and a way to the rest since it shipped, for the reason any chat answer is
+ * capped: forty rows in a panel buries the sentence that explains them. What
+ * matters is that the cap never hides the COUNT - "10 of 46" is a different
+ * answer from ten rows, and a reader who cannot tell them apart will act on the
+ * ten as if they were all of it.
  */
-export function DataTable({ table, onOpen }: { table: AssistantTable; onOpen?: () => void }) {
+export function DataTable({
+  table,
+  previewRows = 10,
+  onOpen,
+}: {
+  table: AssistantTable;
+  previewRows?: number;
+  onOpen?: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  /*
+   * ⚠ UNAVAILABLE IS NOT EMPTY, and it gets its own branch before anything
+   * else. "No rows" means the assistant looked and found none; this means it
+   * could not look. Rendering the first as the second tells somebody their data
+   * is gone.
+   */
+  if (table.status === 'unavailable') {
+    return (
+      <div className={CARD}>
+        <p className={CARD_TITLE}>
+          I could not read {table.entity ? `your ${table.entity}` : 'that'} just now.
+        </p>
+        {table.notes?.length ? (
+          <p className={CARD_BODY}>{table.notes.join(' ')}</p>
+        ) : null}
+      </div>
+    );
+  }
+
   if (table.rows.length === 0) return null;
+
+  const shown = expanded ? table.rows : table.rows.slice(0, previewRows);
+  const total = table.total ?? table.rows.length;
+  const hidden = total - shown.length;
 
   return (
     <div className={CARD}>
       {table.title ? <p className={CARD_TITLE}>{table.title}</p> : null}
+      {table.interpretation ? <p className={CARD_BODY}>{table.interpretation}</p> : null}
 
       <div className="mt-2 overflow-x-auto">
         <table className="w-full border-collapse text-[13px]">
@@ -140,7 +181,7 @@ export function DataTable({ table, onOpen }: { table: AssistantTable; onOpen?: (
             </tr>
           </thead>
           <tbody>
-            {table.rows.map((row, index) => (
+            {shown.map((row, index) => (
               <tr key={index} className="border-b border-[var(--ai-border)] last:border-0">
                 {table.columns.map((column) => (
                   <td
@@ -158,13 +199,34 @@ export function DataTable({ table, onOpen }: { table: AssistantTable; onOpen?: (
         </table>
       </div>
 
-      {table.note ? <p className="mt-2 text-xs text-[var(--ai-muted)]">{table.note}</p> : null}
-
-      {onOpen ? (
-        <button type="button" onClick={onOpen} className={`mt-2.5 ${SECONDARY}`}>
-          Open the full record
-        </button>
+      {hidden > 0 ? (
+        <p className="mt-2 text-xs text-[var(--ai-muted)]">
+          Showing {shown.length} of {total}.
+        </p>
       ) : null}
+
+      {table.notes?.length ? (
+        <p className="mt-2 text-xs text-[var(--ai-muted)]">{table.notes.join(' ')}</p>
+      ) : null}
+
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        {/*
+          ⚠ EXPANDING IN PLACE ONLY WORKS ON ROWS ALREADY HERE. When the service
+          sent a page, `total` exceeds what arrived and the only honest way to the
+          rest is the product's own screen - so the deep link is offered too.
+        */}
+        {!expanded && table.rows.length > previewRows ? (
+          <button type="button" onClick={() => setExpanded(true)} className={SECONDARY}>
+            Show all {table.rows.length}
+          </button>
+        ) : null}
+
+        {onOpen ? (
+          <button type="button" onClick={onOpen} className={SECONDARY}>
+            Open the full record
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

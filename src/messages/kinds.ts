@@ -62,14 +62,30 @@ export interface AssistantTableColumn {
   numeric?: boolean;
 }
 
-/** A table the assistant read, ready to draw. */
+/**
+ * A table the assistant read, ready to draw.
+ *
+ * ⚠ THIS IS PORTER'S `PorterTargetResult` SHAPE, PROMOTED (P18g), down to
+ * `status` and `notes`. A query can come back UNAVAILABLE - the source was
+ * unreachable, or the reader may not see it - and a table that renders that as
+ * "no rows" tells somebody their data is gone. The whole point of carrying the
+ * status is that the two are different answers.
+ */
 export interface AssistantTable {
   id?: string;
+  /** What the rows ARE: cases, candidates, invoices. */
+  entity?: string;
   title?: string;
   columns: AssistantTableColumn[];
   rows: Array<Record<string, string | number | null>>;
-  /** A line under the table: where it came from, what it omits. */
-  note?: string;
+  /** How many exist, when `rows` is only the first page of them. */
+  total?: number;
+  /** ⚠ `unavailable` is not "empty". Defaults to `ok` when the service omits it. */
+  status?: 'ok' | 'unavailable';
+  /** What the reader needs to know before acting: a caveat, an omission. */
+  notes?: string[];
+  /** The assistant's own sentence about what it looked for. */
+  interpretation?: string;
   /** A product route the reader can open to see the whole record. */
   href?: string;
 }
@@ -174,9 +190,15 @@ export function readTables(meta: AssistantMeta): AssistantTable[] {
   const raw = meta.result;
   const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
 
+  /*
+   * ⚠ AN UNAVAILABLE TABLE IS KEPT EVEN WITH NO COLUMNS. It is the one case
+   * where there is nothing to draw and something to SAY, and dropping it here
+   * would silently turn "I could not read that" into no answer at all.
+   */
   return list.filter(
     (table): table is AssistantTable =>
-      Array.isArray(table?.columns) && Array.isArray(table?.rows),
+      table?.status === 'unavailable'
+      || (Array.isArray(table?.columns) && Array.isArray(table?.rows)),
   );
 }
 

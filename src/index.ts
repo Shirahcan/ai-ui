@@ -130,3 +130,9 @@ export type {
   AssistantTable,
   AssistantTableColumn,
 } from './messages/kinds';
+
+export { ActionConfirm } from './messages/ActionConfirm';
+export type {
+  AssistantActionOutcome,
+  AssistantActionResult,
+} from './messages/ActionConfirm';

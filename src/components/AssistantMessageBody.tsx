@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
 import { AssistantMessage } from './AssistantMessage';
-import { ConfirmCard } from './ConfirmCard';
+import {
+  ActionConfirm,
+  type AssistantActionOutcome,
+  type AssistantActionResult,
+} from '../messages/ActionConfirm';
 import {
   CtaRow,
   ConsentCard,
@@ -68,18 +72,33 @@ export interface AssistantActionModule {
 }
 
 /** How far an action on one message has got. */
-export type AssistantActionState = 'pending' | 'done' | 'cancelled';
+export type AssistantActionState = AssistantActionOutcome;
+
+export type { AssistantActionResult };
 
 export interface AssistantMessageHandlers {
   onCta?: (cta: AssistantCta, message: PanelMessage) => void;
   onLaunchAction?: (launch: AssistantActionLaunch) => void;
 
-  onConfirmAction?: (confirm: AssistantActionConfirm) => void;
+  /**
+   * Commit the action.
+   *
+   * ⚠ IT MAY RETURN A SUMMARY AND A HANDOFF, because some actions deliberately
+   * do NOT finish - composing a case ends on a review page, since creating one
+   * emails a real client and consumes a plan slot. Returning nothing is fine and
+   * the card simply says "Done."; throwing is how a failure is reported, and the
+   * card stays so the reader can try again.
+   */
+  onConfirmAction?: (confirm: AssistantActionConfirm) => Promise<AssistantActionResult | void>;
   onCancelAction?: (confirm: AssistantActionConfirm) => void;
   /** Offered only when the service said `can_refine`. */
   onRefineAction?: (confirm: AssistantActionConfirm) => void;
-  /** Offered only when the service said `can_explain`. */
-  onExplainAction?: (confirm: AssistantActionConfirm) => void;
+  /** Offered only when the service said `can_explain`. Returns the explanation. */
+  onExplainAction?: (confirm: AssistantActionConfirm) => Promise<string>;
+  /** Follow a product route: a handoff, a record, a source. */
+  onNavigate?: (url: string) => void;
+  /** Act on a research answer the service drafted something from. */
+  onDraftFromAnswer?: (digest: string, message: PanelMessage) => void;
 
   onStartIntake?: (seedText: string, message: PanelMessage) => void;
 
@@ -167,38 +186,20 @@ export function AssistantMessageBody({
       ) : null}
 
       {kind === 'action_confirm' && handlers.onConfirmAction ? (
-        <ConfirmCard
+        <ActionConfirm
           title={readString(meta.launch_label) ?? 'Shall I go ahead?'}
           confirmLabel={readString(meta.confirm_label) ?? 'Yes, do it'}
-          outcome={state ?? 'pending'}
-          busy={busy}
-          onConfirm={() => handlers.onConfirmAction?.(confirm)}
+          settled={state}
+          canRefine={meta.can_refine === true}
+          canExplain={meta.can_explain === true}
+          onConfirm={() => handlers.onConfirmAction!(confirm)}
           onCancel={() => handlers.onCancelAction?.(confirm)}
-        >
-          {/*
-            ⚠ REFINE AND EXPLAIN ARE OFFERED ONLY WHEN THE SERVICE SAID SO. They
-            cost a turn each, and a card that offers to explain something the
-            backend cannot explain fails after the reader has committed to asking.
-          */}
-          {meta.can_refine === true && handlers.onRefineAction ? (
-            <button
-              type="button"
-              onClick={() => handlers.onRefineAction?.(confirm)}
-              className="mr-3 text-sm underline underline-offset-2 outline-none"
-            >
-              Change something
-            </button>
-          ) : null}
-          {meta.can_explain === true && handlers.onExplainAction ? (
-            <button
-              type="button"
-              onClick={() => handlers.onExplainAction?.(confirm)}
-              className="text-sm underline underline-offset-2 outline-none"
-            >
-              Explain this
-            </button>
-          ) : null}
-        </ConfirmCard>
+          onRefine={handlers.onRefineAction ? () => handlers.onRefineAction?.(confirm) : undefined}
+          onExplain={
+            handlers.onExplainAction ? () => handlers.onExplainAction!(confirm) : undefined
+          }
+          onNavigate={handlers.onNavigate}
+        />
       ) : null}
 
       {kind === 'action_module' && handlers.renderActionFields ? (
@@ -250,7 +251,21 @@ export function AssistantMessageBody({
       ) : null}
 
       {kind === 'research' ? (
-        <SourceList sources={readSources(meta)} onOpen={handlers.onOpenSource} />
+        <>
+          <SourceList sources={readSources(meta)} onOpen={handlers.onOpenSource} />
+          {/*
+            ⚠ A RESEARCHED ANSWER OFTEN HAS A NEXT STEP, and the service says so
+            with `draft_message_action_id`. Porter offers to draft a message from
+            the digest; without it the reader reads a good answer and then has to
+            start again somewhere else to use it.
+          */}
+          {meta.draft_message_action_id && handlers.onDraftFromAnswer ? (
+            <CtaRow
+              ctas={[{ label: 'Draft a message from this' }]}
+              onSelect={() => handlers.onDraftFromAnswer?.(message.text, message)}
+            />
+          ) : null}
+        </>
       ) : null}
 
       {kind === 'it_snapshot_request' && handlers.onConsent ? (
