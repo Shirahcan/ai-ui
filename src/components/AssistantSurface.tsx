@@ -39,7 +39,14 @@ export interface AssistantSurfaceProps {
 
   children?: ReactNode;
 
-  /** Position, surface, border and shadow. The size is not yours. */
+  /**
+   * Position, surface, border and shadow. The size is not yours.
+   *
+   * ⚠ THESE ARE COLOUR SLOTS AND THEY APPEND, they do not replace. Every one of
+   * them is composed ON TOP of `ASSISTANT_GEOMETRY`, so a product cannot drop the
+   * shared padding or type size by styling the thing it sits on - which is the exact
+   * way the panels drifted apart in the first place.
+   */
   className?: string;
   headerClassName?: string;
   titleClassName?: string;
@@ -89,10 +96,10 @@ export function AssistantSurface({
         }
       >
         <div className="min-w-0">
-          <p className={titleClassName ?? ASSISTANT_GEOMETRY.headerTitle}>{title}</p>
+          <p className={`${ASSISTANT_GEOMETRY.headerTitle} ${titleClassName ?? ''}`}>{title}</p>
           {subtitle ? (
             <p
-              className={subtitleClassName ?? ASSISTANT_GEOMETRY.headerSubtitle}
+              className={`${ASSISTANT_GEOMETRY.headerSubtitle} ${subtitleClassName ?? ''}`}
               style={subtitleClassName ? undefined : { color: aiVar('--ai-muted') }}
             >
               {subtitle}
@@ -109,7 +116,7 @@ export function AssistantSurface({
               onClick={onClose}
               aria-label={closeLabel}
               title={closeLabel}
-              className={closeClassName ?? ASSISTANT_GEOMETRY.headerClose}
+              className={`${ASSISTANT_GEOMETRY.headerClose} ${closeClassName ?? ''}`}
               style={closeClassName ? undefined : { color: aiVar('--ai-muted') }}
             >
               ×

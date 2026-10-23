@@ -32,6 +32,30 @@ describe('AssistantSurface', () => {
     expect(card.className).toContain('bg-white');
   });
 
+  /**
+   * ⚠ A COLOUR SLOT MUST NOT BE ABLE TO DROP THE SHARED SHAPE. Every class slot
+   * here appends to `ASSISTANT_GEOMETRY`, so a product brands the header without
+   * losing the padding and type size that make the panels one product.
+   */
+  it("keeps the shared shape under a product's own colours", () => {
+    const { container } = render(
+      <AssistantSurface
+        title="Mira"
+        subtitle="Looking ahead with you."
+        headerClassName="border-b border-gray-100"
+        titleClassName="text-[#152237]"
+      />,
+    );
+
+    const header = container.querySelector('header') as HTMLElement;
+    expect(header.className).toContain('px-5');
+    expect(header.className).toContain('border-gray-100');
+
+    const title = header.querySelector('p') as HTMLElement;
+    expect(title.className).toContain('font-semibold');
+    expect(title.className).toContain('text-[#152237]');
+  });
+
   it('is a named dialog, because a keyboard user lands in it from nowhere', () => {
     const { container } = render(<AssistantSurface title="Porter" />);
 
