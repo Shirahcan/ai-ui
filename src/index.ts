@@ -44,6 +44,9 @@ export type { ConfirmCardProps } from './components/ConfirmCard';
 export { GroundedAnswer } from './components/GroundedAnswer';
 export type { GroundedAnswerProps, GroundedAnswerSection } from './components/GroundedAnswer';
 
+export { OnDemandAsk } from './components/OnDemandAsk';
+export type { OnDemandAskProps } from './components/OnDemandAsk';
+
 export { AssistantPanel } from './components/AssistantPanel';
 export type { AssistantPanelProps, ComposerSlotProps } from './components/AssistantPanel';
 

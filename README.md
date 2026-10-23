@@ -88,6 +88,38 @@ Tailwind, which no consumer in this estate is. Auto-importing a stylesheet from 
 point is worse again: the CJS build exists so a product's jest can `require()` this package,
 and a `.css` side-effect import breaks exactly that.
 
+## Asking for something, once: `<OnDemandAsk>`
+
+```tsx
+<OnDemandAsk
+  askLabel="Ask Reeve to write the brief"
+  busyLabel="Writing…"
+  busy={busy}
+  onAsk={() => void ask()}
+  costNote="Optional, and it costs a model call. Everything it would describe is already on this page."
+  refusal={refusal}
+  attribution={provider ? `Written by ${provider}.` : null}
+>
+  {brief}
+</OnDemandAsk>
+```
+
+⚠ **`refusal` and `error` are separate props, and only `error` is an alarm.** This is the
+whole reason the component exists. "The spend cap is reached", "no provider is cleared to
+read the ledger" and "Mira is not configured on this environment" all arrive as SUCCESSFUL
+responses, and all of them leave the screen around them working. Rendered in red they read as
+a broken product - which is what one real surface did for weeks, beside a form that still
+worked perfectly.
+
+⚠ **It never asks by itself.** No effect, no `url`: the product calls `onAsk` from a click.
+A component that could fire on mount is one that will eventually be mounted somewhere nobody
+is reading.
+
+⚠ **The trigger is not a mode.** A surface that asks on OPEN rather than on a click (a
+per-viewer cached day brief, say) renders its own control and uses the slots. Giving this a
+`trigger="open"` would hand it the one decision that genuinely differs per surface, which is
+how a shared component acquires a mode nobody can ever remove.
+
 ## A streamed turn
 
 ```tsx
