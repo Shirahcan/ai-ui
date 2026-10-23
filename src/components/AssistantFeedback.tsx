@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { aiVar } from '../theme';
 
 /**
@@ -47,6 +47,15 @@ export interface AssistantFeedbackPayload {
 export interface AssistantFeedbackProps {
   /** The product's own call. Throwing is how it reports a failure. */
   onSubmit: (payload: AssistantFeedbackPayload) => Promise<void>;
+  /**
+   * The note field's `id`. Defaults to a per-instance one.
+   *
+   * ⚠ PER INSTANCE, BECAUSE A CONVERSATION RENDERS MANY OF THESE. One control per
+   * assistant message means a fixed id would put the same id on a dozen fields, which
+   * is a worse defect than the missing one it fixes: a `<label for>` then points at
+   * whichever the browser finds first. `useId` is what makes a default safe here.
+   */
+  noteId?: string;
   /** Longest free-text note a reader may add. */
   maxTextLength?: number;
   /** Class slots, so a product brands it without forking it. */
@@ -68,6 +77,7 @@ type State =
 
 export function AssistantFeedback({
   onSubmit,
+  noteId,
   maxTextLength = 500,
   className,
   buttonClassName,
@@ -77,6 +87,7 @@ export function AssistantFeedback({
   upIcon,
   downIcon,
 }: AssistantFeedbackProps) {
+  const instanceId = useId();
   const [state, setState] = useState<State>({ status: 'idle' });
   const [open, setOpen] = useState(false);
   const [reasonCode, setReasonCode] = useState<AssistantFeedbackReason | null>(null);
@@ -181,7 +192,18 @@ export function AssistantFeedback({
             })}
           </div>
 
+          {/*
+            ⚠ `id` AND `name`, FOR THE SAME REASON THE COMPOSER CARRIES THEM, and this
+            field shipped without either: Chrome's issues panel reported "a form field
+            element should have an id or name attribute" on every page the control
+            rendered on. Without a `name` the browser cannot restore a half-typed note
+            across a session restore or a back-navigation, so the detail somebody wrote
+            about a bad answer is lost to a mis-click - which is the one thing this field
+            exists to capture.
+          */}
           <textarea
+            id={noteId ?? `ai-feedback-note-${instanceId}`}
+            name="assistant_feedback_note"
             value={reasonText}
             onChange={(e) => setReasonText(e.target.value.slice(0, maxTextLength))}
             placeholder="Add detail (optional)"

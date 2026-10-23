@@ -114,6 +114,47 @@ describe('AssistantFeedback', () => {
   });
 
   /**
+   * ⚠ THE NOTE FIELD NEEDS AN `id` AND A `name`, AND A UNIQUE ONE EACH. It shipped
+   * with neither, and Chrome's issues panel said so on every page the control rendered
+   * on. Without a `name` a half-typed note is lost to a back-navigation - the one thing
+   * this field exists to capture. And because a conversation renders one control per
+   * message, a FIXED id would be a worse defect than the missing one: a dozen fields
+   * sharing an id, with `<label for>` pointing at whichever comes first.
+   */
+  it('names the note field, uniquely per control', () => {
+    const { container } = render(
+      <>
+        <AssistantFeedback onSubmit={vi.fn().mockResolvedValue(undefined)} />
+        <AssistantFeedback onSubmit={vi.fn().mockResolvedValue(undefined)} />
+      </>,
+    );
+
+    for (const button of screen.getAllByRole('button', { name: 'This reply was not helpful' })) {
+      fireEvent.click(button);
+    }
+
+    const notes = [...container.querySelectorAll('textarea')];
+    expect(notes).toHaveLength(2);
+
+    for (const note of notes) {
+      expect(note.id).not.toBe('');
+      expect(note.getAttribute('name')).toBe('assistant_feedback_note');
+    }
+
+    expect(notes[0]?.id).not.toBe(notes[1]?.id);
+  });
+
+  it('lets a product own the note field id, for its own visible label', () => {
+    const { container } = render(
+      <AssistantFeedback onSubmit={vi.fn().mockResolvedValue(undefined)} noteId="mira-note" />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'This reply was not helpful' }));
+
+    expect(container.querySelector('#mira-note')).toBeTruthy();
+  });
+
+  /**
    * ⚠ A FAILED SEND IS AN ALARM AND MUST NOT LOOK SETTLED. The reader's click did not land,
    * so a "Thanks" pill here would be a lie, and the control has to stay usable.
    */
