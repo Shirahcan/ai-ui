@@ -28,13 +28,20 @@ It owns only the parts every panel got wrong and nothing a product wants to chan
 
 | the package owns | the product owns |
 |---|---|
-| the turn lifecycle and `discard` handling | the bubble, the avatar, the timestamp |
-| scroll that follows the answer without fighting the reader | the empty state, the header, the footer |
+| the turn lifecycle and `discard` handling | what goes in a bubble: action cards, tables, avatars |
+| scroll that follows the answer without fighting the reader | the empty state's copy, the header, the footer |
 | the streaming cursor, Stop, the error row + retry | the palette, the fonts, the icons |
-| the `aria-live` region and the keyboard contract | the composer, if the default is not enough |
+| the `aria-live` region and the keyboard contract | the wire: every request, and every failure of one |
 
 Chrome arrives through **slots**; colour arrives through **CSS custom properties**. There is
 nothing left in the component worth copying out.
+
+**1.7 moves the bubble's generic half in** (`MessageBubble`), because the first table said
+the bubble was the product's and three products then proved what that costs: each handed back
+its own, and they drifted on the thing that is not decoration. Porter labelled an answer it
+had not grounded; Mira, whose API returns the same two fields, rendered neither. The frame,
+the role alignment, the user's words never passing through Markdown, and the **ungrounded
+caveat** live here now; `footer` and the two `*BubbleClassName` slots keep the rest yours.
 
 ## Install
 

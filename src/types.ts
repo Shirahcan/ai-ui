@@ -116,4 +116,28 @@ export interface PanelMessage {
 
   /** Set on a turn that failed, so the row can offer a retry. */
   error?: string | null;
+
+  /**
+   * Whether the answer was composed from something the assistant retrieved.
+   *
+   * ⚠ ITS ABSENCE IS NOT `false`. A product that does not report grounding
+   * leaves this `undefined`, which means "no claim made" - and `MessageBubble`
+   * tests for `=== false` precisely so that silence is never read as a
+   * confession. Setting it false is a product saying, on the record, that this
+   * answer came out of the model rather than out of its own data.
+   */
+  grounded?: boolean;
+
+  /**
+   * How sure the assistant said it was: a label, not a number.
+   *
+   * ⚠ A LABEL. Portify stored this as a float for a day because the column
+   * looked numeric, and `(float) 'high'` is `0.0`, so every reply in the
+   * transcript came back as zero and the caveat vanished. The two products that
+   * report it both speak `high` / `medium` / `low`.
+   *
+   * Rendered only alongside `grounded: false`, where it is the difference
+   * between a guess the reader can weigh and a guess they cannot see.
+   */
+  confidence?: string | null;
 }
