@@ -111,6 +111,22 @@ export interface PanelMessage {
    */
   content?: import('react').ReactNode;
 
+  /**
+   * What ai-service called this message: `action_confirm`, `data_table`, and
+   * the rest of the kinds in `messages/kinds.ts`.
+   *
+   * ⚠ IT IS THE SERVICE'S OWN WORD, PASSED STRAIGHT THROUGH. Every product in
+   * the estate gets its answers from the same service, so a product that mapped
+   * these into its own vocabulary would be maintaining a translation layer that
+   * can drift from the service on its own. Anything unrecognised renders as the
+   * message's prose, so an older frontend meeting a newer service degrades to
+   * the sentence rather than to a blank bubble.
+   */
+  kind?: string;
+
+  /** The structured half of the message, read defensively per kind. */
+  meta?: unknown;
+
   /** True while tokens are still arriving, which is what draws the cursor. */
   streaming?: boolean;
 

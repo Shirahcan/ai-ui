@@ -39,6 +39,17 @@ export const ASSISTANT_GEOMETRY = {
    * distinguishable by shape.
    */
   bubble: 'max-w-[85%] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed',
+  /**
+   * An assistant answer drawn as PROSE rather than a bubble - the estate default.
+   *
+   * ⚠ NO PADDING AND NO WIDTH CAP, BECAUSE IT IS NOT A BOX. An answer runs to
+   * several paragraphs with lists and links in it; capping it at 85% of a 34rem
+   * panel and insetting it by another 32px leaves prose reading in a column barely
+   * wider than a phone. The user's own line is short, so it keeps the pill - which
+   * is what makes the two speakers tell apart by SHAPE rather than by colour.
+   */
+  bubblePlain: 'w-full text-[15px] leading-relaxed',
+
   /** For a row that sets its own layout inside: a data table, an action module. */
   bubbleWide: 'w-full rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed',
   /** The ungrounded caveat under an answer. */

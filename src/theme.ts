@@ -33,6 +33,7 @@ export const AI_UI_CSS_VARIABLES = [
   '--ai-border',
   '--ai-accent',
   '--ai-accent-fg',
+  '--ai-accent-soft',
   '--ai-danger',
   '--ai-radius',
   '--ai-bubble-user-bg',
@@ -51,6 +52,7 @@ const FALLBACK: Record<AiUiCssVariable, string> = {
   '--ai-border': '#e2e8f0',
   '--ai-accent': '#334155',
   '--ai-accent-fg': '#ffffff',
+  '--ai-accent-soft': '#f1f5f9',
   '--ai-danger': '#b91c1c',
   '--ai-radius': '0.75rem',
   '--ai-bubble-user-bg': '#f1f5f9',
@@ -69,4 +71,99 @@ const FALLBACK: Record<AiUiCssVariable, string> = {
  */
 export function aiVar(name: AiUiCssVariable): string {
   return `var(${name}, ${FALLBACK[name]})`;
+}
+
+/**
+ * A product's palette, as values rather than class names.
+ *
+ * ⚠ THIS EXISTS BECAUSE CLASS SLOTS WERE THE DRIFT. P18a-e shared every PART of
+ * the panel and left each product to compose its own classes onto them - 25
+ * `*ClassName` props across three panels. Every one was a licensed place to
+ * diverge, and they did: Porter's assistant answers are unbubbled prose and
+ * Mira's were grey bubbles, because `bubbleClassName` is a free string and
+ * nothing in the type system, the tests or the lint had an opinion about it.
+ * A hex value cannot change the shape of anything. That is the point.
+ *
+ * ⚠ ONLY `card` TAKES CLASSES, and only for POSITION, shadow and blur - the
+ * three things that are genuinely the product's (Porter floats above a stack of
+ * two buttons and carries a glass treatment; Mira floats above one and is a flat
+ * white card). The size, radius, padding and type scale are not reachable from
+ * here at all.
+ */
+export interface AssistantTheme {
+  /** The card's own background and its default text colour. */
+  surface: string;
+  fg: string;
+  /** Secondary text: the subtitle, the caveat, timestamps, the prompts label. */
+  muted: string;
+  /** Hairlines: the header rule, the composer rule, input and prompt borders. */
+  border: string;
+
+  /** The brand colour: the send button, the user's bubble, the active thread. */
+  accent: string;
+  /** Text ON the accent. */
+  accentFg: string;
+  /** A wash of the accent: header pills, history icons, prompt hover. */
+  accentSoft?: string;
+
+  /** Error text. Falls back to a readable red. */
+  danger?: string;
+
+  /** The user's bubble, when it is not simply the accent. */
+  userBubbleBg?: string;
+  userBubbleFg?: string;
+
+  /**
+   * How an assistant's answer is drawn.
+   *
+   * ⚠ `plain` IS THE ESTATE DEFAULT, AND IT IS PORTER'S. An answer is prose a
+   * person reads, often several paragraphs with a list in it; a tinted box with a
+   * 85% width cap turns it into a quoted fragment and halves the reading width of
+   * a 34rem panel. The user's own line is short and belongs in a pill, which is
+   * what makes the two speakers tell apart by shape. A product that genuinely
+   * wants filled bubbles says so by name here - it cannot arrive by a stray class.
+   */
+  assistantBubble?: 'plain' | 'filled';
+  /** Only read when `assistantBubble` is `filled`. */
+  assistantBubbleBg?: string;
+  assistantBubbleFg?: string;
+
+  /** Position, shadow, blur. NOT size, radius, padding or type. */
+  card?: string;
+}
+
+/**
+ * A theme as the custom properties every part of the panel already reads.
+ *
+ * ⚠ IT RETURNS A STYLE OBJECT FOR THE CARD, so the whole subtree inherits by
+ * the cascade and nothing has to be threaded through a slot. This is the
+ * mechanism `theme.ts` has described since 1.0 and that no product ever used,
+ * because class slots were available and easier. Removing the slots is what
+ * makes it the only path.
+ */
+export function themeToVars(theme: AssistantTheme): Record<string, string> {
+  const accentSoft = theme.accentSoft ?? theme.accentFg;
+
+  return {
+    '--ai-surface': theme.surface,
+    '--ai-fg': theme.fg,
+    '--ai-muted': theme.muted,
+    '--ai-border': theme.border,
+    '--ai-accent': theme.accent,
+    '--ai-accent-fg': theme.accentFg,
+    '--ai-accent-soft': accentSoft,
+    '--ai-danger': theme.danger ?? '#b91c1c',
+    '--ai-bubble-user-bg': theme.userBubbleBg ?? theme.accent,
+    '--ai-bubble-user-fg': theme.userBubbleFg ?? theme.accentFg,
+    /*
+     * ⚠ TRANSPARENT UNLESS THE PRODUCT ASKED FOR A FILLED BUBBLE. A background
+     * set here while the geometry says `plain` would paint a box around prose
+     * that has no padding to hold it.
+     */
+    '--ai-bubble-assistant-bg':
+      theme.assistantBubble === 'filled'
+        ? (theme.assistantBubbleBg ?? theme.accentSoft ?? '#f1f5f9')
+        : 'transparent',
+    '--ai-bubble-assistant-fg': theme.assistantBubbleFg ?? theme.fg,
+  };
 }

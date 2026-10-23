@@ -33,6 +33,12 @@ export interface MarkdownTheme {
   list?: string;
   orderedList?: string;
   listItem?: string;
+  /** `~~struck~~`, which GFM turns into a `del` nothing used to style. */
+  strikethrough?: string;
+  /** A `- [ ]` list: no bullet, because the box IS the marker. */
+  taskList?: string;
+  taskItem?: string;
+  checkbox?: string;
   strong?: string;
   heading?: string;
   /**
@@ -79,6 +85,10 @@ const FALLBACK: Required<MarkdownTheme> = {
   list: 'my-1 list-disc space-y-1 pl-5',
   orderedList: 'my-1 list-decimal space-y-1 pl-5',
   listItem: 'leading-relaxed',
+  strikethrough: 'line-through opacity-70',
+  taskList: 'my-1 space-y-1 pl-1',
+  taskItem: 'flex items-start gap-2 leading-relaxed',
+  checkbox: 'mt-1 h-3.5 w-3.5 shrink-0 rounded-sm',
   strong: 'font-semibold',
   /*
    * ⚠ SIZED DOWN ON PURPOSE. These arrive from knowledge entries written as
@@ -149,11 +159,35 @@ export function assistantMarkdownComponents(theme: MarkdownTheme = {}): Componen
     },
 
     p: ({ children }) => <p className={t.paragraph}>{children}</p>,
-    ul: ({ children }) => <ul className={t.list}>{children}</ul>,
+    /*
+     * ⚠ A TASK LIST IS NOT A BULLET LIST. `remark-gfm` marks `- [ ]` lists
+     * `contains-task-list` and renders a real checkbox inside each item; without
+     * these two branches the panel drew a bullet AND a box on every line, which
+     * is what a plain `ul`/`li` map does with GFM input.
+     */
+    ul: ({ children, className }) => (
+      <ul className={className?.includes('contains-task-list') ? t.taskList : t.list}>
+        {children}
+      </ul>
+    ),
     ol: ({ children }) => <ol className={t.orderedList}>{children}</ol>,
-    li: ({ children }) => <li className={t.listItem}>{children}</li>,
+    li: ({ children, className }) => (
+      <li className={className?.includes('task-list-item') ? t.taskItem : t.listItem}>
+        {children}
+      </li>
+    ),
+    /*
+     * ⚠ ALWAYS DISABLED. The checkbox reports what the assistant said is done;
+     * it is not a control, and one a reader can tick would silently suggest the
+     * panel had recorded something.
+     */
+    input: ({ checked, type }) =>
+      type === 'checkbox' ? (
+        <input type="checkbox" checked={checked === true} readOnly disabled className={t.checkbox} />
+      ) : null,
     strong: ({ children }) => <strong className={t.strong}>{children}</strong>,
     em: ({ children }) => <em className="italic">{children}</em>,
+    del: ({ children }) => <del className={t.strikethrough}>{children}</del>,
 
     h1: ({ children }) => <h3 className={t.heading1 || t.heading}>{children}</h3>,
     h2: ({ children }) => <h3 className={t.heading2 || t.heading}>{children}</h3>,

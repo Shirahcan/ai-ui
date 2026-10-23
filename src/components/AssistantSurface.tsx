@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { ASSISTANT_GEOMETRY, ASSISTANT_PANEL_SIZE } from '../geometry';
 import { aiVar } from '../theme';
 
@@ -53,6 +53,15 @@ export interface AssistantSurfaceProps {
   subtitleClassName?: string;
   closeClassName?: string;
 
+  /**
+   * Extra inline style for the card, merged UNDER the shared dimensions.
+   *
+   * ⚠ IT CARRIES THE THEME'S CUSTOM PROPERTIES, which is why it cannot be a
+   * class: `--ai-*` values are set per instance and the whole subtree reads them
+   * through the cascade. The size, radius and max-width still win over anything
+   * passed here, so a product cannot reach them this way either.
+   */
+  style?: CSSProperties;
 }
 
 /**
@@ -80,15 +89,27 @@ export function AssistantSurface({
   titleClassName,
   subtitleClassName,
   closeClassName,
+  style,
   ...rest
 }: AssistantSurfaceProps & AssistantSurfaceAttributes) {
   return (
     <div
       className={`flex flex-col overflow-hidden ${className ?? ''}`}
+      /*
+       * ⚠ THE SURFACE COLOUR IS ALWAYS THE THEME'S, NEVER CONDITIONAL ON
+       * `className`. It used to drop to `undefined` the moment a product passed
+       * any class at all - which every product did, because `className` is also
+       * how a panel says WHERE it floats. So the one mechanism this package
+       * documents for branding was unreachable in practice, every product
+       * painted its own background with a utility instead, and the two theming
+       * paths drifted. A product that wants glass sets a translucent
+       * `--ai-surface` and keeps the blur in `className`.
+       */
       style={{
+        ...style,
         ...ASSISTANT_PANEL_SIZE,
-        background: className ? undefined : aiVar('--ai-surface'),
-        color: className ? undefined : aiVar('--ai-fg'),
+        background: aiVar('--ai-surface'),
+        color: aiVar('--ai-fg'),
       }}
       /*
        * ⚠ `role="dialog"` WITH A NAME, because this is a floating region a keyboard

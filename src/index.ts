@@ -98,3 +98,35 @@ export type {
   ToolTrailEntry,
   TurnPhase,
 } from './types';
+
+export { AssistantChat } from './components/AssistantChat';
+export type {
+  AssistantChatAction,
+  AssistantChatComposer,
+  AssistantChatFeedback,
+  AssistantChatIntro,
+  AssistantChatProps,
+  AssistantChatThreads,
+} from './components/AssistantChat';
+
+export { AssistantMessageBody } from './components/AssistantMessageBody';
+export type {
+  AssistantActionConfirm,
+  AssistantActionLaunch,
+  AssistantActionModule,
+  AssistantActionState,
+  AssistantMessageBodyProps,
+  AssistantMessageHandlers,
+} from './components/AssistantMessageBody';
+
+export { themeToVars } from './theme';
+export type { AssistantTheme } from './theme';
+
+export type {
+  AssistantCta,
+  AssistantMessageKind,
+  AssistantMeta,
+  AssistantSource,
+  AssistantTable,
+  AssistantTableColumn,
+} from './messages/kinds';

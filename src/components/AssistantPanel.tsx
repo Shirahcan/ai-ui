@@ -276,7 +276,13 @@ export function AssistantPanel(props: AssistantPanelProps) {
   return (
     <div
       className={className ?? 'flex h-full min-h-0 flex-col'}
-      style={{ background: aiVar('--ai-surface'), color: aiVar('--ai-fg') }}
+      /*
+       * ⚠ NO BACKGROUND HERE. The card above already paints `--ai-surface`, and
+       * painting it a second time stacks two translucent layers: a glass panel at
+       * 70% white came out at 91% and stopped being glass. Inheriting is also what
+       * lets this region sit inside any product's own container.
+       */
+      style={{ color: aiVar('--ai-fg') }}
     >
       {header}
 
