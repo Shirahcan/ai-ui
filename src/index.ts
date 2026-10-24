@@ -138,3 +138,9 @@ export type {
 } from './messages/ActionConfirm';
 
 export { ChatIcon, ThumbDownIcon, ThumbUpIcon, TrashIcon } from './icons';
+
+export { useAssistantConversation } from './useAssistantConversation';
+export type {
+  AssistantConversation,
+  AssistantConversationOptions,
+} from './useAssistantConversation';
