@@ -247,4 +247,50 @@ describe('useAssistantConversation', () => {
     const init = fetchMock.mock.calls[0]?.[1] ?? {};
     expect(JSON.parse(String(init.body)).guest_token).toBe('tok');
   });
+
+  it('shows what the person did while sending what the turn needs, for this turn only', async () => {
+    const bodies: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      bodies.push(String(init.body));
+
+      return sse('event: message\ndata: {"conversation_id":"c","message":{"id":"a","role":"assistant","content":"ok"}}\n\n');
+    }));
+
+    const { result } = renderHook(() => useAssistantConversation(base));
+    act(() => result.current.send('Why will this page not save?', {
+      display: 'Shared a redacted snapshot of this page.',
+      body: { it_snapshot: { route: '/x' } },
+    }));
+    await waitFor(() => expect(result.current.busy).toBe(false));
+
+    expect(result.current.messages[0]?.text).toBe('Shared a redacted snapshot of this page.');
+    expect(JSON.parse(bodies[0] ?? '{}').it_snapshot).toEqual({ route: '/x' });
+
+    act(() => result.current.send('And now?'));
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect(JSON.parse(bodies[1] ?? '{}').it_snapshot).toBeUndefined();
+  });
+
+  it('says a question is queued while the thread restores, and says when the restore failed', async () => {
+    let fail: (e: Error) => void = () => undefined;
+    const onRestoreFailed = vi.fn();
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      sse('event: message\ndata: {"conversation_id":"c","message":{"id":"a","role":"assistant","content":"ok"}}\n\n'),
+    ));
+
+    const { result } = renderHook(() => useAssistantConversation({
+      ...base,
+      restore: () => new Promise((_resolve, reject) => { fail = reject; }),
+      loadConversation: async (id) => ({ id, messages: [] }),
+      onRestoreFailed,
+    }));
+
+    act(() => result.current.send('Typed early'));
+    expect(result.current.queued).toBe(true);
+
+    await act(async () => fail(new Error('gone')));
+
+    await waitFor(() => expect(result.current.queued).toBe(false));
+    expect(onRestoreFailed).toHaveBeenCalledTimes(1);
+  });
 });

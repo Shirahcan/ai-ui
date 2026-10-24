@@ -143,4 +143,5 @@ export { useAssistantConversation } from './useAssistantConversation';
 export type {
   AssistantConversation,
   AssistantConversationOptions,
+  AssistantTurnOptions,
 } from './useAssistantConversation';

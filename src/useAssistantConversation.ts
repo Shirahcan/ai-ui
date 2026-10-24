@@ -49,6 +49,8 @@ export interface AssistantConversationOptions {
   supersede?: boolean;
   /** SSE event names, when the product's route speaks its own dialect. */
   events?: { stage?: string; token?: string; reset?: string; message?: string; error?: string };
+  /** The thread to restore could not be opened, so the panel started empty. Say so. */
+  onRestoreFailed?: () => void;
   /** Called with every finished assistant message, e.g. to refresh a history list. */
   onAnswer?: (raw: unknown, conversationId: string) => void;
 }
@@ -61,9 +63,15 @@ export interface AssistantConversation {
   error: string | null;
   /** False until a restore has settled; a question typed before then is queued, never lost. */
   ready: boolean;
+  /** A question is waiting for the restore to settle - worth telling the person. */
+  queued: boolean;
   /** Whether Stop does anything here. */
   canStop: boolean;
-  send: (text: string) => void;
+  /**
+   * Ask. `display` is what the person's row shows when it differs from what is sent, and `body`
+   * is merged into this one turn only (a consented snapshot, say) - never into the next.
+   */
+  send: (text: string, turn?: AssistantTurnOptions) => void;
   stop: () => void;
   /** Re-send the question that failed, without the person retyping it. Undefined when none failed. */
   retry: (() => void) | undefined;
@@ -71,6 +79,14 @@ export interface AssistantConversation {
   open: (id: string) => Promise<void>;
   /** Drop the open thread when it is deleted elsewhere (from history). */
   forget: (id: string) => void;
+}
+
+/** Per-turn options for `send()`. */
+export interface AssistantTurnOptions {
+  /** The person's row shows this instead of the text sent, e.g. "Shared a snapshot of this page". */
+  display?: string;
+  /** Merged into this turn's request only. */
+  body?: Record<string, unknown>;
 }
 
 const EVENTS = { stage: 'stage', token: 'token', reset: 'reset', message: 'message', error: 'error' };
@@ -132,6 +148,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
   // Questions the person asked that have not been answered yet - what supersede folds together.
   const pendingRef = useRef<string[]>([]);
   const queuedRef = useRef<string | null>(null);
+  const [queued, setQueued] = useState(false);
 
   const names = { ...EVENTS, ...(options.events ?? {}) };
 
@@ -158,13 +175,13 @@ export function useAssistantConversation(options: AssistantConversationOptions):
   }, []);
 
   /** The buffered turn: the fallback for everything, and the whole path where nothing streams. */
-  const buffered = useCallback(async (question: string, signal: AbortSignal) => {
+  const buffered = useCallback(async (question: string, signal: AbortSignal, turnBody: Record<string, unknown> = {}) => {
     const o = optionsRef.current;
     const response = await fetch(o.sendUrl, {
       method: 'POST',
       credentials: 'same-origin',
       headers: json(),
-      body: JSON.stringify({ message: question, conversation_id: conversationRef.current, ...(o.body?.() ?? {}) }),
+      body: JSON.stringify({ message: question, conversation_id: conversationRef.current, ...(o.body?.() ?? {}), ...turnBody }),
       signal,
     });
 
@@ -182,7 +199,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
    * The streamed turn. Returns false when the route is not there (a 404, the gate is off), so the
    * caller falls back to the buffered POST without the person seeing anything but the answer.
    */
-  const streamed = useCallback(async (question: string, turnId: string, signal: AbortSignal): Promise<boolean> => {
+  const streamed = useCallback(async (question: string, turnId: string, signal: AbortSignal, turnBody: Record<string, unknown> = {}): Promise<boolean> => {
     const o = optionsRef.current;
     if (!o.streamUrl) return false;
 
@@ -195,6 +212,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
         conversation_id: conversationRef.current,
         turn_id: turnId,
         ...(o.body?.() ?? {}),
+        ...turnBody,
       }),
       signal,
     });
@@ -241,7 +259,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     return true;
   }, [fail, json, names.error, names.message, names.reset, names.stage, names.token, settle]);
 
-  const run = useCallback(async (question: string) => {
+  const run = useCallback(async (question: string, turnBody: Record<string, unknown> = {}) => {
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -254,10 +272,10 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     setPreview('');
 
     try {
-      const handled = await streamed(question, turnId, controller.signal);
+      const handled = await streamed(question, turnId, controller.signal, turnBody);
       if (!handled && !controller.signal.aborted) {
         setPreview('');
-        await buffered(question, controller.signal);
+        await buffered(question, controller.signal, turnBody);
       }
     } catch (e) {
       // The person's own Stop is not a failure to report back at them.
@@ -311,13 +329,14 @@ export function useAssistantConversation(options: AssistantConversationOptions):
 
   const stop = useCallback(() => halt(false), [halt]);
 
-  const send = useCallback((raw: string) => {
+  const send = useCallback((raw: string, turn: AssistantTurnOptions = {}) => {
     const text = raw.trim();
     if (text === '') return;
 
     // ⚠ A QUESTION TYPED WHILE THE THREAD RESTORES IS QUEUED, NOT DISCARDED.
     if (!ready) {
       queuedRef.current = text;
+      setQueued(true);
 
       return;
     }
@@ -328,11 +347,11 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     }
 
     pendingRef.current = [...pendingRef.current, text];
-    setRows((prev) => [...prev, { id: localId(), role: 'user', text }]);
+    setRows((prev) => [...prev, { id: localId(), role: 'user', text: turn.display ?? text }]);
 
     // Both questions go to the model together, and the turn resolves which one stands.
     const question = pendingRef.current.filter((q, i, all) => all.indexOf(q) === i).join('\n');
-    void run(question);
+    void run(question, turn.body ?? {});
   }, [halt, ready, run]);
 
   const retry = useMemo(
@@ -387,7 +406,9 @@ export function useAssistantConversation(options: AssistantConversationOptions):
         setConversationId(thread.id);
         setRows(thread.messages.map((m) => optionsRef.current.toPanelMessage(m)));
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!cancelled) optionsRef.current.onRestoreFailed?.();
+      })
       .finally(() => {
         if (!cancelled) setReady(true);
       });
@@ -400,9 +421,10 @@ export function useAssistantConversation(options: AssistantConversationOptions):
   // Flush a question typed while the thread was restoring.
   useEffect(() => {
     if (!ready || queuedRef.current === null) return;
-    const queued = queuedRef.current;
+    const text = queuedRef.current;
     queuedRef.current = null;
-    send(queued);
+    setQueued(false);
+    send(text);
   }, [ready, send]);
 
   const messages = useMemo<PanelMessage[]>(
@@ -417,6 +439,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     stage,
     error,
     ready,
+    queued,
     canStop: options.cancelUrl !== undefined,
     send,
     stop,
