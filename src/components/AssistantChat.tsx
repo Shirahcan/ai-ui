@@ -15,6 +15,7 @@ import { Composer } from './Composer';
 import { MessageBubble } from './MessageBubble';
 import { ASSISTANT_GEOMETRY } from '../geometry';
 import { readKind } from '../messages/kinds';
+import { ChatIcon, TrashIcon } from '../icons';
 import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { PanelMessage } from '../types';
@@ -552,8 +553,8 @@ function ThreadList({
             </p>
           </div>
         }
-        icon={threads.icon}
-        deleteIcon={threads.deleteIcon}
+        icon={threads.icon ?? <ChatIcon />}
+        deleteIcon={threads.deleteIcon ?? <TrashIcon />}
         className={ASSISTANT_GEOMETRY.historyList}
         rowClassName={`${ASSISTANT_GEOMETRY.historyRow} transition-colors hover:bg-[var(--ai-accent-soft)]`}
         iconClassName={`${ASSISTANT_GEOMETRY.historyIcon} bg-[var(--ai-accent-soft)] text-[var(--ai-accent)]`}

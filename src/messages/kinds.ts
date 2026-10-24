@@ -48,6 +48,14 @@ export type AssistantMessageKind =
 /** A link the assistant offers after an answer. */
 export interface AssistantCta {
   label: string;
+  /**
+   * Where it goes.
+   *
+   * ⚠ THE SERVICE CALLS IT `link` IN SOME KINDS AND `href` IN OTHERS, and
+   * `readCtas` normalises both into `href`. A product reading the raw bag would
+   * have to know which kind uses which, and the one that guessed wrong would
+   * render a CTA that goes nowhere.
+   */
   href?: string;
   /** An action id, when the CTA runs something rather than navigating. */
   action?: string;
@@ -186,7 +194,12 @@ export function readCtas(meta: AssistantMeta): AssistantCta[] {
   const raw = meta.cta;
   const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
 
-  return list.filter((cta): cta is AssistantCta => readString(cta?.label) !== null);
+  return list
+    .filter((cta): cta is AssistantCta => readString(cta?.label) !== null)
+    .map((cta) => ({
+      ...cta,
+      href: cta.href ?? (cta as { link?: string }).link,
+    }));
 }
 
 /**

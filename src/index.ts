@@ -136,3 +136,5 @@ export type {
   AssistantActionOutcome,
   AssistantActionResult,
 } from './messages/ActionConfirm';
+
+export { ChatIcon, ThumbDownIcon, ThumbUpIcon, TrashIcon } from './icons';

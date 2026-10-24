@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
+import { ThumbDownIcon, ThumbUpIcon } from '../icons';
 import { aiVar } from '../theme';
 
 /**
@@ -64,7 +65,8 @@ export interface AssistantFeedbackProps {
   chipClassName?: string;
   chipSelectedClassName?: string;
   submitClassName?: string;
-  /** The icons. Omitted, the control falls back to readable text. */
+  /** The icons. Omitted, the package draws its own - never the bare word, which
+   *  overflowed the 28px button the panel puts it in. */
   upIcon?: ReactNode;
   downIcon?: ReactNode;
 }
@@ -117,7 +119,7 @@ export function AssistantFeedback({
         className={className ?? 'mt-2 inline-flex items-center gap-1.5 px-3 py-1 text-xs'}
         style={{ color: aiVar('--ai-muted') }}
       >
-        <span aria-hidden="true">{state.sentiment === 'positive' ? upIcon : downIcon}</span>
+        <span aria-hidden="true">{state.sentiment === 'positive' ? (upIcon ?? <ThumbUpIcon />) : (downIcon ?? <ThumbDownIcon />)}</span>
         <span>Thanks for the feedback</span>
       </div>
     );
@@ -136,7 +138,7 @@ export function AssistantFeedback({
           className={buttonClassName ?? fallbackButton}
           style={{ color: aiVar('--ai-muted') }}
         >
-          {upIcon ?? 'Helpful'}
+          {upIcon ?? <ThumbUpIcon />}
         </button>
 
         <button
@@ -148,7 +150,7 @@ export function AssistantFeedback({
           className={buttonClassName ?? fallbackButton}
           style={{ color: aiVar('--ai-muted') }}
         >
-          {downIcon ?? 'Not helpful'}
+          {downIcon ?? <ThumbDownIcon />}
         </button>
 
         {state.status === 'error' ? (

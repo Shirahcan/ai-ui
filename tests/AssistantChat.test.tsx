@@ -225,4 +225,29 @@ describe('AssistantChat', () => {
     expect(container.textContent).toContain('Best-effort');
     expect(container.textContent?.match(/Best-effort/g)).toHaveLength(1);
   });
+
+  /*
+   * ⚠ THE GUEST PANEL PASSED NO ICONS AND THE PANEL DREW THE WORDS. "Helpful"
+   * and "Not helpful" landed inside two 28px circles sized for a glyph and
+   * overlapped on a public page. A product must never have to supply an icon for
+   * the panel to look right.
+   */
+  it('draws the rating icons itself when a product passes none', () => {
+    const { container } = render(
+      <AssistantChat
+        theme={PORTER}
+        title="Porter"
+        onSend={vi.fn()}
+        messages={[{ id: 'a1', role: 'assistant', text: 'An answer.' }]}
+        feedback={{ onSubmit: vi.fn() }}
+      />,
+    );
+    const up = container.querySelector('[aria-label="This reply was helpful"]');
+    const down = container.querySelector('[aria-label="This reply was not helpful"]');
+
+    expect(up?.querySelector('svg')).toBeTruthy();
+    expect(down?.querySelector('svg')).toBeTruthy();
+    expect(up?.textContent).toBe('');
+    expect(down?.textContent).toBe('');
+  });
 });
