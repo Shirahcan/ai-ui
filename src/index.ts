@@ -143,5 +143,8 @@ export { useAssistantConversation } from './useAssistantConversation';
 export type {
   AssistantConversation,
   AssistantConversationOptions,
+  AssistantHumanCheck,
   AssistantTurnOptions,
 } from './useAssistantConversation';
+export { HumanCheck } from './components/HumanCheck';
+export type { HumanCheckProps } from './components/HumanCheck';

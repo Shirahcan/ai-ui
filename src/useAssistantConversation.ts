@@ -53,6 +53,23 @@ export interface AssistantConversationOptions {
   onRestoreFailed?: () => void;
   /** Called with every finished assistant message, e.g. to refresh a history list. */
   onAnswer?: (raw: unknown, conversationId: string) => void;
+  /**
+   * A bot check (Cloudflare Turnstile) on the FIRST turn of a thread, for a panel anybody on the
+   * internet can reach. Pass `conversation.humanCheck` to `AssistantChat` and it draws the widget.
+   *
+   * ⚠ AN EMPTY `siteKey` TURNS IT OFF, deliberately: that is local and dev, where the backend
+   * skips verification to match. A missing key must never strand a question in a queue.
+   */
+  humanCheck?: { siteKey: string; field?: string };
+}
+
+/** What `AssistantChat` needs to draw the bot check. */
+export interface AssistantHumanCheck {
+  siteKey: string;
+  onToken: (token: string) => void;
+  resetSignal: number;
+  /** A question is held until the check passes; it sends itself the moment it does. */
+  waiting: boolean;
 }
 
 export interface AssistantConversation {
@@ -67,6 +84,8 @@ export interface AssistantConversation {
   queued: boolean;
   /** Whether Stop does anything here. */
   canStop: boolean;
+  /** Hand this to `AssistantChat`. Undefined when the product asked for no check. */
+  humanCheck: AssistantHumanCheck | undefined;
   /**
    * Ask. `display` is what the person's row shows when it differs from what is sent, and `body`
    * is merged into this one turn only (a consented snapshot, say) - never into the next.
@@ -149,6 +168,35 @@ export function useAssistantConversation(options: AssistantConversationOptions):
   const pendingRef = useRef<string[]>([]);
   const queuedRef = useRef<string | null>(null);
   const [queued, setQueued] = useState(false);
+
+  /*
+   * ⚠ THE TOKEN IS SINGLE-USE AND RIDES THE FIRST TURN ONLY. Once a thread exists the server has
+   * already met this visitor. A token is spent the moment it is sent, so it is cleared and a fresh
+   * challenge is asked for straight away - otherwise a Retry of a failed first turn would carry
+   * a spent token and be refused.
+   */
+  const checkKey = options.humanCheck?.siteKey ?? '';
+  const [checkToken, setCheckToken] = useState('');
+  const checkTokenRef = useRef('');
+  const [checkReset, setCheckReset] = useState(0);
+  const needsCheck = useCallback(
+    () => (optionsRef.current.humanCheck?.siteKey ?? '') !== '' && conversationRef.current === null,
+    [],
+  );
+  const onCheckToken = useCallback((token: string) => {
+    checkTokenRef.current = token;
+    setCheckToken(token);
+  }, []);
+  /** The token for this turn, spent as it is read. */
+  const spendCheck = useCallback((): Record<string, unknown> => {
+    if (!needsCheck()) return {};
+    const token = checkTokenRef.current;
+    checkTokenRef.current = '';
+    setCheckToken('');
+    setCheckReset((n) => n + 1);
+
+    return { [optionsRef.current.humanCheck?.field ?? 'turnstile_token']: token };
+  }, [needsCheck]);
 
   const names = { ...EVENTS, ...(options.events ?? {}) };
 
@@ -259,7 +307,8 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     return true;
   }, [fail, json, names.error, names.message, names.reset, names.stage, names.token, settle]);
 
-  const run = useCallback(async (question: string, turnBody: Record<string, unknown> = {}) => {
+  const run = useCallback(async (question: string, extraBody: Record<string, unknown> = {}) => {
+    const turnBody = { ...extraBody, ...spendCheck() };
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -291,7 +340,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
         setPreview('');
       }
     }
-  }, [buffered, fail, streamed]);
+  }, [buffered, fail, spendCheck, streamed]);
 
   /**
    * Stop: for the person immediately, and for real on the server.
@@ -333,8 +382,9 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     const text = raw.trim();
     if (text === '') return;
 
-    // ⚠ A QUESTION TYPED WHILE THE THREAD RESTORES IS QUEUED, NOT DISCARDED.
-    if (!ready) {
+    // ⚠ A QUESTION TYPED WHILE THE THREAD RESTORES, OR BEFORE THE BOT CHECK PASSES, IS QUEUED,
+    // NOT DISCARDED. It sends itself when the wait is over; nobody presses Send twice.
+    if (!ready || (needsCheck() && checkTokenRef.current === '')) {
       queuedRef.current = text;
       setQueued(true);
 
@@ -352,11 +402,24 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     // Both questions go to the model together, and the turn resolves which one stands.
     const question = pendingRef.current.filter((q, i, all) => all.indexOf(q) === i).join('\n');
     void run(question, turn.body ?? {});
-  }, [halt, ready, run]);
+  }, [halt, needsCheck, ready, run]);
 
   const retry = useMemo(
-    () => (failed !== null && !busy ? () => { setError(null); void run(failed); } : undefined),
-    [busy, failed, run],
+    () => (failed !== null && !busy
+      ? () => {
+          setError(null);
+          // A failed FIRST turn spent its token; wait for the fresh one rather than be refused.
+          if (needsCheck() && checkTokenRef.current === '') {
+            queuedRef.current = failed;
+            setQueued(true);
+            setRows((prev) => prev.slice(0, -1));
+
+            return;
+          }
+          void run(failed);
+        }
+      : undefined),
+    [busy, failed, needsCheck, run],
   );
 
   const startNew = useCallback(() => {
@@ -418,14 +481,15 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     };
   }, []);
 
-  // Flush a question typed while the thread was restoring.
+  // Flush a question typed while the thread was restoring, or held for the bot check.
   useEffect(() => {
     if (!ready || queuedRef.current === null) return;
+    if (needsCheck() && checkToken === '') return;
     const text = queuedRef.current;
     queuedRef.current = null;
     setQueued(false);
     send(text);
-  }, [ready, send]);
+  }, [checkToken, needsCheck, ready, send]);
 
   const messages = useMemo<PanelMessage[]>(
     () => (busy && preview !== '' ? [...rows, { id: PREVIEW_ID, role: 'assistant', text: preview, streaming: true }] : rows),
@@ -441,6 +505,9 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     ready,
     queued,
     canStop: options.cancelUrl !== undefined,
+    humanCheck: checkKey === ''
+      ? undefined
+      : { siteKey: checkKey, onToken: onCheckToken, resetSignal: checkReset, waiting: queued && conversationId === null && checkToken === '' },
     send,
     stop,
     retry,

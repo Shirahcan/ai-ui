@@ -12,6 +12,7 @@ import { AssistantIntro } from './AssistantIntro';
 import { AssistantPanel } from './AssistantPanel';
 import { AssistantSurface, type AssistantSurfaceAttributes } from './AssistantSurface';
 import { Composer } from './Composer';
+import { HumanCheck } from './HumanCheck';
 import { MessageBubble } from './MessageBubble';
 import { ASSISTANT_GEOMETRY } from '../geometry';
 import { readKind } from '../messages/kinds';
@@ -19,6 +20,7 @@ import { ChatIcon, TrashIcon } from '../icons';
 import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { PanelMessage } from '../types';
+import type { AssistantHumanCheck } from '../useAssistantConversation';
 
 /**
  * THE assistant panel. Not parts of one - the whole thing, drawn here.
@@ -197,7 +199,17 @@ export interface AssistantChatProps {
   feedback?: AssistantChatFeedback;
   /** One line under the composer. */
   footer?: ReactNode;
+  /**
+   * The bot check for a panel anybody can reach: pass `conversation.humanCheck` straight through.
+   * The panel draws it, pads it only while Cloudflare asks for a click, and says why a question
+   * is waiting. A product writes no Turnstile code of its own.
+   */
+  humanCheck?: AssistantHumanCheck;
 }
+
+/** Shown while a question waits on the bot check. It sends itself; nobody presses Send again. */
+const HUMAN_CHECK_NOTICE =
+  'Just a moment - checking your browser. If a "Verify you are human" box appears below, tick it and your question will send.';
 
 /**
  * A row the server has acknowledged and that has something to rate.
@@ -258,6 +270,7 @@ export function AssistantChat({
   handlers,
   feedback,
   footer,
+  humanCheck,
   ...attributes
 }: AssistantChatProps & AssistantSurfaceAttributes) {
   const [showHistory, setShowHistory] = useState(false);
@@ -382,9 +395,9 @@ export function AssistantChat({
           className="flex min-h-0 flex-1 flex-col"
           listClassName={ASSISTANT_GEOMETRY.list}
           header={
-            notice ? (
+            notice || humanCheck?.waiting ? (
               <p className="mx-5 mt-5 rounded-xl bg-[var(--ai-accent-soft)] px-3 py-2 text-sm text-[var(--ai-muted)]">
-                {notice}
+                {notice || HUMAN_CHECK_NOTICE}
               </p>
             ) : undefined
           }
@@ -489,6 +502,9 @@ export function AssistantChat({
         />
       )}
 
+      {humanCheck ? (
+        <HumanCheck siteKey={humanCheck.siteKey} onToken={humanCheck.onToken} resetSignal={humanCheck.resetSignal} />
+      ) : null}
       {footer}
     </AssistantSurface>
   );

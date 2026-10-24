@@ -250,4 +250,21 @@ describe('AssistantChat', () => {
     expect(up?.textContent).toBe('');
     expect(down?.textContent).toBe('');
   });
+
+  it('draws the bot check and says why a question is waiting', () => {
+    const { container, getByText } = mount(MIRA, {
+      messages: [],
+      humanCheck: { siteKey: 'site-key', onToken: vi.fn(), resetSignal: 0, waiting: true },
+    });
+
+    expect(container.querySelector('[data-aiui-human-check]')).not.toBeNull();
+    expect(getByText(/Verify you are human/)).toBeTruthy();
+  });
+
+  it('draws no bot check when the product asked for none', () => {
+    const { container, queryByText } = mount(MIRA);
+
+    expect(container.querySelector('[data-aiui-human-check]')).toBeNull();
+    expect(queryByText(/Verify you are human/)).toBeNull();
+  });
 });

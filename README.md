@@ -271,6 +271,29 @@ up to re-read something is dragged back to the bottom several times a second. `u
 follows the stream **only while the reader is already at the bottom**, reports `isPinned` when
 they are not, and offers them the way back instead of taking the decision from them.
 
+## A bot check on a public panel (1.16)
+
+A panel anybody on the internet can reach costs a provider call per turn, so it carries
+Cloudflare Turnstile on the FIRST turn of a thread. The product writes no Turnstile code:
+
+```tsx
+const conversation = useAssistantConversation({
+  sendUrl: '/api/proxy/assistant/public/chat',
+  toPanelMessage,
+  humanCheck: { siteKey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '' },
+});
+
+<AssistantChat {...rest} humanCheck={conversation.humanCheck} />
+```
+
+* The token rides the first turn as `turnstile_token` (rename it with `field`), and never again.
+* A question asked before the check passes is HELD and sends itself when it does. The panel says
+  why, and tells the visitor to tick "Verify you are human" if Cloudflare asks.
+* Tokens are single-use: one is spent the moment it is sent and a fresh challenge starts, so a
+  Retry of a failed first turn waits for a new token instead of being refused.
+* An empty `siteKey` turns the check off (local and dev, where the backend skips it too).
+* `<HumanCheck>` is exported on its own for a form that is not a chat.
+
 ## Stop, without giving up your turn loop
 
 `useTurnCancel` is the cancel discipline on its own, for a panel that keeps its own turn:

@@ -293,4 +293,81 @@ describe('useAssistantConversation', () => {
     await waitFor(() => expect(result.current.queued).toBe(false));
     expect(onRestoreFailed).toHaveBeenCalledTimes(1);
   });
+
+  describe('the bot check on a public panel', () => {
+    const publicBase = {
+      sendUrl: '/api/proxy/assistant/public/chat',
+      toPanelMessage,
+      humanCheck: { siteKey: 'site-key' },
+    };
+
+    it('holds the first question until the check passes, then sends it with the token', async () => {
+      const fetchMock = vi.fn(async () => json({ data: { conversation_id: 'c-g', message: answer() } }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { result } = renderHook(() => useAssistantConversation(publicBase));
+      act(() => result.current.send('How do I find a consultant?'));
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.current.humanCheck?.waiting).toBe(true);
+
+      act(() => result.current.humanCheck?.onToken('tok-1'));
+
+      await waitFor(() => expect(result.current.conversationId).toBe('c-g'));
+      const sent = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+      expect(sent.turnstile_token).toBe('tok-1');
+      expect(sent.message).toBe('How do I find a consultant?');
+      expect(result.current.humanCheck?.waiting).toBe(false);
+    });
+
+    it('sends no token once a thread exists, and asks for a fresh one after spending it', async () => {
+      const fetchMock = vi.fn(async () => json({ data: { conversation_id: 'c-g', message: answer() } }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { result } = renderHook(() => useAssistantConversation(publicBase));
+      act(() => result.current.humanCheck?.onToken('tok-1'));
+      const resetBefore = result.current.humanCheck?.resetSignal ?? 0;
+      act(() => result.current.send('First'));
+      await waitFor(() => expect(result.current.busy).toBe(false));
+      expect(result.current.humanCheck?.resetSignal).toBeGreaterThan(resetBefore);
+
+      act(() => result.current.send('Second'));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const second = JSON.parse((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
+      expect(second.turnstile_token).toBeUndefined();
+      expect(second.conversation_id).toBe('c-g');
+    });
+
+    it('waits for a fresh token before retrying a failed first turn', async () => {
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce(json({ message: 'Provider down.' }, 503))
+        .mockResolvedValueOnce(json({ data: { conversation_id: 'c-r', message: answer() } }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { result } = renderHook(() => useAssistantConversation(publicBase));
+      act(() => result.current.humanCheck?.onToken('tok-1'));
+      act(() => result.current.send('Hello'));
+      await waitFor(() => expect(result.current.retry).toBeDefined());
+
+      act(() => result.current.retry?.());
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      act(() => result.current.humanCheck?.onToken('tok-2'));
+      await waitFor(() => expect(result.current.conversationId).toBe('c-r'));
+      const retried = JSON.parse((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
+      expect(retried.turnstile_token).toBe('tok-2');
+      expect(result.current.messages.filter((m) => m.role === 'user')).toHaveLength(1);
+    });
+
+    it('is off without a site key, so a dev box never strands a question', async () => {
+      const fetchMock = vi.fn(async () => json({ data: { conversation_id: 'c-d', message: answer() } }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { result } = renderHook(() => useAssistantConversation({ ...publicBase, humanCheck: { siteKey: '' } }));
+      act(() => result.current.send('Hi'));
+
+      await waitFor(() => expect(result.current.conversationId).toBe('c-d'));
+      expect(result.current.humanCheck).toBeUndefined();
+    });
+  });
 });
