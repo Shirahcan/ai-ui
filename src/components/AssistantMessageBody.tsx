@@ -14,8 +14,10 @@ import {
   PendingWork,
   SourceList,
 } from '../messages/blocks';
+import { GroundedAnswer } from './GroundedAnswer';
 import {
   readCtas,
+  readGrounded,
   readKind,
   readMeta,
   readSources,
@@ -242,6 +244,8 @@ export function AssistantMessageBody({
         />
       ) : null}
 
+      {kind === 'grounded_answer' ? <Grounded meta={meta} markdownTheme={markdownTheme} /> : null}
+
       {kind === 'research_dispatched' ? (
         <PendingWork
           label="Looking into this"
@@ -351,5 +355,37 @@ function NarratedTables({
         />
       ))}
     </>
+  );
+}
+
+/**
+ * A grounded answer, drawn inside the shared bubble.
+ *
+ * ⚠ NO PRODUCT CLASSES. The panel's palette arrives through `--ai-*`, which
+ * `<GroundedAnswer>` already reads, so a product cannot make Reeve's answer look
+ * different from anybody else's grounded answer by styling it here.
+ */
+function Grounded({
+  meta,
+  markdownTheme,
+}: {
+  meta: ReturnType<typeof readMeta>;
+  markdownTheme?: MarkdownTheme;
+}) {
+  const grounded = readGrounded(meta);
+  if (!grounded) return null;
+
+  return (
+    <GroundedAnswer
+      caveats={grounded.caveats}
+      caveatsLabel={grounded.caveats_label}
+      sections={grounded.sections}
+      citations={grounded.citations}
+      citationsLabel={grounded.citations_label}
+      refusal={grounded.refusal}
+      attribution={grounded.attribution}
+      markdownTheme={markdownTheme}
+      className="mt-2 space-y-3 text-sm"
+    />
   );
 }

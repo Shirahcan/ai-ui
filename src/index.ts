@@ -124,6 +124,7 @@ export type { AssistantTheme } from './theme';
 
 export type {
   AssistantCta,
+  AssistantGrounded,
   AssistantMessageKind,
   AssistantMeta,
   AssistantSource,

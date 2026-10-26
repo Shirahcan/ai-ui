@@ -243,4 +243,57 @@ describe('AssistantMessageBody', () => {
     expect(container.querySelector('input[aria-label="add_note"]')).toBeTruthy();
     expect(container.textContent).toContain('Add a note');
   });
+
+  it('draws a grounded answer: caveats, labelled sections and the lines it leaned on', () => {
+    const { container } = body({
+      id: 'm',
+      text: '',
+      kind: 'grounded_answer',
+      meta: {
+        grounded: {
+          caveats: ['The October bank feed is not imported.'],
+          sections: [
+            { label: 'What the books say', body: 'Revenue is **$12,000**.' },
+            { label: 'What the rule says', body: '', note: 'Not a verdict.' },
+          ],
+          citations: ['4000 Revenue: 12,000.00', null],
+          citations_label: 'The lines this answer leaned on',
+          attribution: 'Written by gemini from the facts above.',
+        },
+      },
+    });
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('The October bank feed is not imported.');
+    expect(text).toContain('What the books say');
+    expect(container.querySelector('strong')?.textContent).toBe('$12,000');
+    // An empty section is not drawn as a heading with nothing under it.
+    expect(text).not.toContain('What the rule says');
+    expect(text).toContain('The lines this answer leaned on (1)');
+    expect(text).toContain('Written by gemini');
+  });
+
+  it('draws a grounded refusal INSTEAD of its sections', () => {
+    const { container } = body({
+      id: 'm',
+      text: '',
+      kind: 'grounded_answer',
+      meta: {
+        grounded: {
+          sections: [{ label: 'What the books say', body: 'An estimate.' }],
+          refusal: 'The books do not contain this.',
+        },
+      },
+    });
+
+    expect(container.textContent).toContain('The books do not contain this.');
+    expect(container.textContent).not.toContain('An estimate.');
+  });
+
+  it('draws a grounded_answer with no grounded meta as its prose alone', () => {
+    const { container } = body({ id: 'm', text: 'Just words.', kind: 'grounded_answer' });
+
+    expect(container.textContent).toBe('Just words.');
+  });
 });
+

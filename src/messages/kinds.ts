@@ -43,7 +43,14 @@ export type AssistantMessageKind =
   /** A finished research answer with its sources. */
   | 'research'
   /** A request for the reader's consent before reading something. */
-  | 'it_snapshot_request';
+  | 'it_snapshot_request'
+  /**
+   * An answer built ONLY from facts the product gathered first: what could not be
+   * verified, the labelled sections, the lines it leaned on, or a refusal. Reeve's
+   * shape. Drawn with `<GroundedAnswer>` inside the shared panel, so a product
+   * that grounds its answers does not need a page of its own to show them.
+   */
+  | 'grounded_answer';
 
 /** A link the assistant offers after an answer. */
 export interface AssistantCta {
@@ -142,6 +149,24 @@ export interface AssistantMeta {
   sources?: AssistantSource[];
   it_question?: string;
   module_launch?: { module_id: string; label?: string; draft_body?: string } | null;
+  grounded?: AssistantGrounded;
+}
+
+/**
+ * The structured half of a `grounded_answer`.
+ *
+ * ⚠ A REFUSAL IS AN ANSWER, NOT AN ERROR. When `refusal` is set the sections are not
+ * drawn: an assistant that says "the books do not contain this" must not also show a
+ * half-filled section beside it that reads like an estimate.
+ */
+export interface AssistantGrounded {
+  caveats?: string[];
+  caveats_label?: string;
+  sections?: Array<{ label: string; body?: string | null; note?: string }>;
+  citations?: string[];
+  citations_label?: string;
+  refusal?: string | null;
+  attribution?: string | null;
 }
 
 /** A plain object, or null for anything else a wire format might send. */
@@ -178,6 +203,7 @@ export function readKind(value: unknown): AssistantMessageKind {
     'research_dispatched',
     'research',
     'it_snapshot_request',
+    'grounded_answer',
   ];
   const kind = readString(value);
 
@@ -275,4 +301,39 @@ export function readSources(meta: AssistantMeta): AssistantSource[] {
   const list = Array.isArray(meta.sources) ? meta.sources : [];
 
   return list.filter((s): s is AssistantSource => readString(s?.title) !== null);
+}
+
+/**
+ * The grounded half of a message, or null when the service sent none.
+ *
+ * ⚠ EVERY LIST IS FILTERED TO STRINGS. It is a wire format: one null in `citations`
+ * must cost that line, not the render of the whole answer.
+ */
+export function readGrounded(meta: AssistantMeta): AssistantGrounded | null {
+  const g = record(meta.grounded);
+  if (!g) return null;
+
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((v): v is string => readString(v) !== null) : [];
+
+  const sections = Array.isArray(g.sections)
+    ? (g.sections as unknown[])
+        .map((raw) => record(raw))
+        .filter((r): r is Record<string, unknown> => r !== null && readString(r.label) !== null)
+        .map((r) => ({
+          label: readString(r.label) as string,
+          body: typeof r.body === 'string' ? r.body : null,
+          note: readString(r.note) ?? undefined,
+        }))
+    : [];
+
+  return {
+    caveats: strings(g.caveats),
+    caveats_label: readString(g.caveats_label) ?? undefined,
+    sections,
+    citations: strings(g.citations),
+    citations_label: readString(g.citations_label) ?? undefined,
+    refusal: readString(g.refusal),
+    attribution: readString(g.attribution),
+  };
 }
