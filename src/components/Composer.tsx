@@ -151,6 +151,15 @@ export function Composer({
     if (!el) return;
 
     el.style.height = 'auto';
+
+    /*
+     * ⚠ NOT RENDERED MEANS NOTHING TO MEASURE. A panel kept mounted but `hidden`
+     * (Reeve keeps its conversation that way) reports a scrollHeight of 0, and
+     * locking to it pinned the box at its padding - 26px, with the placeholder
+     * cut in half - until somebody typed. Left at `auto`, `rows={1}` sizes it.
+     */
+    if (el.getClientRects().length === 0) return;
+
     const border = el.offsetHeight - el.clientHeight;
     el.style.height = `${Math.min(el.scrollHeight + border, MAX_HEIGHT)}px`;
   }, [value]);

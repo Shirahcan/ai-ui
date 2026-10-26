@@ -68,6 +68,9 @@ export type {
   AssistantThread,
 } from './components/AssistantHistory';
 
+export { AssistantLauncher } from './components/AssistantLauncher';
+export type { AssistantLauncherProps } from './components/AssistantLauncher';
+
 export { AssistantIntro } from './components/AssistantIntro';
 export type { AssistantIntroProps } from './components/AssistantIntro';
 

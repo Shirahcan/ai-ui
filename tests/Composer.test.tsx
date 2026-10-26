@@ -198,4 +198,27 @@ describe('Composer', () => {
     fireEvent.click(stop);
     expect(onStop).toHaveBeenCalledTimes(1);
   });
+
+  it('does not lock its height while it is not rendered (a hidden panel)', () => {
+    // jsdom renders nothing, which is exactly the hidden-panel case: no client rects.
+    render(<Harness placeholder="What is year to date revenue?" />);
+    const box = screen.getByPlaceholderText('What is year to date revenue?') as HTMLTextAreaElement;
+
+    expect(box.style.height).toBe('auto');
+  });
+
+  it('locks to the measured height once it is rendered', () => {
+    const rects = vi
+      .spyOn(HTMLElement.prototype, 'getClientRects')
+      .mockReturnValue([{}] as unknown as DOMRectList);
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(48);
+
+    render(<Harness placeholder="ask" />);
+
+    expect((screen.getByPlaceholderText('ask') as HTMLTextAreaElement).style.height).toBe('48px');
+
+    rects.mockRestore();
+    scroll.mockRestore();
+  });
 });
+
