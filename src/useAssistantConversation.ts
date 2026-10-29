@@ -53,8 +53,8 @@ export interface AssistantConversationOptions {
    * GET, SSE: the thread's events, for answers that finish after their turn (a big data list).
    *
    * ⚠ OPENED ONLY WHILE SOMETHING IS STILL WORKING. When a message's `deferred` work has no
-   * answer yet, the hook draws a "still working" row and listens here; a `turn` event carries
-   * the product's late message (`{message, event_id?}`), which is inserted in place of the row.
+   * answer yet, the hook keeps that reply live (a cursor, no extra row) and listens here; a `turn` event carries
+   * the product's late message (`{message, event_id?}`), which is inserted after that reply.
    * The product proxies ai-service's channel stream behind its own auth. Omit it and the answer
    * still appears the next time the thread is opened.
    */
@@ -141,18 +141,16 @@ export function openDeferred(rows: PanelMessage[]): DeferredWork[] {
   return open;
 }
 
-/** The "still working" row for one open ticket. */
-function waitingRow(work: DeferredWork): PanelMessage {
-  const what = work.label.trim() === '' ? 'that' : `"${work.label}"`;
-
-  return {
-    id: `aiui-deferred-${work.ticket}`,
-    role: 'assistant',
-    // ⚠ The row is the assistant speaking, so it speaks in the first person like every answer.
-    text: `I'm still working on ${what}. I'll post the answer here as soon as it's ready.`,
-    // The cursor is what says "in progress"; it also keeps the row out of rating.
-    streaming: true,
-  };
+/**
+ * The reply that started background work, drawn as still in progress.
+ *
+ * ⚠ NO SECOND BUBBLE. The reply already says, in the assistant's own first-person words, that it
+ * is still working on it (ai-service's frame rule). A separate "still working" row repeated the
+ * same sentence under it (owner, 2026-10-29). The reply keeps a live cursor instead, which also
+ * keeps it out of rating until the answer lands.
+ */
+function stillWorking(row: PanelMessage, open: Set<string>): PanelMessage {
+  return (row.deferred ?? []).some((d) => open.has(d.ticket)) ? { ...row, streaming: true } : row;
 }
 
 let seq = 0;
@@ -599,7 +597,8 @@ export function useAssistantConversation(options: AssistantConversationOptions):
   }, [conversationId, json, waitingKey]);
 
   const messages = useMemo<PanelMessage[]>(() => {
-    const shown = deferred.length > 0 ? [...rows, ...deferred.map(waitingRow)] : rows;
+    const open = new Set(deferred.map((d) => d.ticket));
+    const shown = open.size > 0 ? rows.map((row) => stillWorking(row, open)) : rows;
 
     return busy && preview !== '' ? [...shown, { id: PREVIEW_ID, role: 'assistant', text: preview, streaming: true }] : shown;
   }, [busy, deferred, preview, rows]);

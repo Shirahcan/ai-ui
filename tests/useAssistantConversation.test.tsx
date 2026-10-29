@@ -429,7 +429,9 @@ describe('useAssistantConversation', () => {
       await waitFor(() => expect(urls.filter((u) => u.startsWith('/events'))).toHaveLength(1));
       await new Promise((resolve) => setTimeout(resolve, 1200));
       expect(urls.filter((u) => u.startsWith('/events'))).toHaveLength(1);
-      expect(result.current.messages.some((m) => m.text.startsWith("I'm still working on"))).toBe(true);
+      // No second bubble: the reply that started the work carries the live cursor.
+      expect(result.current.messages.map((m) => m.id)).toEqual([expect.stringMatching(/^local-/), 'a1']);
+      expect(result.current.messages[1]?.streaming).toBe(true);
     });
 
     it('opens no events line when nothing is waiting', async () => {
