@@ -410,6 +410,28 @@ describe('useAssistantConversation', () => {
       expect(openDeferred([asked, { id: 'a2', role: 'assistant', text: '12.', resolves: 't-1' }])).toEqual([]);
     });
 
+    it('stops listening at once when the events route says it is not enabled (404)', async () => {
+      const urls: string[] = [];
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        urls.push(url);
+        if (url.startsWith('/events')) return json({ message: 'Live updates are not enabled.' }, 404);
+
+        return sse('event: message\ndata: {"conversation_id":"c-9","message":{"id":"a1","role":"assistant","content":"On it.","deferred":[{"ticket":"t-1","label":"cases"}]}}\n\n');
+      }));
+
+      const { result } = renderHook(() => useAssistantConversation({
+        ...base,
+        toPanelMessage: mapDeferred,
+        eventsUrl: (thread) => `/events/${thread}`,
+      }));
+      act(() => result.current.send('List my cases'));
+
+      await waitFor(() => expect(urls.filter((u) => u.startsWith('/events'))).toHaveLength(1));
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      expect(urls.filter((u) => u.startsWith('/events'))).toHaveLength(1);
+      expect(result.current.messages.some((m) => m.text.startsWith("I'm still working on"))).toBe(true);
+    });
+
     it('opens no events line when nothing is waiting', async () => {
       const fetchMock = vi.fn(async () => sse('event: message\ndata: {"conversation_id":"c-1","message":{"id":"a1","role":"assistant","content":"Done."}}\n\n'));
       vi.stubGlobal('fetch', fetchMock);

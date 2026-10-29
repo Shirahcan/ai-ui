@@ -308,7 +308,7 @@ useAssistantConversation({
 });
 ```
 
-While any ticket in the thread has no answer, the panel shows a "still working" row and holds
+While any ticket in the thread has no answer, the panel shows an "I'm still working on ..." row (first person, like every answer) and holds
 ONE events line open (the product proxies ai-service's channel stream, behind its own auth).
 The late message is inserted the moment the product publishes it. Nothing polls; the line
 closes when nothing is waiting, and a reload derives the same state from the thread itself.

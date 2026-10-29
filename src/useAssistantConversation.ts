@@ -148,7 +148,8 @@ function waitingRow(work: DeferredWork): PanelMessage {
   return {
     id: `aiui-deferred-${work.ticket}`,
     role: 'assistant',
-    text: `Still working on ${what}. The answer will appear here as soon as it is ready.`,
+    // ⚠ The row is the assistant speaking, so it speaks in the first person like every answer.
+    text: `I'm still working on ${what}. I'll post the answer here as soon as it's ready.`,
     // The cursor is what says "in progress"; it also keeps the row out of rating.
     streaming: true,
   };
@@ -564,6 +565,9 @@ export function useAssistantConversation(options: AssistantConversationOptions):
             headers: json({ Accept: 'text/event-stream' }),
             signal: controller.signal,
           });
+          // ⚠ 404 IS "NOT ENABLED HERE" (the product's gate), the same rule as the stream route:
+          // stop listening at once. The answer still lands in the thread for the next open.
+          if (response.status === 404) return;
           if (!response.ok || !response.body) throw new Error(`events ${response.status}`);
 
           for await (const frame of readSseFrames(response.body, controller.signal)) {
