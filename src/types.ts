@@ -84,6 +84,12 @@ export interface AssistantTurnState {
   tools: ToolTrailEntry[];
 }
 
+/** One piece of work an answer left running: what to wait for, and what to call it. */
+export interface DeferredWork {
+  ticket: string;
+  label: string;
+}
+
 /**
  * One message in a panel's list.
  *
@@ -129,6 +135,16 @@ export interface PanelMessage {
 
   /** True while tokens are still arriving, which is what draws the cursor. */
   streaming?: boolean;
+
+  /**
+   * Work this answer handed to the background: ai-service's `final.deferred`, which the
+   * product's message carries and its `toPanelMessage` maps here. While a ticket has no
+   * answer, `useAssistantConversation` shows a "still working" row and listens for it.
+   */
+  deferred?: DeferredWork[];
+
+  /** The ticket this message is the late answer to. It clears that "still working" row. */
+  resolves?: string;
 
   /** Set on a turn that failed, so the row can offer a retry. */
   error?: string | null;

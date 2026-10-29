@@ -294,6 +294,25 @@ const conversation = useAssistantConversation({
 * An empty `siteKey` turns the check off (local and dev, where the backend skips it too).
 * `<HumanCheck>` is exported on its own for a form that is not a chat.
 
+## Answers that finish later (1.19)
+
+A slow tool (a big data list) can hand its work to the product's background job. ai-service
+ends the turn with `final.deferred = [{ticket, label}]`; the product puts it on its message and
+maps it in `toPanelMessage` (`deferred`), and marks the late answer with the ticket it
+`resolves`. Give the hook the product's events route:
+
+```ts
+useAssistantConversation({
+  ...,
+  eventsUrl: (threadId, after) => `/api/assistant/conversations/${threadId}/events?after=${after}`,
+});
+```
+
+While any ticket in the thread has no answer, the panel shows a "still working" row and holds
+ONE events line open (the product proxies ai-service's channel stream, behind its own auth).
+The late message is inserted the moment the product publishes it. Nothing polls; the line
+closes when nothing is waiting, and a reload derives the same state from the thread itself.
+
 ## Stop, without giving up your turn loop
 
 `useTurnCancel` is the cancel discipline on its own, for a panel that keeps its own turn:

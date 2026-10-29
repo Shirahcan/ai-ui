@@ -370,4 +370,55 @@ describe('useAssistantConversation', () => {
       expect(result.current.humanCheck).toBeUndefined();
     });
   });
+
+  describe('work an answer left running (deferred)', () => {
+    type Deferring = Raw & { deferred?: { ticket: string; label: string }[]; resolves?: string };
+    const mapDeferred = (raw: unknown): PanelMessage => {
+      const r = raw as Deferring;
+
+      return { id: r.id, role: r.role, text: r.content, deferred: r.deferred, resolves: r.resolves };
+    };
+
+    it('shows a still-working row, then inserts the pushed answer in its place', async () => {
+      const urls: string[] = [];
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        urls.push(url);
+        if (url.startsWith('/events')) {
+          return sse('event: turn\ndata: {"event_id":4,"message":{"id":"a2","role":"assistant","content":"You have 12 open cases.","resolves":"t-1"}}\n\n');
+        }
+
+        return sse('event: message\ndata: {"conversation_id":"c-9","message":{"id":"a1","role":"assistant","content":"Still on it.","deferred":[{"ticket":"t-1","label":"your open cases"}]}}\n\n');
+      }));
+
+      const { result } = renderHook(() => useAssistantConversation({
+        ...base,
+        toPanelMessage: mapDeferred,
+        eventsUrl: (thread, after) => `/events/${thread}?after=${after}`,
+      }));
+      act(() => result.current.send('List my open cases'));
+
+      await waitFor(() => expect(result.current.messages.map((m) => m.id)).toEqual(expect.arrayContaining(['a2'])));
+      expect(result.current.messages.map((m) => m.id)).toEqual([expect.stringMatching(/^local-/), 'a1', 'a2']);
+      expect(urls).toContain('/events/c-9?after=0');
+    });
+
+    it('draws the still-working row from the thread itself, and drops it once answered', async () => {
+      const { openDeferred } = await import('../src/useAssistantConversation');
+      const asked: PanelMessage = { id: 'a1', role: 'assistant', text: 'On it.', deferred: [{ ticket: 't-1', label: 'cases' }] };
+
+      expect(openDeferred([asked])).toEqual([{ ticket: 't-1', label: 'cases' }]);
+      expect(openDeferred([asked, { id: 'a2', role: 'assistant', text: '12.', resolves: 't-1' }])).toEqual([]);
+    });
+
+    it('opens no events line when nothing is waiting', async () => {
+      const fetchMock = vi.fn(async () => sse('event: message\ndata: {"conversation_id":"c-1","message":{"id":"a1","role":"assistant","content":"Done."}}\n\n'));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { result } = renderHook(() => useAssistantConversation({ ...base, eventsUrl: () => '/events' }));
+      act(() => result.current.send('Hi'));
+
+      await waitFor(() => expect(result.current.busy).toBe(false));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });

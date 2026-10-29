@@ -1,6 +1,6 @@
 {
   "name": "@shirahcan/ai-ui",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "private": true,
   "description": "The front-end half of ai-service: a streamed assistant turn, a stop that really stops, the panel they happen in, the confirm card and the one Markdown map an assistant's words are rendered with. It never calls ai-service itself - the service is loopback-only, so this calls the product's own proxy routes.",
   "type": "module",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { readSseFrames, isAbortError } from './sse';
-import type { PanelMessage } from './types';
+import type { DeferredWork, PanelMessage } from './types';
 
 /**
  * A whole conversation's turn loop, for any product (P19d).
@@ -48,7 +48,17 @@ export interface AssistantConversationOptions {
    */
   supersede?: boolean;
   /** SSE event names, when the product's route speaks its own dialect. */
-  events?: { stage?: string; token?: string; reset?: string; message?: string; error?: string };
+  events?: { stage?: string; token?: string; reset?: string; message?: string; error?: string; turn?: string };
+  /**
+   * GET, SSE: the thread's events, for answers that finish after their turn (a big data list).
+   *
+   * ⚠ OPENED ONLY WHILE SOMETHING IS STILL WORKING. When a message's `deferred` work has no
+   * answer yet, the hook draws a "still working" row and listens here; a `turn` event carries
+   * the product's late message (`{message, event_id?}`), which is inserted in place of the row.
+   * The product proxies ai-service's channel stream behind its own auth. Omit it and the answer
+   * still appears the next time the thread is opened.
+   */
+  eventsUrl?: (conversationId: string, after: number) => string;
   /** The thread to restore could not be opened, so the panel started empty. Say so. */
   onRestoreFailed?: () => void;
   /** Called with every finished assistant message, e.g. to refresh a history list. */
@@ -108,9 +118,41 @@ export interface AssistantTurnOptions {
   body?: Record<string, unknown>;
 }
 
-const EVENTS = { stage: 'stage', token: 'token', reset: 'reset', message: 'message', error: 'error' };
+const EVENTS = { stage: 'stage', token: 'token', reset: 'reset', message: 'message', error: 'error', turn: 'turn' };
 
 const PREVIEW_ID = 'aiui-streaming-preview';
+
+/** How long a panel keeps listening for late answers before it leaves them to the next open. */
+export const DEFERRED_LISTEN_MS = 5 * 60 * 1000;
+
+/** The pause before a dropped events line is tried again. */
+const RECONNECT_MS = 3000;
+
+/** Work a thread's messages left running that no later message has answered yet. */
+export function openDeferred(rows: PanelMessage[]): DeferredWork[] {
+  const answered = new Set(rows.map((r) => r.resolves).filter((t): t is string => typeof t === 'string'));
+  const open: DeferredWork[] = [];
+  for (const row of rows) {
+    for (const work of row.deferred ?? []) {
+      if (!answered.has(work.ticket) && !open.some((o) => o.ticket === work.ticket)) open.push(work);
+    }
+  }
+
+  return open;
+}
+
+/** The "still working" row for one open ticket. */
+function waitingRow(work: DeferredWork): PanelMessage {
+  const what = work.label.trim() === '' ? 'that' : `"${work.label}"`;
+
+  return {
+    id: `aiui-deferred-${work.ticket}`,
+    role: 'assistant',
+    text: `Still working on ${what}. The answer will appear here as soon as it is ready.`,
+    // The cursor is what says "in progress"; it also keeps the row out of rating.
+    streaming: true,
+  };
+}
 
 let seq = 0;
 const localId = (): string => `local-${Date.now()}-${++seq}`;
@@ -491,10 +533,72 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     send(text);
   }, [checkToken, needsCheck, ready, send]);
 
-  const messages = useMemo<PanelMessage[]>(
-    () => (busy && preview !== '' ? [...rows, { id: PREVIEW_ID, role: 'assistant', text: preview, streaming: true }] : rows),
-    [busy, preview, rows],
-  );
+  /*
+   * ⚠ LATE ANSWERS ARE PUSHED, NEVER POLLED FOR. While some answer's work is still running, one
+   * events line is held open for this thread; the late message is inserted the moment the
+   * product publishes it. The line closes when nothing is left waiting, the thread changes, or
+   * the listening window runs out (the next open shows the answer from the thread itself).
+   */
+  const deferred = useMemo(() => openDeferred(rows), [rows]);
+  const waitingKey = deferred.map((d) => d.ticket).join('|');
+  const cursorRef = useRef<{ thread: string | null; after: number; since: number }>({ thread: null, after: 0, since: 0 });
+
+  useEffect(() => {
+    const eventsUrl = optionsRef.current.eventsUrl;
+    const thread = conversationId;
+    if (!eventsUrl || !thread || waitingKey === '') return;
+
+    // The cursor belongs to the thread; the listening window restarts with each new wait.
+    cursorRef.current = cursorRef.current.thread === thread
+      ? { ...cursorRef.current, since: Date.now() }
+      : { thread, after: 0, since: Date.now() };
+    const controller = new AbortController();
+    const turnEvent = optionsRef.current.events?.turn ?? EVENTS.turn;
+
+    const listen = async (): Promise<void> => {
+      while (!controller.signal.aborted && Date.now() - cursorRef.current.since < DEFERRED_LISTEN_MS) {
+        try {
+          const response = await fetch(eventsUrl(thread, cursorRef.current.after), {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: json({ Accept: 'text/event-stream' }),
+            signal: controller.signal,
+          });
+          if (!response.ok || !response.body) throw new Error(`events ${response.status}`);
+
+          for await (const frame of readSseFrames(response.body, controller.signal)) {
+            const id = Number(frame.data.event_id ?? frame.data.after);
+            if (Number.isFinite(id) && id > cursorRef.current.after) cursorRef.current.after = id;
+            if (frame.event !== turnEvent || frame.data.message === undefined) continue;
+
+            const raw = frame.data.message;
+            const message = optionsRef.current.toPanelMessage(raw);
+            // A reconnect may hand back an answer already drawn; a message appears once.
+            setRows((prev) => (prev.some((r) => r.id === message.id) ? prev : [...prev, message]));
+            optionsRef.current.onAnswer?.(raw, thread);
+          }
+          /*
+           * ⚠ A PAUSE BEFORE EVERY RECONNECT, EVEN AFTER A CLEAN END. A line the server holds
+           * ends on `idle` after ~55s, so the pause costs nothing there; a proxy that closes the
+           * line at once would otherwise be re-dialled in a tight loop that never yields.
+           */
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch (e) {
+          if (controller.signal.aborted || isAbortError(e)) return;
+          await new Promise((resolve) => setTimeout(resolve, RECONNECT_MS));
+        }
+      }
+    };
+    void listen();
+
+    return () => controller.abort();
+  }, [conversationId, json, waitingKey]);
+
+  const messages = useMemo<PanelMessage[]>(() => {
+    const shown = deferred.length > 0 ? [...rows, ...deferred.map(waitingRow)] : rows;
+
+    return busy && preview !== '' ? [...shown, { id: PREVIEW_ID, role: 'assistant', text: preview, streaming: true }] : shown;
+  }, [busy, deferred, preview, rows]);
 
   return {
     messages,

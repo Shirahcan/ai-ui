@@ -95,6 +95,7 @@ export type { AiUiCssVariable } from './theme';
 export { DEFAULT_EVENT_NAMES } from './types';
 export type {
   AssistantTurnState,
+  DeferredWork,
   PanelMessage,
   StreamEventNames,
   StreamFrame,
@@ -143,7 +144,7 @@ export type {
 
 export { ChatIcon, ThumbDownIcon, ThumbUpIcon, TrashIcon } from './icons';
 
-export { useAssistantConversation } from './useAssistantConversation';
+export { DEFERRED_LISTEN_MS, openDeferred, useAssistantConversation } from './useAssistantConversation';
 export type {
   AssistantConversation,
   AssistantConversationOptions,
