@@ -121,7 +121,9 @@ export type {
   AssistantActionState,
   AssistantMessageBodyProps,
   AssistantMessageHandlers,
+  AssistantOperationRun,
 } from './components/AssistantMessageBody';
+export { OperationConfirm } from './messages/OperationConfirm';
 
 export { themeToVars } from './theme';
 export type { AssistantTheme } from './theme';
@@ -131,6 +133,8 @@ export type {
   AssistantGrounded,
   AssistantMessageKind,
   AssistantMeta,
+  AssistantOperation,
+  AssistantOperationChange,
   AssistantSource,
   AssistantTable,
   AssistantTableColumn,

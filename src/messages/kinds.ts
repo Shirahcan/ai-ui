@@ -50,7 +50,13 @@ export type AssistantMessageKind =
    * shape. Drawn with `<GroundedAnswer>` inside the shared panel, so a product
    * that grounds its answers does not need a page of its own to show them.
    */
-  | 'grounded_answer';
+  | 'grounded_answer'
+  /**
+   * A CHANGE the assistant previewed for a privileged user (an admin edit, a step reopened, an
+   * email resent): exactly what will change, before -> after, and a REQUIRED reason picked from
+   * options or written. Nothing runs until the reader confirms; the product's handler runs it.
+   */
+  | 'operation_confirm';
 
 /** A link the assistant offers after an answer. */
 export interface AssistantCta {
@@ -204,6 +210,7 @@ export function readKind(value: unknown): AssistantMessageKind {
     'research',
     'it_snapshot_request',
     'grounded_answer',
+    'operation_confirm',
   ];
   const kind = readString(value);
 
@@ -335,5 +342,62 @@ export function readGrounded(meta: AssistantMeta): AssistantGrounded | null {
     citations_label: readString(g.citations_label) ?? undefined,
     refusal: readString(g.refusal),
     attribution: readString(g.attribution),
+  };
+}
+
+/** One row of an operation preview: "Label: before -> after" ("before" is '' when there is none). */
+export interface AssistantOperationChange {
+  label: string;
+  before: string;
+  after: string;
+}
+
+/** The previewed change an `operation_confirm` message carries. */
+export interface AssistantOperation {
+  operation: string;
+  params: Record<string, unknown>;
+  title: string;
+  target: { label: string; link: string | null };
+  changes: AssistantOperationChange[];
+  notes: string[];
+  consequential: boolean;
+  undoable: boolean;
+  reasonOptions: string[];
+  verb: string;
+}
+
+/**
+ * The operation an `operation_confirm` message carries, or null when the bag is missing what the
+ * card needs (an older service, a partial write): the message then renders as its prose.
+ */
+export function readOperation(meta: AssistantMeta): AssistantOperation | null {
+  const bag = meta as Record<string, unknown>;
+  const operation = readString(bag.operation);
+  const preview = record(bag.preview);
+  if (operation === null || preview === null) return null;
+
+  const target = record(preview.target) ?? {};
+  const changes = Array.isArray(preview.changes) ? preview.changes : [];
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.map((v) => readString(v)).filter((v): v is string => v !== null) : [];
+
+  return {
+    operation,
+    params: record(bag.params) ?? {},
+    title: readString(preview.title) ?? 'Make this change',
+    target: { label: readString(target.label) ?? '', link: readString(target.link) },
+    changes: changes
+      .map((c) => record(c))
+      .filter((c): c is Record<string, unknown> => c !== null)
+      .map((c) => ({
+        label: readString(c.label) ?? '',
+        before: typeof c.before === 'string' ? c.before : '',
+        after: typeof c.after === 'string' ? c.after : String(c.after ?? ''),
+      })),
+    notes: strings(preview.notes),
+    consequential: preview.consequential === true,
+    undoable: preview.undoable !== false,
+    reasonOptions: strings(bag.reason_options),
+    verb: readString(bag.verb) ?? 'Confirm',
   };
 }

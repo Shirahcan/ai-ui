@@ -15,11 +15,13 @@ import {
   SourceList,
 } from '../messages/blocks';
 import { GroundedAnswer } from './GroundedAnswer';
+import { OperationConfirm } from '../messages/OperationConfirm';
 import {
   readCtas,
   readGrounded,
   readKind,
   readMeta,
+  readOperation,
   readSources,
   readString,
   readTables,
@@ -78,7 +80,22 @@ export type AssistantActionState = AssistantActionOutcome;
 
 export type { AssistantActionResult };
 
+/** A previewed change the reader confirmed, with the reason they gave. */
+export interface AssistantOperationRun {
+  messageId: string;
+  operation: string;
+  params: Record<string, unknown>;
+  reason: string;
+}
+
 export interface AssistantMessageHandlers {
+  /**
+   * Run a previewed change (`operation_confirm`) with the reader's REQUIRED reason. Throw to
+   * report a refusal; the card stays so the reader can change the reason and retry.
+   */
+  onRunOperation?: (run: AssistantOperationRun) => Promise<AssistantActionResult | void>;
+  onCancelOperation?: (messageId: string) => void;
+
   onCta?: (cta: AssistantCta, message: PanelMessage) => void;
   onLaunchAction?: (launch: AssistantActionLaunch) => void;
 
@@ -154,6 +171,8 @@ export function AssistantMessageBody({
       />
     );
 
+  const operation = kind === 'operation_confirm' ? readOperation(meta) : null;
+
   const confirm: AssistantActionConfirm = {
     messageId: message.id,
     actionId: readString(meta.action_id) ?? '',
@@ -184,6 +203,24 @@ export function AssistantMessageBody({
               draftBody: readString(meta.draft_body) ?? undefined,
             })
           }
+        />
+      ) : null}
+
+      {kind === 'operation_confirm' && handlers.onRunOperation && operation ? (
+        <OperationConfirm
+          operation={operation}
+          messageId={message.id}
+          settled={state}
+          onConfirm={(reason) =>
+            handlers.onRunOperation!({
+              messageId: message.id,
+              operation: operation.operation,
+              params: operation.params,
+              reason,
+            })
+          }
+          onCancel={() => handlers.onCancelOperation?.(message.id)}
+          onNavigate={handlers.onNavigate}
         />
       ) : null}
 
