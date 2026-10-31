@@ -49,7 +49,7 @@ export function AiRecentCalls() {
         <Loading />
       ) : data ? (
         <>
-          <Table head={['When', 'Task', 'Outcome', 'Model', 'Time', 'Cost']} empty={data.calls.length === 0 ? <Empty>No calls match.</Empty> : null}>
+          <Table wide head={['When', 'Task', 'Outcome', 'Model', 'Time', 'Cost']} empty={data.calls.length === 0 ? <Empty>No calls match.</Empty> : null}>
             {data.calls.map((c) => (
               <tr key={c.id} className="cursor-pointer hover:bg-[var(--ai-accent-soft)]" onClick={() => setOpen(c)}>
                 <Td className="whitespace-nowrap">{when(c.created_at)}</Td>

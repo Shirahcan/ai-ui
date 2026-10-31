@@ -17,7 +17,7 @@ export function AiKnowledgeBrowser({ sourceHint = "Entries are changed in the pr
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<KnowledgeEntry | null>(null);
-  const { data, error, loading, reload } = useConsoleResource<KnowledgePage>('knowledge', { audience: audience || undefined, page, per_page: 50 });
+  const { data, error, loading, reload } = useConsoleResource<KnowledgePage>('knowledge', { all: 1, audience: audience || undefined, page, per_page: 50 });
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();

@@ -87,7 +87,7 @@ export function AiStatusCard() {
           ) : (
             <p className="mt-1 text-sm">
               <strong>No cap set.</strong> This product is never refused on cost.
-              {capabilities?.can.estate ? ' Set one under Caps.' : ' An estate admin can set one.'}
+              {capabilities?.can.estate ? ' Set one under All products.' : ' An estate admin can set one.'}
             </p>
           )}
         </div>

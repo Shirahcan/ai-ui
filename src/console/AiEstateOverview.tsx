@@ -50,7 +50,7 @@ export function AiEstateOverview() {
               <Stat label="Calls this month" value={count(data.month.calls)} />
               <Stat label="Spend this month" value={dollars(data.month.cost_micros)} />
             </div>
-            <Table head={['Product', 'Status', 'Calls', 'Spend', 'Cap', '']}>
+            <Table wide head={['Product', 'Status', 'Calls', 'Spend', 'Cap', '']}>
               {data.products.map((p) => (
                 <tr key={p.product}>
                   <Td className="font-medium">{productName(p.product)}</Td>

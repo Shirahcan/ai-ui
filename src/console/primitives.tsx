@@ -64,10 +64,11 @@ export function Pill({ tone = 'muted', children }: { tone?: 'muted' | 'good' | '
 }
 
 /** A table that scrolls sideways inside itself, never the page. */
-export function Table({ head, children, empty }: { head: ReactNode[]; children: ReactNode; empty?: ReactNode }) {
+export function Table({ head, children, empty, wide }: { head: ReactNode[]; children: ReactNode; empty?: ReactNode; wide?: boolean }) {
+  // Only a wide table (five or more columns) holds a minimum width; a narrow one fits its card.
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[560px] border-collapse text-sm">
+      <table className={`w-full border-collapse text-sm ${wide ? 'min-w-[640px]' : ''}`}>
         <thead>
           <tr className="border-b border-[var(--ai-border)] text-left text-[var(--ai-muted)]">
             {head.map((h, i) => (
