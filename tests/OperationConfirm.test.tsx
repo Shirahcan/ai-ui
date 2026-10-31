@@ -73,3 +73,31 @@ describe('OperationConfirm', () => {
     expect(screen.queryByText('Why are you making this change?')).toBeNull();
   });
 });
+
+describe('OperationConfirm in the background', () => {
+  it('says it started, then follows the run to its result', async () => {
+    const onRunOperation = vi.fn(async () => ({ summary: 'Started in the background.', background: true }));
+    let finished = false;
+    const onCheckOperation = vi.fn(async () => (finished ? { done: true, summary: 'Recorded 6 payments.' } : { done: false }));
+    render(<AssistantMessageBody message={message} handlers={{ onRunOperation, onCheckOperation }} />);
+
+    fireEvent.click(screen.getByLabelText('The consultant asked for it'));
+    fireEvent.click(screen.getByRole('button', { name: 'Change case name' }));
+
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Started in the background.'));
+    finished = true;
+    await waitFor(() => expect(screen.getByText('Recorded 6 payments.')).toBeTruthy(), { timeout: 4000 });
+  });
+
+  it('never re-offers a started run after a re-mount', () => {
+    render(
+      <AssistantMessageBody
+        message={message}
+        handlers={{ onRunOperation: vi.fn(), actionState: () => 'started' }}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: 'Change case name' })).toBeNull();
+    expect(screen.getByRole('status')).toBeTruthy();
+  });
+});

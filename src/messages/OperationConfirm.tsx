@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AssistantOperation } from './kinds';
-import type { AssistantActionOutcome, AssistantActionResult } from './ActionConfirm';
+import type { AssistantActionOutcome, AssistantActionResult, AssistantRunCheck } from './ActionConfirm';
 
 /**
  * A change the assistant previewed, and the reader's explicit go-ahead WITH A REASON.
@@ -16,8 +16,18 @@ import type { AssistantActionOutcome, AssistantActionResult } from './ActionConf
  *
  * Same state machine as {@link ActionConfirm}: the product runs it and may throw, the card stays
  * on failure so the reader can retry, and a settled outcome survives a re-mount.
+ *
+ * ⚠ LONG WORK RUNS IN THE BACKGROUND. When the product's run returns `background: true` (or the
+ * persisted outcome is `started`), the card says it is running and, given `onCheck`, polls it to
+ * the end, so the reader watching the chat sees the result without asking. The product also
+ * notifies them when it finishes, so closing the panel loses nothing.
  */
 const OTHER = '__other__';
+
+const POLL_MS = 5000;
+
+/** Stop polling a run after this long; the product's notification still arrives. */
+const POLL_LIMIT_MS = 35 * 60 * 1000;
 
 export function OperationConfirm({
   operation,
@@ -26,6 +36,7 @@ export function OperationConfirm({
   onConfirm,
   onCancel,
   onNavigate,
+  onCheck,
 }: {
   operation: AssistantOperation;
   messageId: string;
@@ -33,9 +44,11 @@ export function OperationConfirm({
   onConfirm: (reason: string) => Promise<AssistantActionResult | void>;
   onCancel?: () => void;
   onNavigate?: (url: string) => void;
+  /** Where its background run has got; null when the product no longer knows the run. */
+  onCheck?: () => Promise<AssistantRunCheck | null>;
 }) {
-  const [status, setStatus] = useState<'idle' | 'busy' | 'done' | 'cancelled' | 'failed'>(
-    settled === 'done' ? 'done' : settled === 'cancelled' ? 'cancelled' : 'idle',
+  const [status, setStatus] = useState<'idle' | 'busy' | 'started' | 'done' | 'cancelled' | 'failed' | 'run_failed'>(
+    settled === 'done' ? 'done' : settled === 'started' ? 'started' : settled === 'cancelled' ? 'cancelled' : 'idle',
   );
   const [choice, setChoice] = useState<string | null>(null);
   const [other, setOther] = useState('');
@@ -50,13 +63,41 @@ export function OperationConfirm({
     setError(null);
     try {
       const result = await onConfirm(reason);
-      setSummary(result?.summary ?? 'Done.');
-      setStatus('done');
+      setSummary(result?.summary ?? (result?.background ? null : 'Done.'));
+      setStatus(result?.background ? 'started' : 'done');
     } catch (e) {
       setStatus('failed');
       setError(e instanceof Error ? e.message : 'That change did not go through.');
     }
   };
+
+  // Follow a background run to the end while the card is on screen.
+  useEffect(() => {
+    if (status !== 'started' || !onCheck) return;
+    let stopped = false;
+    const startedAt = Date.now();
+    const tick = async () => {
+      if (stopped || Date.now() - startedAt > POLL_LIMIT_MS) return;
+      try {
+        const check = await onCheck();
+        if (stopped) return;
+        if (check?.done) {
+          setSummary(check.summary ?? (check.failed ? 'It did not finish.' : 'Done.'));
+          setStatus(check.failed ? 'run_failed' : 'done');
+          return;
+        }
+      } catch {
+        // A failed poll is not a failed run; try again on the next tick.
+      }
+      if (!stopped) timer = setTimeout(tick, POLL_MS);
+    };
+    let timer = setTimeout(tick, 1500);
+
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [status, onCheck]);
 
   const cancel = () => {
     setStatus('cancelled');
@@ -126,7 +167,13 @@ export function OperationConfirm({
       </div>
 
       {status === 'done' ? (
-        <p className="text-sm font-medium text-[var(--ai-fg)]">{summary ?? 'Done.'}</p>
+        <p className="whitespace-pre-line text-sm font-medium text-[var(--ai-fg)]">{summary ?? 'Done.'}</p>
+      ) : status === 'started' ? (
+        <p className="text-sm text-[var(--ai-fg)]" role="status">
+          {summary ?? 'Running in the background.'} You will get a notice when it finishes.
+        </p>
+      ) : status === 'run_failed' ? (
+        <p className="whitespace-pre-line text-sm font-medium text-[var(--ai-danger)]">{summary}</p>
       ) : status === 'cancelled' ? (
         <p className="text-sm text-[var(--ai-muted)]">Cancelled. Nothing was changed.</p>
       ) : (

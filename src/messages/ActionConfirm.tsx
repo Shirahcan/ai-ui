@@ -37,9 +37,22 @@ export interface AssistantActionResult {
    * says it succeeded.
    */
   handoff?: { url: string; label: string };
+  /**
+   * The work was handed to a background worker and has not finished yet. The card says so and,
+   * when the product supplies a check, follows it to the end (see `OperationConfirm`).
+   */
+  background?: boolean;
 }
 
-export type AssistantActionOutcome = 'pending' | 'done' | 'cancelled';
+/** Where a background run has got, as the product's check reports it. */
+export interface AssistantRunCheck {
+  done: boolean;
+  failed?: boolean;
+  summary?: string;
+}
+
+/** `started`: confirmed and running on a background worker; the card must not offer it again. */
+export type AssistantActionOutcome = 'pending' | 'done' | 'cancelled' | 'started';
 
 const LINK =
   'mt-2 inline-block whitespace-nowrap rounded-full bg-[var(--ai-accent)] px-4 py-2'
@@ -78,7 +91,7 @@ export function ActionConfirm({
   onNavigate?: (url: string) => void;
 }) {
   const [status, setStatus] = useState<'idle' | 'busy' | 'done' | 'cancelled' | 'failed'>(
-    settled === 'done' ? 'done' : settled === 'cancelled' ? 'cancelled' : 'idle',
+    settled === 'done' || settled === 'started' ? 'done' : settled === 'cancelled' ? 'cancelled' : 'idle',
   );
   const [summary, setSummary] = useState<string | null>(null);
   const [handoff, setHandoff] = useState<{ url: string; label: string } | null>(null);

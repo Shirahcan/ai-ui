@@ -144,6 +144,7 @@ export { ActionConfirm } from './messages/ActionConfirm';
 export type {
   AssistantActionOutcome,
   AssistantActionResult,
+  AssistantRunCheck,
 } from './messages/ActionConfirm';
 
 export { ChatIcon, ThumbDownIcon, ThumbUpIcon, TrashIcon } from './icons';

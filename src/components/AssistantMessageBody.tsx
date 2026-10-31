@@ -4,6 +4,7 @@ import {
   ActionConfirm,
   type AssistantActionOutcome,
   type AssistantActionResult,
+  type AssistantRunCheck,
 } from '../messages/ActionConfirm';
 import {
   CtaRow,
@@ -95,6 +96,8 @@ export interface AssistantMessageHandlers {
    */
   onRunOperation?: (run: AssistantOperationRun) => Promise<AssistantActionResult | void>;
   onCancelOperation?: (messageId: string) => void;
+  /** Where a confirmed operation's background run has got (polled while its card is on screen). */
+  onCheckOperation?: (messageId: string) => Promise<AssistantRunCheck | null>;
 
   onCta?: (cta: AssistantCta, message: PanelMessage) => void;
   onLaunchAction?: (launch: AssistantActionLaunch) => void;
@@ -221,6 +224,7 @@ export function AssistantMessageBody({
           }
           onCancel={() => handlers.onCancelOperation?.(message.id)}
           onNavigate={handlers.onNavigate}
+          onCheck={handlers.onCheckOperation ? () => handlers.onCheckOperation!(message.id) : undefined}
         />
       ) : null}
 
