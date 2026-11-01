@@ -43,8 +43,9 @@ describe('AI console', () => {
       </AiConsoleProvider>,
     );
 
-    await screen.findByRole('tab', { name: 'Prompts' });
-    expect(screen.queryByRole('tab', { name: 'All products' })).toBeNull();
+    await screen.findAllByRole('button', { name: 'Prompts' });
+    expect(screen.queryAllByRole('button', { name: 'All products' })).toHaveLength(0);
+    expect(screen.queryAllByRole('button', { name: 'Provider keys' })).toHaveLength(0);
     expect(calls.filter((c) => c.url.includes('capabilities'))).toHaveLength(1);
   });
 
@@ -55,7 +56,9 @@ describe('AI console', () => {
         <AiConsole />
       </AiConsoleProvider>,
     );
-    expect(await screen.findByRole('tab', { name: 'All products' })).toBeTruthy();
+    expect((await screen.findAllByRole('button', { name: 'All products' })).length).toBeGreaterThan(0);
+    // The vault's parts are listed for the admin key only.
+    expect(screen.getAllByRole('button', { name: 'Provider keys' }).length).toBeGreaterThan(0);
   });
 
   it('offers pause only when the product may pause itself, and asks why', async () => {

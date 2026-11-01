@@ -45,6 +45,8 @@ export interface AiConsoleProviderProps {
   onError?: (error: ConsoleError) => void;
   /** Human names for product keys (`mploynow` -> "MployNow"). */
   productNames?: Record<string, string>;
+  /** A success or info notice (a saved key, an issued trust key). The product shows it its own way. */
+  onNotice?: (notice: { title: string; description?: string; variant?: string }) => void;
   children: ReactNode;
 }
 
@@ -54,6 +56,9 @@ export interface ConsoleContextValue {
   capabilitiesError: ConsoleError | null;
   productName: (key: string) => string;
   vars: Record<string, string>;
+  notify: (notice: { title: string; description?: string; variant?: string }) => void;
+  /** A failure that did not come from a request (a clipboard, a bad file): sent to `onError`. */
+  reportError: (error: unknown) => void;
 }
 
 const Ctx = createContext<ConsoleContextValue | null>(null);
@@ -70,17 +75,25 @@ function toQuery(query: Record<string, unknown> | undefined): string {
   return s ? `?${s}` : '';
 }
 
-export function AiConsoleProvider({ baseUrl, theme, fetcher, onError, productNames, children }: AiConsoleProviderProps) {
+export function AiConsoleProvider({ baseUrl, theme, fetcher, onError, productNames, onNotice, children }: AiConsoleProviderProps) {
   const [capabilities, setCapabilities] = useState<ConsoleCapabilities | null>(null);
   const [capabilitiesError, setCapabilitiesError] = useState<ConsoleError | null>(null);
 
   // Read through refs so a product passing inline functions does not refetch capabilities every render.
   const fetchRef = useRef(fetcher ?? defaultFetcher);
   const errorRef = useRef(onError);
+  const noticeRef = useRef(onNotice);
   useEffect(() => {
     fetchRef.current = fetcher ?? defaultFetcher;
     errorRef.current = onError;
-  }, [fetcher, onError]);
+    noticeRef.current = onNotice;
+  }, [fetcher, onError, onNotice]);
+
+  const notify = useCallback((notice: { title: string; description?: string; variant?: string }) => noticeRef.current?.(notice), []);
+  const reportError = useCallback((error: unknown) => {
+    const message = error instanceof Error ? error.message : typeof error === 'string' ? error : 'Something went wrong in the AI console.';
+    errorRef.current?.(new ConsoleError(message, 0, {}));
+  }, []);
 
   const root = baseUrl.replace(/\/+$/, '');
 
@@ -127,8 +140,8 @@ export function AiConsoleProvider({ baseUrl, theme, fetcher, onError, productNam
   const productName = useCallback((key: string) => productNames?.[key] ?? key, [productNames]);
 
   const value = useMemo<ConsoleContextValue>(
-    () => ({ request, capabilities, capabilitiesError, productName, vars }),
-    [request, capabilities, capabilitiesError, productName, vars],
+    () => ({ request, capabilities, capabilitiesError, productName, vars, notify, reportError }),
+    [request, capabilities, capabilitiesError, productName, vars, notify, reportError],
   );
 
   return (

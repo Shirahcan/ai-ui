@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { ConsoleError } from './ConsoleContext';
+import { ConsolePortal } from './ConsolePortal';
+import { FloatingMenu } from './FloatingMenu';
 
 /**
  * The console's few building blocks. Colour comes only from the `--ai-*` properties the
@@ -126,25 +128,13 @@ export const INPUT =
 /** Row actions behind one trigger (the estate's kebab rule). */
 export function Kebab({ label, items }: { label: string; items: Array<{ label: string; onSelect: () => void; danger?: boolean; hidden?: boolean }> }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', esc);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', esc);
-    };
-  }, [open]);
+  const ref = useRef<HTMLButtonElement>(null);
   const shown = items.filter((i) => !i.hidden);
   if (shown.length === 0) return null;
   return (
-    <div ref={ref} className="relative inline-block">
+    <>
       <button
+        ref={ref}
         type="button"
         aria-label={label}
         aria-haspopup="menu"
@@ -158,25 +148,23 @@ export function Kebab({ label, items }: { label: string; items: Array<{ label: s
           <circle cx="12" cy="19" r="1.8" />
         </svg>
       </button>
-      {open ? (
-        <div role="menu" className="absolute right-0 z-20 mt-1 min-w-[10rem] overflow-hidden rounded-lg border border-[var(--ai-border)] bg-[var(--ai-surface)] py-1 shadow-lg">
-          {shown.map((item, i) => (
-            <button
-              key={item.label}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                item.onSelect();
-              }}
-              className={`block w-full whitespace-nowrap px-3 py-2 text-left text-sm outline-none hover:bg-[var(--ai-accent-soft)] focus-visible:bg-[var(--ai-accent-soft)] ${item.danger ? 'text-[var(--ai-danger)]' : ''} ${item.danger && i > 0 ? 'border-t border-[var(--ai-border)]' : ''}`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
+      <FloatingMenu anchor={ref} open={open} onClose={() => setOpen(false)}>
+        {shown.map((item, i) => (
+          <button
+            key={item.label}
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              item.onSelect();
+            }}
+            className={`block w-full whitespace-nowrap px-3 py-2 text-left text-sm outline-none hover:bg-[var(--ai-accent-soft)] focus-visible:bg-[var(--ai-accent-soft)] ${item.danger ? 'text-[var(--ai-danger)]' : ''} ${item.danger && i > 0 ? 'border-t border-[var(--ai-border)]' : ''}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </FloatingMenu>
+    </>
   );
 }
 
@@ -190,19 +178,26 @@ export function Dialog({ title, onClose, children, footer, wide }: { title: stri
     document.addEventListener('keydown', esc);
     return () => document.removeEventListener('keydown', esc);
   }, [onClose]);
+  /*
+   * ⚠ THE MODAL'S OWN SURFACE (`--ai-dialog-bg`), never the card's `--ai-surface`: a product's
+   * card colour may be translucent glass, and a modal drawn in it shows the page through the
+   * form. The scrim is blurred for the same reason (owner, 2026-11-01).
+   */
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <ConsolePortal>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--ai-overlay,rgba(15,23,42,0.4))] p-4 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-[var(--ai-radius)] bg-[var(--ai-surface)] text-[var(--ai-fg)] shadow-2xl ${wide ? 'max-w-3xl' : 'max-w-md'}`}
+        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-[var(--ai-dialog-radius,1rem)] border border-[var(--ai-dialog-border,#e2e8f0)] bg-[var(--ai-dialog-bg,#ffffff)] text-[var(--ai-fg)] shadow-2xl backdrop-blur-xl ${wide ? 'max-w-3xl' : 'max-w-md'}`}
       >
-        <div className="shrink-0 border-b border-[var(--ai-border)] px-5 py-4 text-base font-semibold">{title}</div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--ai-border)] px-5 py-3">{footer}</div>
+        <div className="shrink-0 border-b border-[var(--ai-border)] px-6 py-4 text-base font-semibold">{title}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">{children}</div>
+        <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--ai-border)] px-6 py-3">{footer}</div>
       </div>
     </div>
+    </ConsolePortal>
   );
 }
 

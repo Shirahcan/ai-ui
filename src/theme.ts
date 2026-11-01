@@ -136,6 +136,22 @@ export interface AssistantTheme {
 
   /** Position, shadow, blur. NOT size, radius, padding or type. */
   card?: string;
+
+  /*
+   * Modals (the AI console's dialogs). ⚠ THE DIALOG HAS ITS OWN SURFACE, NOT `surface`: a
+   * product's card colour is often translucent glass (Portify's is 70% white), and a modal
+   * drawn in it lets the page behind show through the form. Defaults are opaque.
+   */
+  /** The modal panel's fill. Default `#ffffff`. */
+  dialogSurface?: string;
+  /** Its hairline. Default `#e2e8f0`. */
+  dialogBorder?: string;
+  /** The wash behind it (blurred). Default `rgba(15,23,42,0.4)`. */
+  overlay?: string;
+  /** Its corner radius. Default `1rem`. */
+  dialogRadius?: string;
+  /** The console's cards' corner radius. Default `0.75rem`. */
+  radius?: string;
 }
 
 /**
@@ -181,5 +197,11 @@ export function themeToVars(theme: AssistantTheme): Record<string, string> {
      */
     '--ai-bubble-assistant-border': theme.assistantBubbleBorder ?? assistantBg,
     '--ai-bubble-assistant-fg': theme.assistantBubbleFg ?? theme.fg,
+    // Only what the product chose: an unset value keeps the CSS fallback in the component.
+    ...(theme.dialogSurface ? { '--ai-dialog-bg': theme.dialogSurface } : {}),
+    ...(theme.dialogBorder ? { '--ai-dialog-border': theme.dialogBorder } : {}),
+    ...(theme.overlay ? { '--ai-overlay': theme.overlay } : {}),
+    ...(theme.dialogRadius ? { '--ai-dialog-radius': theme.dialogRadius } : {}),
+    ...(theme.radius ? { '--ai-radius': theme.radius } : {}),
   };
 }
