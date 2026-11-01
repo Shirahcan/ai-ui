@@ -55,6 +55,27 @@ const base = {
 };
 
 describe('useAssistantConversation', () => {
+  // Owner, 2026-11-01: every assistant writes times in the browser's local clock, so every turn carries it.
+  it('sends the browser timezone with every turn, and a product body can override it', async () => {
+    const fetchMock = vi.fn(async () => sse(
+      'event: message\ndata: {"conversation_id":"c-1","message":{"id":"a1","role":"assistant","content":"ok"}}\n\n',
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    const { result } = renderHook(() => useAssistantConversation(base));
+    act(() => result.current.send('When is my reminder?'));
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    const sent = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(sent.client_timezone).toBe(zone);
+
+    const { result: own } = renderHook(() => useAssistantConversation({ ...base, body: () => ({ client_timezone: 'Africa/Lagos' }) }));
+    act(() => own.current.send('again'));
+    await waitFor(() => expect(own.current.busy).toBe(false));
+    const sent2 = JSON.parse(String((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body));
+    expect(sent2.client_timezone).toBe('Africa/Lagos');
+  });
+
   it('streams an answer and settles it as one message', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => sse(
       'event: stage\ndata: {"label":"Thinking"}\n\n'

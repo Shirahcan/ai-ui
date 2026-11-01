@@ -129,6 +129,19 @@ export const DEFERRED_LISTEN_MS = 5 * 60 * 1000;
 const RECONNECT_MS = 3000;
 
 /** Work a thread's messages left running that no later message has answered yet. */
+/**
+ * The browser's IANA zone, sent with every turn so the assistant writes dates and times in the
+ * user's local clock (owner, 2026-11-01: every assistant, reminders included). A product's own
+ * `body` can still override it. Undefined when the browser cannot say.
+ */
+function browserTimezone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function openDeferred(rows: PanelMessage[]): DeferredWork[] {
   const answered = new Set(rows.map((r) => r.resolves).filter((t): t is string => typeof t === 'string'));
   const open: DeferredWork[] = [];
@@ -270,7 +283,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
       method: 'POST',
       credentials: 'same-origin',
       headers: json(),
-      body: JSON.stringify({ message: question, conversation_id: conversationRef.current, ...(o.body?.() ?? {}), ...turnBody }),
+      body: JSON.stringify({ message: question, conversation_id: conversationRef.current, client_timezone: browserTimezone(), ...(o.body?.() ?? {}), ...turnBody }),
       signal,
     });
 
@@ -300,6 +313,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
         message: question,
         conversation_id: conversationRef.current,
         turn_id: turnId,
+        client_timezone: browserTimezone(),
         ...(o.body?.() ?? {}),
         ...turnBody,
       }),
