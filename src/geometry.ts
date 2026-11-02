@@ -79,7 +79,7 @@ export const ASSISTANT_GEOMETRY = {
   composerButton: 'shrink-0 rounded-full px-6 py-3 text-sm font-semibold whitespace-nowrap',
 
   /** The header: the panel's name, its actions, and the way out. */
-  header: 'flex items-center justify-between px-5 py-3.5',
+  header: 'flex items-center justify-between gap-3 px-5 py-3.5',
   headerTitle: 'text-base font-semibold',
   headerSubtitle: 'text-xs',
   headerActions: 'flex items-center gap-2',

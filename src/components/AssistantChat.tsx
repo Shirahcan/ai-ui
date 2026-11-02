@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AssistantHistory, type AssistantThread } from './AssistantHistory';
 import {
   AssistantMessageBody,
@@ -16,7 +16,7 @@ import { HumanCheck } from './HumanCheck';
 import { MessageBubble } from './MessageBubble';
 import { ASSISTANT_GEOMETRY } from '../geometry';
 import { readKind } from '../messages/kinds';
-import { ChatIcon, TrashIcon } from '../icons';
+import { ChatIcon, MenuIcon, PlusIcon, TrashIcon } from '../icons';
 import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { PanelMessage } from '../types';
@@ -91,7 +91,8 @@ export interface AssistantChatAction {
 /**
  * The conversation list, and everything the panel needs to draw it.
  *
- * ⚠ PASSING THIS IS WHAT PUTS "New" AND "History" IN THE HEADER, and the open
+ * ⚠ PASSING THIS IS WHAT PUTS "New conversation" AND THE RECENT LIST IN THE SIDEBAR (the
+ * menu button beside the name, since 1.25.0), and the open
  * or closed state of the history view lives in this component. Both products
  * used to carry their own `showHistory` boolean and their own loading, failed
  * and empty states for the same list.
@@ -188,7 +189,16 @@ export interface AssistantChatProps {
   renderEmpty?: () => ReactNode;
 
   threads?: AssistantChatThreads;
+  /**
+   * The product's own items, listed in the sidebar under "New conversation" (Porter: "What Porter
+   * knows about you"). Since 1.25.0 they are no longer header buttons.
+   */
   actions?: AssistantChatAction[];
+  /**
+   * What this conversation is about, shown beside the close button. Defaults to the active thread's
+   * title from `threads`; long titles are cut with an ellipsis and kept whole in the tooltip.
+   */
+  conversationTitle?: string | null;
 
   composer?: AssistantChatComposer;
   markdownTheme?: MarkdownTheme;
@@ -240,11 +250,6 @@ const FEEDBACK_SUBMIT =
   'whitespace-nowrap rounded-full bg-[var(--ai-accent)] px-3 py-1.5 text-[11px] font-semibold'
   + ' text-[var(--ai-accent-fg)] outline-none disabled:opacity-50';
 
-/** The estate's header control: text in the panel's own colour, washed on hover. */
-const HEADER_ACTION =
-  `${ASSISTANT_GEOMETRY.headerAction} text-[var(--ai-fg)] transition-colors`
-  + ' hover:bg-[var(--ai-accent-soft)] focus-visible:bg-[var(--ai-accent-soft)]';
-
 export function AssistantChat({
   theme,
   title,
@@ -265,6 +270,7 @@ export function AssistantChat({
   renderEmpty,
   threads,
   actions,
+  conversationTitle,
   composer,
   markdownTheme,
   handlers,
@@ -273,7 +279,24 @@ export function AssistantChat({
   humanCheck,
   ...attributes
 }: AssistantChatProps & AssistantSurfaceAttributes) {
-  const [showHistory, setShowHistory] = useState(false);
+  /*
+   * The conversations sidebar (owner, 2026-11-02): "New" and "History" left the header for a menu
+   * button beside the assistant's name, like other chat apps. It holds a new conversation, the
+   * product's own items and the recent conversations.
+   */
+  const [menuOpen, setMenuOpen] = useState(false);
+  const hasMenu = Boolean(threads) || Boolean(actions?.length);
+  const activeTitle = (conversationTitle ?? threads?.items.find((t) => t.id === threads?.activeId)?.title ?? '').trim();
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
   /*
    * ⚠ THE DRAFT LIVES HERE, NOT IN THE PANEL BELOW. `AssistantPanel.send`
    * refuses to send while busy, which is right for a panel with no supersede
@@ -311,9 +334,9 @@ export function AssistantChat({
   const userBubble =
     `${ASSISTANT_GEOMETRY.bubble} bg-[var(--ai-bubble-user-bg)] text-[var(--ai-bubble-user-fg)]`;
 
-  const openHistory = () => {
-    setShowHistory(true);
-    threads?.onReload?.();
+  const toggleMenu = () => {
+    if (!menuOpen) threads?.onReload?.();
+    setMenuOpen((open) => !open);
   };
 
   const send = (text: string) => {
@@ -332,57 +355,34 @@ export function AssistantChat({
       closeLabel={closeLabel}
       className={theme.card}
       style={themeToVars(theme)}
+      leading={
+        hasMenu ? (
+          <button
+            type="button"
+            onClick={toggleMenu}
+            aria-label={menuOpen ? 'Close the menu' : 'Open the menu: new conversation and history'}
+            aria-expanded={menuOpen}
+            aria-controls="assistant-sidebar"
+            title="Menu"
+            className="-ml-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--ai-fg)] outline-none transition-colors hover:bg-[var(--ai-accent-soft)] focus-visible:bg-[var(--ai-accent-soft)]"
+          >
+            <MenuIcon />
+          </button>
+        ) : undefined
+      }
       actions={
-        <>
-          {actions?.map((action) => (
-            <button
-              key={action.key}
-              type="button"
-              onClick={action.onClick}
-              title={action.title}
-              aria-pressed={action.pressed}
-              className={HEADER_ACTION}
-            >
-              {action.label}
-            </button>
-          ))}
-
-          {threads?.onNew ? (
-            <button
-              type="button"
-              onClick={() => {
-                setShowHistory(false);
-                threads.onNew?.();
-              }}
-              className={HEADER_ACTION}
-            >
-              New
-            </button>
-          ) : null}
-
-          {threads ? (
-            <button
-              type="button"
-              onClick={() => (showHistory ? setShowHistory(false) : openHistory())}
-              aria-pressed={showHistory}
-              className={HEADER_ACTION}
-            >
-              {showHistory ? 'Back' : 'History'}
-            </button>
-          ) : null}
-        </>
+        activeTitle !== '' ? (
+          <span
+            className="block min-w-0 max-w-[14rem] truncate text-sm font-medium text-[var(--ai-muted)]"
+            title={activeTitle}
+          >
+            {activeTitle}
+          </span>
+        ) : undefined
       }
       {...attributes}
     >
-      {showHistory && threads ? (
-        <ThreadList
-          threads={threads}
-          onSelect={(id) => {
-            setShowHistory(false);
-            threads.onSelect(id);
-          }}
-        />
-      ) : (
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <AssistantPanel
           messages={messages}
           busy={busy}
@@ -500,7 +500,78 @@ export function AssistantChat({
             ) : null)
           }
         />
-      )}
+
+        {menuOpen && hasMenu ? (
+          <>
+            {/* The scrim closes the sidebar, as in every chat app; Escape does too. */}
+            <button
+              type="button"
+              aria-label="Close the menu"
+              onClick={() => setMenuOpen(false)}
+              className="absolute inset-0 z-10 cursor-default bg-black/20 outline-none"
+            />
+            <nav
+              id="assistant-sidebar"
+              aria-label="Conversations"
+              className="absolute inset-y-0 left-0 z-20 flex w-[min(22rem,90%)] flex-col border-r border-[var(--ai-border)] shadow-xl"
+              /*
+               * ⚠ ALMOST OPAQUE ON PURPOSE (owner, 2026-11-02). A product's surface may be translucent
+               * glass (Porter's is), and a sidebar painted with it alone let the conversation show
+               * through its rows. The page's base colour at 94% plus a blur keeps a hint of depth while
+               * the text behind stays unreadable; the theme colour tints it on top.
+               */
+              style={{
+                backgroundColor: 'color-mix(in srgb, Canvas 94%, transparent)',
+                backgroundImage: 'linear-gradient(var(--ai-surface), var(--ai-surface))',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+              }}
+            >
+              <div className="shrink-0 space-y-1 p-3">
+                {threads?.onNew ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      threads.onNew?.();
+                    }}
+                    className="flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold text-[var(--ai-fg)] outline-none transition-colors hover:bg-[var(--ai-accent-soft)] focus-visible:bg-[var(--ai-accent-soft)]"
+                  >
+                    <PlusIcon /> New conversation
+                  </button>
+                ) : null}
+                {actions?.map((action) => (
+                  <button
+                    key={action.key}
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      action.onClick();
+                    }}
+                    title={action.title}
+                    aria-pressed={action.pressed}
+                    className="flex w-full items-center gap-2 truncate rounded-xl px-3 py-2 text-left text-sm text-[var(--ai-fg)] outline-none transition-colors hover:bg-[var(--ai-accent-soft)] focus-visible:bg-[var(--ai-accent-soft)]"
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+              {threads ? (
+                <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--ai-border)]">
+                  <p className="shrink-0 px-5 pb-1 pt-3 text-xs font-semibold text-[var(--ai-muted)]">Recent conversations</p>
+                  <ThreadList
+                    threads={threads}
+                    onSelect={(id) => {
+                      setMenuOpen(false);
+                      threads.onSelect(id);
+                    }}
+                  />
+                </div>
+              ) : null}
+            </nav>
+          </>
+        ) : null}
+      </div>
 
       {humanCheck ? (
         <HumanCheck siteKey={humanCheck.siteKey} onToken={humanCheck.onToken} resetSignal={humanCheck.resetSignal} />

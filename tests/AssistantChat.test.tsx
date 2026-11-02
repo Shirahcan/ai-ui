@@ -137,32 +137,39 @@ describe('AssistantChat', () => {
     expect(dialog(container).style.width).toBe('34rem');
   });
 
-  it('shows New and History only when a product passes threads', () => {
+  const MENU = /Open the menu/;
+
+  it('shows the menu only when a product passes threads or items, and New lives inside it', () => {
     const plain = mount(PORTER);
-    expect(plain.queryByRole('button', { name: 'History' })).toBeNull();
+    expect(plain.queryByRole('button', { name: MENU })).toBeNull();
 
     const withThreads = mount(PORTER, {
       threads: { items: [], onSelect: vi.fn(), onNew: vi.fn() },
     });
-    expect(withThreads.getByRole('button', { name: 'History' })).toBeTruthy();
-    expect(withThreads.getByRole('button', { name: 'New' })).toBeTruthy();
+    // The header no longer carries New / History (owner, 2026-11-02).
+    expect(withThreads.queryByRole('button', { name: 'History' })).toBeNull();
+    fireEvent.click(withThreads.getByRole('button', { name: MENU }));
+    expect(withThreads.getByRole('button', { name: /New conversation/ })).toBeTruthy();
   });
 
-  it('opens the thread list in place and reloads it on the way in', () => {
+  it('opens the sidebar with recent conversations and reloads them on the way in', () => {
     const onReload = vi.fn();
-    const { getByRole, getByText } = mount(PORTER, {
+    const onSelect = vi.fn();
+    const { getByRole, getByText, queryByRole } = mount(PORTER, {
       threads: {
         items: [{ id: 't1', title: 'An earlier question', updatedAt: new Date().toISOString() }],
-        onSelect: vi.fn(),
+        onSelect,
         onReload,
       },
     });
 
-    fireEvent.click(getByRole('button', { name: 'History' }));
+    fireEvent.click(getByRole('button', { name: MENU }));
 
     expect(onReload).toHaveBeenCalledTimes(1);
-    expect(getByText('An earlier question')).toBeTruthy();
-    expect(getByRole('button', { name: 'Back' })).toBeTruthy();
+    expect(getByRole('navigation', { name: 'Conversations' })).toBeTruthy();
+    fireEvent.click(getByText('An earlier question'));
+    expect(onSelect).toHaveBeenCalledWith('t1');
+    expect(queryByRole('navigation', { name: 'Conversations' })).toBeNull();
   });
 
   it('says a thread list failed rather than showing an empty one', () => {
@@ -170,9 +177,25 @@ describe('AssistantChat', () => {
       threads: { items: [], onSelect: vi.fn(), status: 'failed', onReload: vi.fn() },
     });
 
-    fireEvent.click(getByRole('button', { name: 'History' }));
+    fireEvent.click(getByRole('button', { name: MENU }));
 
     expect(getByText('Could not load your conversations.')).toBeTruthy();
+  });
+
+  it("puts the product's items in the sidebar and the conversation's title in the header", () => {
+    const onMemory = vi.fn();
+    const long = 'A very long conversation title about a spousal sponsorship and an open work permit';
+    const { getByRole, getByTitle } = mount(PORTER, {
+      threads: { items: [{ id: 't1', title: long, updatedAt: new Date().toISOString() }], activeId: 't1', onSelect: vi.fn() },
+      actions: [{ key: 'memory', label: 'What Porter knows about you', onClick: onMemory }],
+    });
+
+    const title = getByTitle(long);
+    expect(title.className).toContain('truncate');
+
+    fireEvent.click(getByRole('button', { name: MENU }));
+    fireEvent.click(getByRole('button', { name: 'What Porter knows about you' }));
+    expect(onMemory).toHaveBeenCalledTimes(1);
   });
 
   it('sends what was typed and clears the box', () => {

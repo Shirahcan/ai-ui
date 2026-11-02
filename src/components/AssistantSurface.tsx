@@ -25,6 +25,8 @@ import { aiVar } from '../theme';
 export interface AssistantSurfaceProps {
   /** The panel's name. Also its accessible name unless `label` says otherwise. */
   title: ReactNode;
+  /** Drawn before the title, e.g. the button that opens the conversations sidebar. */
+  leading?: ReactNode;
   /** One line under the title. Porter has none; Mira has a tagline. */
   subtitle?: ReactNode;
 
@@ -78,6 +80,7 @@ export type AssistantSurfaceAttributes = {
 
 export function AssistantSurface({
   title,
+  leading,
   subtitle,
   actions,
   onClose,
@@ -126,7 +129,9 @@ export function AssistantSurface({
           headerClassName ? undefined : { borderBottom: `1px solid ${aiVar('--ai-border')}` }
         }
       >
-        <div className="min-w-0">
+        <div className="flex min-w-0 shrink-0 items-center gap-2">
+          {leading}
+          <div className="min-w-0">
           <p className={`${ASSISTANT_GEOMETRY.headerTitle} ${titleClassName ?? ''}`}>{title}</p>
           {subtitle ? (
             <p
@@ -136,9 +141,10 @@ export function AssistantSurface({
               {subtitle}
             </p>
           ) : null}
+          </div>
         </div>
 
-        <div className={ASSISTANT_GEOMETRY.headerActions}>
+        <div className={`${ASSISTANT_GEOMETRY.headerActions} min-w-0 justify-end`}>
           {actions}
 
           {onClose ? (
