@@ -182,6 +182,8 @@ export interface FeedbackVote {
   created_at: string | null;
   answer?: string | null;
   audience?: string | null;
+  /** What the product recorded about how the answer was routed (intent, kind, confidence, matched_keys). */
+  structured?: Record<string, unknown> | null;
 }
 
 /** Money on the wire is integer micro-dollars; screens show dollars. */

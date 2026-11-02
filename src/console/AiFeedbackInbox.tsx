@@ -181,9 +181,41 @@ export function AiFeedbackInbox() {
               {open.product ? `, ${productName(open.product)}` : ''}
             </p>
             <div className="whitespace-pre-wrap rounded-lg bg-[var(--ai-accent-soft)] p-3">{open.answer ?? 'The answer is no longer held (its transcript has expired).'}</div>
+            <Routing structured={open.structured} />
           </div>
         </Dialog>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * How the assistant routed the answer that was judged, when the product recorded it on the turn
+ * (Portify's Porter writes intent, kind, confidence and the knowledge it matched). Nothing when absent.
+ */
+function Routing({ structured }: { structured?: Record<string, unknown> | null }) {
+  if (!structured) return null;
+  const text = (v: unknown) => (v === null || v === undefined || v === '' ? null : String(v));
+  const keys = Array.isArray(structured.matched_keys) ? structured.matched_keys.map(String) : [];
+  const rows: Array<[string, string | null]> = [
+    ['What it understood', text(structured.intent)],
+    ['Kind of answer', text(structured.kind)],
+    ['Confidence', text(structured.confidence)],
+  ];
+  if (rows.every(([, v]) => v === null) && keys.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-[var(--ai-border)] p-3">
+      <p className="mb-2 font-medium">How the assistant routed it</p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-[var(--ai-muted)]">{label}</dt>
+            <dd>{value ?? 'not recorded'}</dd>
+          </div>
+        ))}
+        <dt className="text-[var(--ai-muted)]">Knowledge it used</dt>
+        <dd className="break-all font-mono text-xs">{keys.length ? keys.join(', ') : 'none'}</dd>
+      </dl>
     </div>
   );
 }
