@@ -1,5 +1,6 @@
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { remarkEmphasiseFigures } from './emphasiseFigures';
 
 /**
  * How an assistant's Markdown is rendered, everywhere it speaks.
@@ -130,7 +131,7 @@ const FALLBACK: Required<MarkdownTheme> = {
  * Without it, tables are raw pipes. It is the single easiest thing to omit and
  * the most visible when omitted.
  */
-export const assistantRemarkPlugins = [remarkGfm];
+export const assistantRemarkPlugins = [remarkGfm, remarkEmphasiseFigures];
 
 export function assistantMarkdownComponents(theme: MarkdownTheme = {}): Components {
   const t = { ...FALLBACK, ...theme };

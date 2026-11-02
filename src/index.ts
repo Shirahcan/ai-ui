@@ -33,6 +33,7 @@ export type { Autoscroll, AutoscrollOptions } from './useAutoscroll';
 export { readSseFrames, parseFrame, isAbortError } from './sse';
 
 export { assistantMarkdownComponents, assistantRemarkPlugins } from './markdown';
+export { emphasiseFiguresInText, remarkEmphasiseFigures } from './emphasiseFigures';
 export type { MarkdownTheme } from './markdown';
 
 export { AssistantMessage } from './components/AssistantMessage';

@@ -4,6 +4,9 @@ import { AssistantPanel } from '../src/components/AssistantPanel';
 import { Composer } from '../src/components/Composer';
 import type { PanelMessage } from '../src/types';
 
+/** The paragraph whose text is exactly this (figures in it are bolded, so the text spans nodes). */
+const paragraph = (text: string) => (_: string, el: Element | null) => el?.tagName === 'P' && el.textContent === text;
+
 const URL_ = '/api/proxy/assistant/chat/stream';
 const CANCEL = '/api/proxy/assistant/chat/stream/{id}';
 
@@ -72,7 +75,9 @@ describe('AssistantPanel, uncontrolled', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('The fee is $1,365.')).toBeTruthy();
+      expect(screen.getByText(paragraph('The fee is $1,365.'))).toBeTruthy();
+      // The figure is bolded by the shared Markdown path, whatever the model wrote (2026-11-02).
+      expect(screen.getByText('$1,365').tagName).toBe('STRONG');
     });
 
     // The question is in the list too, and the box is empty again.
@@ -179,12 +184,12 @@ describe('AssistantPanel, uncontrolled', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('The fee is $1,365.')).toBeTruthy();
+      expect(screen.getByText(paragraph('The fee is $1,365.'))).toBeTruthy();
     });
 
     expect(screen.queryByText(/\$900/)).toBeNull();
     // And exactly one assistant answer, not the live row plus a settled copy.
-    expect(screen.getAllByText('The fee is $1,365.').length).toBe(1);
+    expect(screen.getAllByText(paragraph('The fee is $1,365.')).length).toBe(1);
   });
 
   it('never sends an empty turn', async () => {
