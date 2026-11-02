@@ -11,16 +11,24 @@ import { dollars, type ProductState } from './types';
  * "off" without saying which would make Resume look broken during a global stop.
  */
 export function AiStatusCard() {
-  const { request, capabilities, productName } = useConsole();
-  const { data, error, loading, reload, setData } = useConsoleResource<ProductState>('state');
+  const { request, capabilities, productName, viewingOther, allProducts } = useConsole();
+  const { data, error, loading, reload, setData } = useConsoleResource<ProductState>(allProducts ? null : 'state');
   const [asking, setAsking] = useState<'pause' | 'resume' | null>(null);
 
+  if (allProducts) {
+    return (
+      <Section title="AI switches" description="Every product's switch and cap are on All products. Pick one product above to see its own.">
+        <p className="text-sm text-[var(--ai-muted)]">Usage below covers every product.</p>
+      </Section>
+    );
+  }
   if (error && !data) return <LoadError error={error} onRetry={reload} />;
   if (loading && !data) return <Loading />;
   if (!data) return null;
 
   const { switch: sw, budget } = data;
-  const canPause = capabilities?.can.pause_self === true;
+  // Pause and resume act on this console's own product only; another product is paused from All products.
+  const canPause = capabilities?.can.pause_self === true && !viewingOther;
   const name = productName(data.product);
 
   const status = sw.global_stopped ? (
@@ -92,6 +100,7 @@ export function AiStatusCard() {
           )}
         </div>
       </div>
+      {viewingOther ? <p className="mt-4 text-xs text-[var(--ai-muted)]">To pause or resume {name}, use All products in the sidebar.</p> : null}
 
       {asking === 'pause' ? (
         <Confirm

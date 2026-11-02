@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ConsoleError, useConsole, useConsoleResource } from './ConsoleContext';
 import { Button, Confirm, Dialog, Field, INPUT, LoadError, Loading, Pill, when } from './primitives';
 import type { TemplateDetail, TemplateVersion } from './types';
+import { AssistBox } from './AssistBox';
 
 /**
  * Read, edit or restore one template. Only the words are editable (instructions and prompt);
@@ -20,7 +21,8 @@ export function TemplateEditor({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { request } = useConsole();
+  const { request, capabilities } = useConsole();
+  const [reverting, setReverting] = useState(false);
   const { data, error, loading, reload, setData } = useConsoleResource<TemplateDetail>(`tasks/${encodeURIComponent(templateKey)}`);
   const [draft, setDraft] = useState<{ system: string; prompt: string } | null>(null);
   const [fieldError, setFieldError] = useState<{ field: string; message: string } | null>(null);
@@ -122,16 +124,24 @@ export function TemplateEditor({
                   ))}
                 </p>
               ) : null}
+              {editable && !shared && live.source === 'console' && capabilities?.can.revert_templates === true ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--ai-border)] px-3 py-2 text-sm">
+                  <span>This template carries a console edit. The code's own words are kept in its history.</span>
+                  <Button onClick={() => setReverting(true)}>Back to the code's words</Button>
+                </div>
+              ) : null}
               <Field label="Instructions" hint="Who the AI is and the rules it follows for this task." error={fieldError?.field === 'system' ? fieldError.message : null}>
                 {(id) => (
                   <textarea id={id} rows={8} readOnly={!editable} className={`${INPUT} font-mono text-xs`} value={system} onChange={(e) => setDraft({ system: e.target.value, prompt })} />
                 )}
               </Field>
+              <AssistBox field="system" text={system} disabled={!editable} onUse={(t) => setDraft({ system: t, prompt })} />
               <Field label="Prompt" hint="What the AI is asked each time. Keep every {{variable}} the product fills in." error={fieldError?.field === 'prompt' ? fieldError.message : null}>
                 {(id) => (
                   <textarea id={id} rows={8} readOnly={!editable} className={`${INPUT} font-mono text-xs`} value={prompt} onChange={(e) => setDraft({ system, prompt: e.target.value })} />
                 )}
               </Field>
+              <AssistBox field="prompt" text={prompt} disabled={!editable} onUse={(t) => setDraft({ system, prompt: t })} />
               {fieldError?.field === 'form' ? <p className="text-sm text-[var(--ai-danger)]">{fieldError.message}</p> : null}
             </div>
           ) : (
@@ -150,6 +160,19 @@ export function TemplateEditor({
             </ol>
           )}
         </div>
+      ) : null}
+
+      {reverting ? (
+        <Confirm
+          title="Back to the code's words?"
+          body="The console edits on this template stop being live; the words from its file become a new live version, and from the next deploy on the file decides again. Nothing in the history is lost."
+          verb="Go back"
+          onClose={() => setReverting(false)}
+          onConfirm={async () => {
+            await request('POST', `tasks/${encodeURIComponent(templateKey)}/revert`, { body: {} });
+            await refresh();
+          }}
+        />
       ) : null}
 
       {restore ? (

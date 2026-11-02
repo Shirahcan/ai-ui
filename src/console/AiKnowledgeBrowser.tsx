@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useConsoleResource } from './ConsoleContext';
+import { useConsole, useConsoleAcross, useConsoleResource } from './ConsoleContext';
+import { ScopeNote } from './ProductPicker';
 import { Button, Dialog, Empty, INPUT, LoadError, Loading, Pill, Section, Table, Td, when } from './primitives';
 import type { KnowledgeEntry } from './types';
 
@@ -12,17 +13,37 @@ interface KnowledgePage {
  * What the assistant knows, as it was published. Read-only on purpose: each product's
  * knowledge files are the authority, so the screen says where an entry is changed.
  */
-export function AiKnowledgeBrowser({ sourceHint = "Entries are changed in the product's knowledge files and published on deploy." }: { sourceHint?: string }) {
+export function AiKnowledgeBrowser({
+  sourceHint = "Entries are changed in the product's knowledge files and published on deploy.",
+  extra,
+}: {
+  sourceHint?: string;
+  /** A product's own line under the title, e.g. a link to its drafts waiting for review. */
+  extra?: React.ReactNode;
+}) {
+  const { allProducts, productName } = useConsole();
   const [audience, setAudience] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<KnowledgeEntry | null>(null);
-  const { data, error, loading, reload } = useConsoleResource<KnowledgePage>('knowledge', { all: 1, audience: audience || undefined, page, per_page: 50 });
+  const query = { all: 1, audience: audience || undefined, page: allProducts ? 1 : page, per_page: 50 };
+  const single = useConsoleResource<KnowledgePage>(allProducts ? null : 'knowledge', query);
+  const across = useConsoleAcross<KnowledgePage>('knowledge', query);
+  // "All products": the first 50 entries of each product, with the totals added up.
+  const data = useMemo<KnowledgePage | null>(() => {
+    if (!allProducts) return single.data;
+    if (!across.active || across.loading) return null;
+    const entries = across.results.flatMap((r) => r.data.entries.map((e) => ({ ...e, product: r.product })));
+    return { entries, meta: { page: 1, last_page: 1, total: across.results.reduce((n, r) => n + (r.data.meta?.total ?? 0), 0) } };
+  }, [allProducts, single.data, across]);
+  const error = allProducts ? (across.failed[0]?.error ?? null) : single.error;
+  const loading = allProducts ? across.loading : single.loading;
+  const reload = allProducts ? across.reload : single.reload;
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = data?.entries ?? [];
-    return q ? list.filter((e) => `${e.slug} ${e.question ?? ''} ${e.description ?? ''}`.toLowerCase().includes(q)) : list;
+    return q ? list.filter((e) => `${e.slug} ${e.question ?? ''} ${e.description ?? ''} ${e.product ?? ''}`.toLowerCase().includes(q)) : list;
   }, [data, search]);
 
   return (
@@ -42,13 +63,17 @@ export function AiKnowledgeBrowser({ sourceHint = "Entries are changed in the pr
         <Loading />
       ) : data ? (
         <>
-          <Table head={['Entry', 'Audiences', 'Status', 'Updated']} empty={rows.length === 0 ? <Empty>{search || audience ? 'No entry matches.' : 'Nothing published yet. The product publishes with ai:knowledge-sync.'}</Empty> : null}>
+          <ScopeNote failed={across.failed} />
+          {extra}
+          {allProducts ? <p className="mb-3 text-sm text-[var(--ai-muted)]">The first 50 entries of each product (<strong>{data.meta.total}</strong> in all). Pick one product to page through it.</p> : null}
+          <Table head={allProducts ? ['Entry', 'Product', 'Audiences', 'Status', 'Updated'] : ['Entry', 'Audiences', 'Status', 'Updated']} empty={rows.length === 0 ? <Empty>{search || audience ? 'No entry matches.' : 'Nothing published yet. The product publishes with ai:knowledge-sync.'}</Empty> : null}>
             {rows.map((e) => (
-              <tr key={e.slug} className="cursor-pointer hover:bg-[var(--ai-accent-soft)]" onClick={() => setOpen(e)}>
+              <tr key={`${e.product ?? ''}:${e.slug}`} className="cursor-pointer hover:bg-[var(--ai-accent-soft)]" onClick={() => setOpen(e)}>
                 <Td>
                   <div className="font-medium">{e.question ?? e.slug}</div>
                   <div className="break-all text-xs text-[var(--ai-muted)]">{e.slug}</div>
                 </Td>
+                {allProducts ? <Td>{productName(e.product ?? '')}</Td> : null}
                 <Td>{(e.audiences ?? []).join(', ') || 'Everyone'}</Td>
                 <Td>
                   <Pill tone={e.status === 'published' ? 'good' : 'muted'}>{e.status}</Pill>

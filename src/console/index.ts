@@ -5,8 +5,11 @@
  * admin auth group. Frontend: an `AiConsoleProvider` pointed at that prefix, themed with the
  * same `AssistantTheme` as the product's chat panel, then `<AiConsole />` or single sections.
  */
-export { AiConsoleProvider, ConsoleError, useConsole, useConsoleResource } from './ConsoleContext';
-export type { AiConsoleProviderProps, ConsoleContextValue, ConsoleFetcher } from './ConsoleContext';
+export { AiConsoleProvider, ALL_PRODUCTS, ConsoleError, useConsole, useConsoleAcross, useConsoleResource } from './ConsoleContext';
+export { ProductPicker, ScopeNote } from './ProductPicker';
+export { AssistBox, LineDiff, diffLines } from './AssistBox';
+export type { AssistField } from './AssistBox';
+export type { AiConsoleProviderProps, ConsoleContextValue, ConsoleFetcher, RequestOptions } from './ConsoleContext';
 
 export { AiConsole, AiConsoleSection, AI_CONSOLE_TABS, aiConsoleSidebarGroups, useConsoleTabs } from './AiConsole';
 export { ConsoleSidebar } from './ConsoleSidebar';

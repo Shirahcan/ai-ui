@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useConsole, useConsoleResource } from './ConsoleContext';
+import { ALL_PRODUCTS, useConsole, useConsoleResource } from './ConsoleContext';
 import { Empty, INPUT, LoadError, Loading, Section, Stat, Table, Td } from './primitives';
 import { TrendChart } from './TrendChart';
 import { count, dollars, type UsageGroup, type UsageReport } from './types';
@@ -28,18 +28,21 @@ function fromFor(period: PeriodKey): string {
  * trends are global, changing anything estate-wide is not.
  */
 export function AiUsageOverview() {
-  const { capabilities, productName } = useConsole();
+  const { capabilities, productName, product: picked } = useConsole();
   const [period, setPeriod] = useState<PeriodKey>('30');
   const [scope, setScope] = useState<'mine' | 'all'>('mine');
   const [metric, setMetric] = useState<'spend' | 'calls'>('spend');
   const [showTable, setShowTable] = useState(false);
 
-  const product = capabilities?.product;
+  // A console that can switch products follows the picker above; any other has its own two-way choice.
+  const follows = capabilities?.can.act_for_products === true;
+  const product = follows ? (picked === ALL_PRODUCTS ? undefined : (picked ?? undefined)) : capabilities?.product;
+  const effectiveScope: 'mine' | 'all' = follows ? (product ? 'mine' : 'all') : scope;
   const query = useMemo(
-    () => ({ from: fromFor(period), product: scope === 'mine' ? product : undefined }),
-    [period, scope, product],
+    () => ({ from: fromFor(period), product: effectiveScope === 'mine' ? product : undefined }),
+    [period, effectiveScope, product],
   );
-  const { data, error, loading, reload } = useConsoleResource<UsageReport>(product ? 'usage' : null, query);
+  const { data, error, loading, reload } = useConsoleResource<UsageReport>(capabilities ? 'usage' : null, query);
 
   const points = (data?.daily ?? []).map((d) => ({
     date: d.date,
@@ -49,10 +52,12 @@ export function AiUsageOverview() {
 
   const controls = (
     <>
-      <select aria-label="Whose usage" className={`${INPUT} w-auto`} value={scope} onChange={(e) => setScope(e.target.value as 'mine' | 'all')}>
-        <option value="mine">{product ? productName(product) : 'This product'}</option>
-        <option value="all">All products</option>
-      </select>
+      {follows ? null : (
+        <select aria-label="Whose usage" className={`${INPUT} w-auto`} value={scope} onChange={(e) => setScope(e.target.value as 'mine' | 'all')}>
+          <option value="mine">{product ? productName(product) : 'This product'}</option>
+          <option value="all">All products</option>
+        </select>
+      )}
       <select aria-label="Period" className={`${INPUT} w-auto`} value={period} onChange={(e) => setPeriod(e.target.value as PeriodKey)}>
         {PERIODS.map((p) => (
           <option key={p.key} value={p.key}>
@@ -115,7 +120,7 @@ export function AiUsageOverview() {
       {data && data.totals.calls > 0 ? (
         <div className="grid gap-6 lg:grid-cols-2">
           <Breakdown title="By task" rows={data.by_task} column="task" />
-          {scope === 'all' ? (
+          {effectiveScope === 'all' ? (
             <Breakdown title="By product" rows={data.by_product} column="product" name={productName} />
           ) : (
             <Breakdown title="By provider" rows={data.by_provider} column="provider" />

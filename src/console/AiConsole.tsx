@@ -9,6 +9,7 @@ import { AiStatusCard } from './AiStatusCard';
 import { AiUsageOverview } from './AiUsageOverview';
 import { AiVoiceEditor } from './AiVoiceEditor';
 import { LoadError, Loading } from './primitives';
+import { ProductPicker } from './ProductPicker';
 import { ConsoleSidebar, type ConsoleSidebarGroup } from './ConsoleSidebar';
 import { AiVault, AI_VAULT_SECTIONS, type AiVaultSectionKey } from './vault/AiVault';
 import type { ConsoleCapabilities } from './types';
@@ -50,8 +51,29 @@ export const AI_CONSOLE_TABS: ReadonlyArray<{ key: AiConsoleTab; label: string; 
   { key: 'estate', label: 'All products', estateOnly: true },
 ];
 
-/** One section of the console by name, for a product that routes each section to its own URL. */
-export function AiConsoleSection({ tab }: { tab: AiConsoleTab }): ReactNode {
+/** The sections that show ONE product's AI, so the product picker sits above them. */
+const PRODUCT_SECTIONS: ReadonlyArray<AiConsoleTab> = ['overview', 'calls', 'prompts', 'voice', 'knowledge', 'feedback'];
+
+/**
+ * One section of the console by name, for a product that routes each section to its own URL.
+ * Product sections carry the product picker above them when the console may switch products
+ * (pass `picker={false}` to draw `<ProductPicker />` somewhere else, e.g. a top bar).
+ */
+export function AiConsoleSection({ tab, picker = true }: { tab: AiConsoleTab; picker?: boolean }): ReactNode {
+  if (picker && PRODUCT_SECTIONS.includes(tab)) {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-end empty:hidden">
+          <ProductPicker />
+        </div>
+        {sectionBody(tab)}
+      </div>
+    );
+  }
+  return sectionBody(tab);
+}
+
+function sectionBody(tab: AiConsoleTab): ReactNode {
   switch (tab) {
     case 'overview':
       return (

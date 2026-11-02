@@ -1,25 +1,41 @@
 import { useMemo, useState } from 'react';
-import { ConsoleError, useConsole, useConsoleResource } from './ConsoleContext';
-import { Button, Confirm, Dialog, Empty, Field, INPUT, Kebab, LoadError, Loading, Pill, Section, Table, Td, when } from './primitives';
+import { ConsoleError, useConsole, useConsoleAcross, useConsoleResource } from './ConsoleContext';
+import { Button, Confirm, Dialog, Empty, Field, INPUT, Kebab, LoadError, Loading, Pill, Section, Table, Td, copyText, when } from './primitives';
 import type { Persona } from './types';
+import { AssistBox } from './AssistBox';
+import { ScopeNote } from './ProductPicker';
 
 /**
  * How this product's assistant speaks, per audience, with every earlier version kept.
  * A save publishes a new version and makes it live; an earlier one can be made live again.
  */
 export function AiVoiceEditor() {
-  const { capabilities, request } = useConsole();
-  const { data, error, loading, reload } = useConsoleResource<{ personas: Persona[] }>('personas');
+  const { capabilities, request, allProducts, productName, setProduct, notify, reportError } = useConsole();
+  const single = useConsoleResource<{ personas: Persona[] }>(allProducts ? null : 'personas');
+  const across = useConsoleAcross<{ personas: Persona[] }>('personas');
+  const data = useMemo<{ personas: Persona[] } | null>(() => {
+    if (!allProducts) return single.data;
+    if (!across.active || across.loading) return null;
+    return { personas: across.results.flatMap((r) => r.data.personas.map((p) => ({ ...p, product: r.product }))) };
+  }, [allProducts, single.data, across]);
+  const error = allProducts ? (across.failed[0]?.error ?? null) : single.error;
+  const loading = allProducts ? across.loading : single.loading;
+  const reload = allProducts ? across.reload : single.reload;
   const [editing, setEditing] = useState<Persona | 'new' | null>(null);
   const [history, setHistory] = useState<Persona | null>(null);
   const [turnOff, setTurnOff] = useState<Persona | null>(null);
+  // Editing needs ONE product picked: from the merged list, Edit switches to the voice's product.
   const canEdit = capabilities?.can.edit_voice === true;
+  const editRow = (p: Persona) => {
+    if (allProducts && p.product) setProduct(p.product);
+    setEditing(p);
+  };
 
   // One row per voice (key + audience): the live version, or the newest if none is live.
   const voices = useMemo(() => {
     const groups = new Map<string, Persona[]>();
     for (const p of data?.personas ?? []) {
-      const k = `${p.key}|${p.audience ?? ''}`;
+      const k = `${p.product ?? ''}|${p.key}|${p.audience ?? ''}`;
       groups.set(k, [...(groups.get(k) ?? []), p]);
     }
     return [...groups.values()].map((versions) => ({
@@ -34,20 +50,23 @@ export function AiVoiceEditor() {
     <Section
       title="Voice"
       description="How the assistant speaks to each audience. Applied to every answer it gives them."
-      actions={canEdit ? <Button tone="primary" onClick={() => setEditing('new')}>Add a voice</Button> : null}
+      actions={canEdit && !allProducts ? <Button tone="primary" onClick={() => setEditing('new')}>Add a voice</Button> : null}
     >
       {error && !data ? (
         <LoadError error={error} onRetry={reload} />
       ) : loading && !data ? (
         <Loading />
       ) : (
-        <Table head={['Voice', 'Audience', 'Version', '']} empty={voices.length === 0 ? <Empty>No voice published yet. The assistant uses its default tone.</Empty> : null}>
+        <>
+        <ScopeNote failed={across.failed} />
+        <Table head={allProducts ? ['Voice', 'Product', 'Audience', 'Version', ''] : ['Voice', 'Audience', 'Version', '']} empty={voices.length === 0 ? <Empty>No voice published yet. The assistant uses its default tone.</Empty> : null}>
           {voices.map(({ current, live, versions }) => (
-            <tr key={`${current.key}|${current.audience ?? ''}`}>
+            <tr key={`${current.product ?? ''}|${current.key}|${current.audience ?? ''}`}>
               <Td>
                 <div className="font-medium">{current.label}</div>
                 <div className="line-clamp-2 text-xs text-[var(--ai-muted)]">{current.voice}</div>
               </Td>
+              {allProducts ? <Td>{productName(current.product ?? '')}</Td> : null}
               <Td>{current.audience ?? 'Everyone'}</Td>
               <Td className="whitespace-nowrap">
                 v{current.version} {live ? <Pill tone="good">Live</Pill> : <Pill tone="bad">Off</Pill>}
@@ -56,15 +75,21 @@ export function AiVoiceEditor() {
                 <Kebab
                   label={`Actions for ${current.label}`}
                   items={[
-                    { label: 'Edit', onSelect: () => setEditing(current), hidden: !canEdit },
-                    { label: `History (${versions.length})`, onSelect: () => setHistory(current) },
-                    { label: 'Turn off', onSelect: () => setTurnOff(current), danger: true, hidden: !canEdit || !live },
+                    { label: allProducts ? `Edit in ${productName(current.product ?? '')}` : 'Edit', onSelect: () => editRow(current), hidden: !canEdit },
+                    { label: `History (${versions.length})`, onSelect: () => setHistory(current), hidden: allProducts },
+                    {
+                      label: 'Copy name',
+                      onSelect: () =>
+                        void copyText(current.key).then((ok) => (ok ? notify({ title: `Copied ${current.key}` }) : reportError('Copying to the clipboard was blocked by the browser.'))),
+                    },
+                    { label: 'Turn off', onSelect: () => setTurnOff(current), danger: true, hidden: !canEdit || !live || allProducts },
                   ]}
                 />
               </Td>
             </tr>
           ))}
         </Table>
+        </>
       )}
 
       {editing ? <VoiceForm persona={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={reload} /> : null}
@@ -177,6 +202,7 @@ function VoiceForm({ persona, onClose, onSaved }: { persona: Persona | null; onC
         <Field label="Voice" hint={`${form.voice.length} of 4,000 characters. Added to every answer, so shorter costs less.`} error={problem}>
           {(id) => <textarea id={id} rows={10} className={INPUT} value={form.voice} onChange={set('voice')} maxLength={4000} />}
         </Field>
+        <AssistBox field="voice" text={form.voice} onUse={(t) => setForm((f) => ({ ...f, voice: t.slice(0, 4000) }))} />
       </div>
     </Dialog>
   );

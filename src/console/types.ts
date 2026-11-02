@@ -12,7 +12,20 @@ export interface ConsoleCapabilities {
     edit_voice: boolean;
     edit_shared_templates: boolean;
     estate: boolean;
+    /** Site management v2: read and edit another product (`?as_product=`). Admin key only. */
+    act_for_products?: boolean;
+    /** "Ask the assistant" beside a prompt or a voice. */
+    assist?: boolean;
+    /** Put a template back to its file's words. */
+    revert_templates?: boolean;
   };
+}
+
+/** A product the console may switch to (`GET products`, admin key). */
+export interface ConsoleProduct {
+  key: string;
+  label: string;
+  own: boolean;
 }
 
 export interface BudgetState {
@@ -72,6 +85,8 @@ export interface UsageReport {
 }
 
 export interface UsageCall {
+  /** Set on the "All products" view: the product this row belongs to. */
+  product?: string;
   id: number;
   created_at: string | null;
   task: string | null;
@@ -92,6 +107,8 @@ export interface Page<T> {
 }
 
 export interface TemplateRow {
+  /** Set on the "All products" view: the product this row belongs to. */
+  product?: string;
   key: string;
   version: number;
   mode: string;
@@ -126,6 +143,8 @@ export interface TemplateDetail {
 }
 
 export interface Persona {
+  /** Set on the "All products" view: the product this row belongs to. */
+  product?: string;
   id: number;
   key: string;
   audience: string | null;
@@ -138,6 +157,8 @@ export interface Persona {
 }
 
 export interface KnowledgeEntry {
+  /** Set on the "All products" view: the product this row belongs to. */
+  product?: string;
   slug: string;
   status: string;
   audiences: string[] | null;
@@ -150,6 +171,8 @@ export interface KnowledgeEntry {
 }
 
 export interface FeedbackVote {
+  /** Set on the "All products" view: the product this row belongs to. */
+  product?: string;
   id: number;
   conversation_id: string;
   turn_id: string | number;

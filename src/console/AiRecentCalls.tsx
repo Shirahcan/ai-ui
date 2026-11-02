@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useConsoleResource } from './ConsoleContext';
+import { useMemo, useState } from 'react';
+import { useConsole, useConsoleAcross, useConsoleResource } from './ConsoleContext';
+import { ScopeNote } from './ProductPicker';
 import { Button, Dialog, Empty, INPUT, LoadError, Loading, Pill, Section, Table, Td, when } from './primitives';
 import { count, dollars, type UsageCall } from './types';
 
@@ -18,18 +19,27 @@ export function AiRecentCalls() {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<UsageCall | null>(null);
 
-  const { data, error, loading, reload } = useConsoleResource<CallsPage>('usage/calls', {
-    days: 30,
-    outcome: outcome || undefined,
-    task: task.trim() || undefined,
-    page,
-    per_page: 25,
-  });
+  const { allProducts, productName } = useConsole();
+  const query = { days: 30, outcome: outcome || undefined, task: task.trim() || undefined, page: allProducts ? 1 : page, per_page: 25 };
+  const single = useConsoleResource<CallsPage>(allProducts ? null : 'usage/calls', query);
+  const across = useConsoleAcross<CallsPage>('usage/calls', query);
+  // "All products": the newest 25 of each product, merged newest first.
+  const merged = useMemo<CallsPage | null>(() => {
+    if (!across.active || across.loading) return null;
+    const calls = across.results
+      .flatMap((r) => r.data.calls.map((c) => ({ ...c, product: r.product })))
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    return { calls, meta: { page: 1, per_page: calls.length, total: calls.length, last_page: 1 } };
+  }, [across]);
+  const data = allProducts ? merged : single.data;
+  const error = allProducts ? (across.failed[0]?.error ?? null) : single.error;
+  const loading = allProducts ? across.loading : single.loading;
+  const reload = allProducts ? across.reload : single.reload;
 
   return (
     <Section
       title="Recent calls"
-      description="The last 30 days of this product's AI calls."
+      description={allProducts ? "The newest 25 AI calls of each product in the last 30 days." : "The last 30 days of this product's AI calls."}
       actions={
         <>
           <input aria-label="Filter by task" placeholder="Task" className={`${INPUT} w-40`} value={task} onChange={(e) => { setTask(e.target.value); setPage(1); }} />
@@ -49,10 +59,12 @@ export function AiRecentCalls() {
         <Loading />
       ) : data ? (
         <>
-          <Table wide head={['When', 'Task', 'Outcome', 'Model', 'Time', 'Cost']} empty={data.calls.length === 0 ? <Empty>No calls match.</Empty> : null}>
+          <ScopeNote failed={across.failed} />
+          <Table wide head={allProducts ? ['When', 'Product', 'Task', 'Outcome', 'Model', 'Time', 'Cost'] : ['When', 'Task', 'Outcome', 'Model', 'Time', 'Cost']} empty={data.calls.length === 0 ? <Empty>No calls match.</Empty> : null}>
             {data.calls.map((c) => (
-              <tr key={c.id} className="cursor-pointer hover:bg-[var(--ai-accent-soft)]" onClick={() => setOpen(c)}>
+              <tr key={`${c.product ?? ''}:${c.id}`} className="cursor-pointer hover:bg-[var(--ai-accent-soft)]" onClick={() => setOpen(c)}>
                 <Td className="whitespace-nowrap">{when(c.created_at)}</Td>
+                {allProducts ? <Td>{productName(c.product ?? '')}</Td> : null}
                 <Td className="break-all">{c.task}</Td>
                 <Td>
                   <Pill tone={c.outcome === 'ok' ? 'good' : 'bad'}>{c.outcome ?? 'unknown'}</Pill>
