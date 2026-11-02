@@ -252,7 +252,7 @@ export function useConsole(): ConsoleContextValue {
  * ⚠ `error` is kept apart from empty data, so a failed read never renders as zeros.
  */
 export function useConsoleResource<T>(path: string | null, query?: Record<string, unknown>) {
-  const { request } = useConsole();
+  const { request, product } = useConsole();
   const [state, setState] = useState<{ data: T | null; error: ConsoleError | null; loading: boolean }>({
     data: null,
     error: null,
@@ -260,6 +260,18 @@ export function useConsoleResource<T>(path: string | null, query?: Record<string
   });
   const [tick, setTick] = useState(0);
   const key = JSON.stringify(query ?? {});
+
+  /*
+   * ⚠ ANOTHER PRODUCT'S DATA IS NEVER KEPT ON SCREEN. Within one product a failed refresh keeps
+   * the last good data (with the error beside it); after the picker changes product, a failed
+   * read would otherwise leave the PREVIOUS product's rows showing under the new product's name,
+   * one click from editing the wrong product. Seen in the first browser pass, 2026-11-02.
+   */
+  const [shownFor, setShownFor] = useState(product);
+  if (shownFor !== product) {
+    setShownFor(product);
+    setState({ data: null, error: null, loading: path !== null });
+  }
 
   useEffect(() => {
     if (path === null) return;

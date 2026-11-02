@@ -176,3 +176,24 @@ describe('Ask the assistant and back to the code', () => {
     ]);
   });
 });
+
+describe('switching products never keeps the previous product on screen', () => {
+  it('a failed read after a switch shows the error, not the old product\'s rows', async () => {
+    window.sessionStorage.clear();
+    const { fetcher } = server({
+      'GET capabilities': () => json(caps(true)),
+      'GET products': () => json(products),
+      'GET tasks': () => json({ tasks: [task('portify.only')], shared: [] }),
+      'GET tasks@mploynow': () => json({ message: 'The AI service did not answer.' }, 503),
+    });
+    render(
+      <AiConsoleProvider baseUrl="/console" theme={theme} fetcher={fetcher}>
+        <AiConsoleSection tab="prompts" />
+      </AiConsoleProvider>,
+    );
+    await screen.findByText('portify.only');
+    fireEvent.change(await screen.findByLabelText('Product'), { target: { value: 'mploynow' } });
+    await screen.findByText('The AI service did not answer.');
+    expect(screen.queryByText('portify.only')).toBeNull();
+  });
+});
