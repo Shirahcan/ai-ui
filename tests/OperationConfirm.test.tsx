@@ -86,7 +86,20 @@ describe('OperationConfirm in the background', () => {
 
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Started in the background.'));
     finished = true;
-    await waitFor(() => expect(screen.getByText('Recorded 6 payments.')).toBeTruthy(), { timeout: 4000 });
+    await waitFor(() => expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'Recorded 6 payments.')).toBeTruthy(), { timeout: 4000 });
+    expect(screen.getByText('6').tagName).toBe('STRONG');
+  });
+
+  it('renders a result written in Markdown, never raw asterisks (2026-11-02)', async () => {
+    const onRunOperation = vi.fn(async () => ({ summary: 'I checked, and **4** payment records are tied to nothing:\n\n- The **204.20 CAD** record' }));
+    const { container } = render(<AssistantMessageBody message={message} handlers={{ onRunOperation }} />);
+
+    fireEvent.click(screen.getByLabelText('The consultant asked for it'));
+    fireEvent.click(screen.getByRole('button', { name: 'Change case name' }));
+
+    await waitFor(() => expect(container.querySelector('li')?.textContent).toBe('The 204.20 CAD record'));
+    expect(container.textContent).not.toContain('**');
+    expect(Array.from(container.querySelectorAll('strong')).map((n) => n.textContent)).toEqual(['4', '204.20 CAD']);
   });
 
   it('never re-offers a started run after a re-mount', () => {

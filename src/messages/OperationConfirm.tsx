@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { assistantMarkdownComponents, assistantRemarkPlugins } from '../markdown';
 import type { AssistantOperation } from './kinds';
 import type { AssistantActionOutcome, AssistantActionResult, AssistantRunCheck } from './ActionConfirm';
 
@@ -167,13 +169,23 @@ export function OperationConfirm({
       </div>
 
       {status === 'done' ? (
-        <p className="whitespace-pre-line text-sm font-medium text-[var(--ai-fg)]">{summary ?? 'Done.'}</p>
+        // The result is the assistant speaking (2026-11-02: a reply arrived as raw "**4**"), so it goes
+        // through the same Markdown path as every other answer, figures emphasised.
+        <div className="text-sm text-[var(--ai-fg)]">
+          <ReactMarkdown remarkPlugins={assistantRemarkPlugins} components={assistantMarkdownComponents()}>
+            {summary ?? 'Done.'}
+          </ReactMarkdown>
+        </div>
       ) : status === 'started' ? (
         <p className="text-sm text-[var(--ai-fg)]" role="status">
           {summary ?? 'Running in the background.'} You will get a notice when it finishes.
         </p>
       ) : status === 'run_failed' ? (
-        <p className="whitespace-pre-line text-sm font-medium text-[var(--ai-danger)]">{summary}</p>
+        <div className="text-sm text-[var(--ai-danger)]">
+          <ReactMarkdown remarkPlugins={assistantRemarkPlugins} components={assistantMarkdownComponents()}>
+            {summary ?? ''}
+          </ReactMarkdown>
+        </div>
       ) : status === 'cancelled' ? (
         <p className="text-sm text-[var(--ai-muted)]">Cancelled. Nothing was changed.</p>
       ) : (
