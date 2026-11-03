@@ -378,7 +378,8 @@ export function AssistantChat({
   };
 
   const userBubble =
-    `${ASSISTANT_GEOMETRY.bubble} bg-[var(--ai-bubble-user-bg)] text-[var(--ai-bubble-user-fg)]`;
+    `${ASSISTANT_GEOMETRY.bubble} border border-[var(--ai-bubble-user-border)]`
+    + ' bg-[var(--ai-bubble-user-bg)] text-[var(--ai-bubble-user-fg)]';
 
   const toggleMenu = () => {
     if (!menuOpen) threads?.onReload?.();

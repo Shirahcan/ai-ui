@@ -215,8 +215,9 @@ export function MessageAttachmentChips({ attachments }: { attachments: Attachmen
       {attachments.map((a) => (
         <li
           key={a.id}
-          className="flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
-          style={{ background: 'rgba(255,255,255,0.18)', opacity: a.state === 'deleted' ? 0.7 : 1 }}
+          // Drawn on the person's light bubble: the card's own surface and hairline, not a white wash.
+          className="flex max-w-full items-center gap-1.5 rounded-full border border-[var(--ai-border,#e2e8f0)] bg-[var(--ai-surface,#fff)] px-2.5 py-1 text-xs"
+          style={{ opacity: a.state === 'deleted' ? 0.7 : 1 }}
           title={a.state === 'deleted' ? `${a.name} (no longer kept)` : a.name}
         >
           <FileIcon size={12} />

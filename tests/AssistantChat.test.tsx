@@ -72,7 +72,9 @@ describe('AssistantChat', () => {
     const card = dialog(container);
 
     expect(card.style.getPropertyValue('--ai-accent')).toBe('#6f6df3');
-    expect(card.style.getPropertyValue('--ai-bubble-user-bg')).toBe('#6f6df3');
+    // The person's bubble is a light wash of the accent in the panel's own text colour (1.30).
+    expect(card.style.getPropertyValue('--ai-bubble-user-bg')).toBe('color-mix(in srgb, #6f6df3 8%, transparent)');
+    expect(card.style.getPropertyValue('--ai-bubble-user-fg')).toBe('#152237');
     expect(card.style.getPropertyValue('--ai-fg')).toBe('#152237');
   });
 

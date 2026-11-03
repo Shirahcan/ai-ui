@@ -111,9 +111,15 @@ export interface AssistantTheme {
   /** Error text. Falls back to a readable red. */
   danger?: string;
 
-  /** The user's bubble, when it is not simply the accent. */
+  /**
+   * The person's own bubble. Unset, it is a light wash of the accent with the panel's own text
+   * colour and a hairline of the accent: readable on a translucent card, and calm beside the
+   * file chips it carries. A solid accent bubble (the default until 1.30) shouted over every
+   * answer, so a product that still wants one sets these to the accent.
+   */
   userBubbleBg?: string;
   userBubbleFg?: string;
+  userBubbleBorder?: string;
 
   /**
    * How an assistant's answer is drawn.
@@ -182,8 +188,9 @@ export function themeToVars(theme: AssistantTheme): Record<string, string> {
     '--ai-accent-fg': theme.accentFg,
     '--ai-accent-soft': accentSoft,
     '--ai-danger': theme.danger ?? '#b91c1c',
-    '--ai-bubble-user-bg': theme.userBubbleBg ?? theme.accent,
-    '--ai-bubble-user-fg': theme.userBubbleFg ?? theme.accentFg,
+    '--ai-bubble-user-bg': theme.userBubbleBg ?? `color-mix(in srgb, ${theme.accent} 8%, transparent)`,
+    '--ai-bubble-user-fg': theme.userBubbleFg ?? theme.fg,
+    '--ai-bubble-user-border': theme.userBubbleBorder ?? `color-mix(in srgb, ${theme.accent} 18%, transparent)`,
     /*
      * ⚠ TRANSPARENT UNLESS THE PRODUCT ASKED FOR A FILLED BUBBLE. A background
      * set here while the geometry says `plain` would paint a box around prose
