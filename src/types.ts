@@ -104,9 +104,26 @@ export interface DeferredWork {
  * ordering, the keys and the empty-while-thinking case. Here the panel appends
  * one message with `streaming: true` and the list stays the list.
  */
+/** A file a person attached to their message, as the product's upload returned it. */
+export interface AttachmentChip {
+  id: string;
+  name: string;
+  mime: string;
+  /** Bytes. */
+  size: number;
+  /** The product's word for it (`ready`, `deleted`); a deleted file still shows its name. */
+  state?: string;
+}
+
 export interface PanelMessage {
   id: string;
   role: 'user' | 'assistant';
+
+  /**
+   * The files on the person's own message, drawn as chips on their bubble (never as Markdown).
+   * Copy and Export carry the NAMES, never the contents.
+   */
+  attachments?: AttachmentChip[];
 
   /** Markdown. Rendered through the shared map unless `content` is given. */
   text: string;

@@ -12,6 +12,7 @@ import { AssistantIntro } from './AssistantIntro';
 import { AssistantPanel } from './AssistantPanel';
 import { AssistantSurface, type AssistantSurfaceAttributes } from './AssistantSurface';
 import { Composer } from './Composer';
+import type { ComposerAttachmentsConfig } from './ComposerAttachments';
 import { HumanCheck } from './HumanCheck';
 import { MessageActions } from './MessageActions';
 import { MessageBubble } from './MessageBubble';
@@ -21,7 +22,7 @@ import { downloadConversationText, printConversation, readRenderedTurns } from '
 import { ChatIcon, DownloadIcon, MenuIcon, PlusIcon, PrintIcon, TrashIcon } from '../icons';
 import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
-import type { PanelMessage } from '../types';
+import type { AttachmentChip, PanelMessage } from '../types';
 import type { AssistantHumanCheck } from '../useAssistantConversation';
 
 /**
@@ -162,6 +163,14 @@ export interface AssistantChatComposer {
   sendDisabled?: boolean;
   /** Enter mid-answer sends, for a product whose turn loop supersedes. */
   sendWhileBusy?: boolean;
+  /**
+   * Files on a message (1.29.0): the paperclip, drag-and-drop and paste. Omit it and there is none.
+   * The product's `onUpload` stores the file; `onSend` then receives the chips with the text.
+   */
+  attachments?: ComposerAttachmentsConfig & {
+    /** The words sent when a message is files alone. Default "Here is a file." */
+    emptyText?: string;
+  };
 }
 
 export interface AssistantChatProps {
@@ -181,7 +190,8 @@ export interface AssistantChatProps {
   /** A soft, non-error line above the list. */
   notice?: ReactNode;
 
-  onSend: (text: string) => void;
+  /** The person's words, and the files they attached (passed only when there are some). */
+  onSend: (text: string, attachments?: AttachmentChip[]) => void;
   onStop?: () => void;
   onRetry?: () => void;
 
@@ -371,11 +381,16 @@ export function AssistantChat({
     setMenuOpen((open) => !open);
   };
 
-  const send = (text: string) => {
-    const trimmed = text.trim();
+  const send = (text: string, files: AttachmentChip[] = []) => {
+    let trimmed = text.trim();
+    if (trimmed === '' && files.length > 0) {
+      trimmed = composer?.attachments?.emptyText ?? (files.length > 1 ? 'Here are some files.' : 'Here is a file.');
+    }
     if (trimmed === '') return;
     setDraft('');
-    onSend(trimmed);
+    // Without files the call is exactly what it always was, so a product's own checks still hold.
+    if (files.length > 0) onSend(trimmed, files);
+    else onSend(trimmed);
   };
 
   return (
@@ -503,7 +518,8 @@ export function AssistantChat({
             <Composer
               value={draft}
               onChange={setDraft}
-              onSend={() => send(draft)}
+              onSend={(files) => send(draft, files)}
+              attachments={composer?.attachments}
               busy={busy}
               onStop={onStop ? stop : undefined}
               sendDisabled={composer?.sendDisabled}

@@ -94,8 +94,15 @@ export { aiVar, AI_UI_CSS_VARIABLES } from './theme';
 export type { AiUiCssVariable } from './theme';
 
 export { DEFAULT_EVENT_NAMES } from './types';
+export {
+  formatBytes,
+  MessageAttachmentChips,
+  withoutAttachedLine,
+} from './components/ComposerAttachments';
+export type { ComposerAttachmentsConfig } from './components/ComposerAttachments';
 export type {
   AssistantTurnState,
+  AttachmentChip,
   DeferredWork,
   PanelMessage,
   StreamEventNames,

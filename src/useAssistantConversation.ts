@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { readSseFrames, isAbortError } from './sse';
-import type { DeferredWork, PanelMessage } from './types';
+import type { AttachmentChip, DeferredWork, PanelMessage } from './types';
 
 /**
  * A whole conversation's turn loop, for any product (P19d).
@@ -116,6 +116,8 @@ export interface AssistantTurnOptions {
   display?: string;
   /** Merged into this turn's request only. */
   body?: Record<string, unknown>;
+  /** The files on this message, drawn as chips on the person's row straight away. */
+  attachments?: AttachmentChip[];
 }
 
 const EVENTS = { stage: 'stage', token: 'token', reset: 'reset', message: 'message', error: 'error', turn: 'turn' };
@@ -452,7 +454,10 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     }
 
     pendingRef.current = [...pendingRef.current, text];
-    setRows((prev) => [...prev, { id: localId(), role: 'user', text: turn.display ?? text }]);
+    setRows((prev) => [...prev, {
+      id: localId(), role: 'user', text: turn.display ?? text,
+      ...(turn.attachments && turn.attachments.length > 0 ? { attachments: turn.attachments } : {}),
+    }]);
 
     // Both questions go to the model together, and the turn resolves which one stands.
     const question = pendingRef.current.filter((q, i, all) => all.indexOf(q) === i).join('\n');

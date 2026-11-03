@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { AssistantMessage } from './AssistantMessage';
+import { MessageAttachmentChips, withoutAttachedLine } from './ComposerAttachments';
 import { aiVar } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { PanelMessage } from '../types';
@@ -158,7 +159,16 @@ export function MessageBubble({
              * HTML in it handed to a renderer. `whitespace-pre-wrap` keeps
              * their line breaks, which is all they asked for.
              */
-            <p className="whitespace-pre-wrap">{message.text}</p>
+            <>
+              {message.attachments && message.attachments.length > 0 ? (
+                <MessageAttachmentChips attachments={message.attachments} />
+              ) : null}
+              <p className="whitespace-pre-wrap">
+                {message.attachments && message.attachments.length > 0
+                  ? withoutAttachedLine(message.text)
+                  : message.text}
+              </p>
+            </>
           ) : (
             <AssistantMessage
               text={message.text}

@@ -87,10 +87,10 @@ export interface AssistantPanelProps {
 }
 
 /** What the `renderComposer` slot is handed. */
-export type ComposerSlotProps = Pick<
-  ComposerProps,
-  'value' | 'onChange' | 'onSend' | 'busy' | 'onStop'
->;
+export type ComposerSlotProps = Pick<ComposerProps, 'value' | 'onChange' | 'busy' | 'onStop'> & {
+  /** Sends the box's text. Takes nothing, so it is safe as a button's `onClick`. */
+  onSend: () => void;
+};
 
 let seq = 0;
 const uid = (): string => `aiui-${++seq}`;

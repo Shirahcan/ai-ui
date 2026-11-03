@@ -1,5 +1,12 @@
-import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
 import { StopButton } from './StopButton';
+import {
+  AttachButton,
+  PendingAttachmentChips,
+  useComposerAttachments,
+  type ComposerAttachmentsConfig,
+} from './ComposerAttachments';
+import type { AttachmentChip } from '../types';
 import { aiVar } from '../theme';
 
 /** Tallest the input grows before it scrolls internally (px) - about 6 lines. */
@@ -20,7 +27,14 @@ const MAX_HEIGHT = 160;
 export interface ComposerProps {
   value: string;
   onChange: (value: string) => void;
-  onSend: () => void;
+  /** The files ready on the message, when `attachments` is on (empty otherwise). */
+  onSend: (attachments: AttachmentChip[]) => void;
+
+  /**
+   * Files on the message: a paperclip, drag-and-drop and paste. Omit it and there is no paperclip.
+   * Send waits while a file is still uploading, and a message may be files with no words.
+   */
+  attachments?: ComposerAttachmentsConfig;
 
   /** While true, Send is replaced by Stop and the textarea stays editable. */
   busy?: boolean;
@@ -112,6 +126,7 @@ export function Composer({
   value,
   onChange,
   onSend,
+  attachments,
   busy = false,
   onStop,
   id = 'ai-composer',
@@ -164,8 +179,11 @@ export function Composer({
     el.style.height = `${Math.min(el.scrollHeight + border, MAX_HEIGHT)}px`;
   }, [value]);
 
+  const files = useComposerAttachments(attachments);
+
   const canSend =
-    !disabled && !sendDisabled && (sendWhileBusy || !busy) && value.trim() !== '';
+    !disabled && !sendDisabled && (sendWhileBusy || !busy) && !files.uploading
+    && (value.trim() !== '' || files.ready.length > 0);
 
   const recallOlder = () => {
     const next = Math.min(recallIndex + 1, history.length - 1);
@@ -195,8 +213,34 @@ export function Composer({
 
   const send = () => {
     setRecallIndex(-1);
-    onSend();
+    onSend(files.ready);
+    files.clear();
   };
+
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!attachments) return;
+    const pasted = Array.from(event.clipboardData.files);
+    if (pasted.length === 0) return;
+    event.preventDefault();
+    files.add(pasted);
+  };
+
+  const [dragging, setDragging] = useState(false);
+  const dropHandlers = attachments && !disabled
+    ? {
+        onDragOver: (event: DragEvent<HTMLDivElement>) => {
+          if (!event.dataTransfer.types.includes('Files')) return;
+          event.preventDefault();
+          setDragging(true);
+        },
+        onDragLeave: () => setDragging(false),
+        onDrop: (event: DragEvent<HTMLDivElement>) => {
+          event.preventDefault();
+          setDragging(false);
+          files.add(Array.from(event.dataTransfer.files));
+        },
+      }
+    : {};
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     const el = event.currentTarget;
@@ -238,9 +282,26 @@ export function Composer({
   return (
     <div
       className={className ?? 'flex items-end gap-2 p-2'}
-      style={{ borderTop: `1px solid ${aiVar('--ai-border')}` }}
+      style={{
+        borderTop: `1px solid ${aiVar('--ai-border')}`,
+        // Files wrap onto their own row above the box; the box and its buttons stay one row.
+        ...(attachments ? { flexWrap: 'wrap' as const } : {}),
+        ...(dragging ? { outline: `2px dashed ${aiVar('--ai-accent')}`, outlineOffset: '-4px' } : {}),
+      }}
+      {...dropHandlers}
     >
+      {attachments && files.items.length > 0 ? (
+        <div className="basis-full">
+          <PendingAttachmentChips items={files.items} onRemove={files.remove} />
+        </div>
+      ) : null}
+
+      {attachments ? (
+        <AttachButton config={attachments} onFiles={files.add} disabled={disabled} />
+      ) : null}
+
       <textarea
+        onPaste={onPaste}
         ref={ref}
         id={id}
         name={name}
