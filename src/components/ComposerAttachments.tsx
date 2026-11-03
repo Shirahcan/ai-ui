@@ -21,6 +21,11 @@ export interface ComposerAttachmentsConfig {
   onUpload: (file: File) => Promise<AttachmentChip>;
   /** A refusal made here (wrong type, too large, too many), for the product's own error surface. */
   onRefused?: (message: string) => void;
+  /**
+   * A stored file the person removed before sending, so the product can delete it now rather
+   * than keep it until its retention. Best-effort: the chip goes either way.
+   */
+  onRemove?: (chip: AttachmentChip) => void | Promise<void>;
   /** The paperclip's accessible name. */
   label?: string;
 }
@@ -95,8 +100,12 @@ export function useComposerAttachments(config: ComposerAttachmentsConfig | undef
   );
 
   const remove = useCallback((key: string) => {
+    const gone = items.find((i) => i.key === key);
+    if (gone?.status === 'ready' && gone.chip && config?.onRemove) {
+      void Promise.resolve(config.onRemove(gone.chip)).catch(() => undefined);
+    }
     setItems((prev) => prev.filter((i) => i.key !== key));
-  }, []);
+  }, [config, items]);
 
   const clear = useCallback(() => setItems([]), []);
 

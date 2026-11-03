@@ -71,6 +71,24 @@ describe('Composer attachments', () => {
     expect(screen.queryByText('letter.pdf')).toBeNull();
   });
 
+  it('tells the product when a stored file is removed before sending, and not after sending', async () => {
+    const onRemove = vi.fn();
+    const cfg = config({ onRemove });
+    render(<Composer value="x" onChange={() => {}} onSend={() => {}} attachments={cfg} />);
+
+    choose([pdf()]);
+    await screen.findByText('1000 B');
+    fireEvent.click(screen.getByRole('button', { name: 'Remove letter.pdf' }));
+
+    expect(onRemove).toHaveBeenCalledWith({ id: 'id-letter.pdf', name: 'letter.pdf', mime: 'application/pdf', size: 1000 });
+
+    choose([pdf('second.pdf')]);
+    await screen.findByText('second.pdf');
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the product reason on a failed upload and lets it be removed', async () => {
     const cfg = config({ onUpload: vi.fn(async () => { throw new Error('That file was refused by the scanner.'); }) });
     render(<Composer value="" onChange={() => {}} onSend={() => {}} attachments={cfg} />);
