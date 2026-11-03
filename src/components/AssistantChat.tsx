@@ -12,7 +12,7 @@ import { AssistantIntro } from './AssistantIntro';
 import { AssistantPanel } from './AssistantPanel';
 import { AssistantSurface, type AssistantSurfaceAttributes } from './AssistantSurface';
 import { Composer } from './Composer';
-import type { ComposerAttachmentsConfig } from './ComposerAttachments';
+import { MessageAttachmentChips, withoutAttachedLine, type ComposerAttachmentsConfig } from './ComposerAttachments';
 import { HumanCheck } from './HumanCheck';
 import { MessageActions } from './MessageActions';
 import { MessageBubble } from './MessageBubble';
@@ -463,7 +463,15 @@ export function AssistantChat({
             const body =
               message.role === 'user' ? (
                 <div data-ai-copy-source="" data-ai-export-role="user">
-                  <p className="whitespace-pre-wrap">{message.text}</p>
+                  {/* Files as chips (their NAMES reach Copy and Export; never their contents). */}
+                  {message.attachments && message.attachments.length > 0 ? (
+                    <MessageAttachmentChips attachments={message.attachments} />
+                  ) : null}
+                  <p className="whitespace-pre-wrap">
+                    {message.attachments && message.attachments.length > 0
+                      ? withoutAttachedLine(message.text)
+                      : message.text}
+                  </p>
                 </div>
               ) : (
                 <div data-ai-copy-source="" data-ai-export-role="assistant">

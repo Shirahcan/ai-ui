@@ -105,6 +105,29 @@ describe('AssistantChat with files', () => {
   });
 });
 
+describe('the person\'s row in AssistantChat', () => {
+  Object.defineProperty(Element.prototype, 'scrollTo', { value: vi.fn(), configurable: true });
+
+  it('draws the chips, drops the stored names line, and Export reads the names', () => {
+    render(
+      <AssistantChat
+        theme={THEME}
+        title="Porter"
+        onSend={() => {}}
+        messages={[{
+          id: 'u1', role: 'user', text: 'What does it ask?\n\n[attached: letter.pdf]',
+          attachments: [{ id: 'f1', name: 'letter.pdf', mime: 'application/pdf', size: 1000 }],
+        }]}
+      />,
+    );
+
+    const row = document.querySelector('[data-ai-export-role="user"]') as HTMLElement;
+    expect(row.textContent).toContain('letter.pdf');
+    expect(row.textContent).toContain('What does it ask?');
+    expect(row.textContent).not.toContain('[attached:');
+  });
+});
+
 describe('the person\'s bubble', () => {
   it('draws the files as chips and drops the stored names line', () => {
     render(
