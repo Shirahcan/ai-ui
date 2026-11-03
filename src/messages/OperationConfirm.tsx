@@ -35,6 +35,7 @@ export function OperationConfirm({
   operation,
   messageId,
   settled,
+  settledSummary,
   onConfirm,
   onCancel,
   onNavigate,
@@ -43,6 +44,8 @@ export function OperationConfirm({
   operation: AssistantOperation;
   messageId: string;
   settled?: AssistantActionOutcome;
+  /** What it said when it was used, for a card shown again after a reload or on another device. */
+  settledSummary?: string;
   onConfirm: (reason: string) => Promise<AssistantActionResult | void>;
   onCancel?: () => void;
   onNavigate?: (url: string) => void;
@@ -54,7 +57,7 @@ export function OperationConfirm({
   );
   const [choice, setChoice] = useState<string | null>(null);
   const [other, setOther] = useState('');
-  const [summary, setSummary] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(settledSummary ?? null);
   const [error, setError] = useState<string | null>(null);
 
   const reason = choice === OTHER ? other.trim() : (choice ?? '');

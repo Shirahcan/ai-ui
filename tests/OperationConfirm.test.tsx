@@ -39,6 +39,24 @@ describe('OperationConfirm', () => {
     expect(onRunOperation).not.toHaveBeenCalled();
   });
 
+  it('a card settled elsewhere shows what it said, not a bare "Done."', () => {
+    // 1.28.1: the outcome is kept with the turn, so a reload or another device reads the result line.
+    render(
+      <AssistantMessageBody
+        message={message}
+        handlers={{
+          onRunOperation: vi.fn(),
+          actionState: () => 'done',
+          actionSummary: () => 'Changed case name for Study Permit.',
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Changed case name for Study Permit.')).toBeTruthy();
+    expect(screen.queryByText('Done.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Change case name' })).toBeNull();
+  });
+
   it('runs with the chosen reason and reports the product words', async () => {
     const onRunOperation = vi.fn(async () => ({ summary: 'Changed case name for Study Permit.' }));
     render(<AssistantMessageBody message={message} handlers={{ onRunOperation }} />);

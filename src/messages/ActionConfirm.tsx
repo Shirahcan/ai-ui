@@ -67,6 +67,7 @@ export function ActionConfirm({
   confirmLabel,
   cancelLabel,
   settled,
+  settledSummary,
   canRefine,
   canExplain,
   onConfirm,
@@ -81,6 +82,8 @@ export function ActionConfirm({
   cancelLabel?: string;
   /** The persisted outcome, so a re-mount never re-offers or misreports it. */
   settled?: AssistantActionOutcome;
+  /** What it said when it was used, for a card shown again after a reload or on another device. */
+  settledSummary?: string;
   canRefine?: boolean;
   canExplain?: boolean;
   onConfirm: () => Promise<AssistantActionResult | void>;
@@ -93,7 +96,7 @@ export function ActionConfirm({
   const [status, setStatus] = useState<'idle' | 'busy' | 'done' | 'cancelled' | 'failed'>(
     settled === 'done' || settled === 'started' ? 'done' : settled === 'cancelled' ? 'cancelled' : 'idle',
   );
-  const [summary, setSummary] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(settledSummary ?? null);
   const [handoff, setHandoff] = useState<{ url: string; label: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [explanation, setExplanation] = useState<string | null>(null);

@@ -137,6 +137,11 @@ export interface AssistantMessageHandlers {
 
   /** How far this message's action has got, so a re-mount never lies about it. */
   actionState?: (messageId: string) => AssistantActionState | undefined;
+  /**
+   * What the settled card said when it was used ("The leftover row is closed."), so a reload or another
+   * device shows the result itself, not a bare "Done." (1.28.1). The product keeps it with the turn.
+   */
+  actionSummary?: (messageId: string) => string | undefined;
   /** The one message with a request in flight. */
   busyMessageId?: string | null;
 }
@@ -156,6 +161,7 @@ export function AssistantMessageBody({
   const meta = readMeta(message.meta);
   const busy = handlers.busyMessageId === message.id;
   const state = handlers.actionState?.(message.id);
+  const settledSummary = handlers.actionSummary?.(message.id);
 
   /*
    * ⚠ THE PROSE IS ALWAYS DRAWN FIRST, FOR EVERY KIND. The service sends the
@@ -214,6 +220,7 @@ export function AssistantMessageBody({
           operation={operation}
           messageId={message.id}
           settled={state}
+          settledSummary={settledSummary}
           onConfirm={(reason) =>
             handlers.onRunOperation!({
               messageId: message.id,
@@ -233,6 +240,7 @@ export function AssistantMessageBody({
           title={readString(meta.launch_label) ?? 'Shall I go ahead?'}
           confirmLabel={readString(meta.confirm_label) ?? 'Yes, do it'}
           settled={state}
+          settledSummary={settledSummary}
           canRefine={meta.can_refine === true}
           canExplain={meta.can_explain === true}
           onConfirm={() => handlers.onConfirmAction!(confirm)}
