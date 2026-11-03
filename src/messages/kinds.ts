@@ -401,3 +401,17 @@ export function readOperation(meta: AssistantMeta): AssistantOperation | null {
     verb: readString(bag.verb) ?? 'Confirm',
   };
 }
+
+/**
+ * The next steps an answer suggests (ai-service `FollowUps`, 2026-11-03): short lines the reader can
+ * send as their own next message. Anything that is not a non-empty string is dropped; three at most.
+ */
+export function readFollowUps(meta: AssistantMeta): string[] {
+  const raw = (meta as { follow_ups?: unknown }).follow_ups;
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((item) => readString(item))
+    .filter((item): item is string => item !== null)
+    .slice(0, 3);
+}

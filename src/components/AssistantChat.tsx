@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AssistantHistory, type AssistantThread } from './AssistantHistory';
 import {
   AssistantMessageBody,
@@ -13,10 +13,12 @@ import { AssistantPanel } from './AssistantPanel';
 import { AssistantSurface, type AssistantSurfaceAttributes } from './AssistantSurface';
 import { Composer } from './Composer';
 import { HumanCheck } from './HumanCheck';
+import { MessageActions } from './MessageActions';
 import { MessageBubble } from './MessageBubble';
 import { ASSISTANT_GEOMETRY } from '../geometry';
-import { readKind } from '../messages/kinds';
-import { ChatIcon, MenuIcon, PlusIcon, TrashIcon } from '../icons';
+import { readFollowUps, readKind, readMeta } from '../messages/kinds';
+import { downloadConversationText, printConversation, readRenderedTurns } from '../conversationCopy';
+import { ChatIcon, DownloadIcon, MenuIcon, PlusIcon, PrintIcon, TrashIcon } from '../icons';
 import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { PanelMessage } from '../types';
@@ -215,6 +217,13 @@ export interface AssistantChatProps {
    * is waiting. A product writes no Turnstile code of its own.
    */
   humanCheck?: AssistantHumanCheck;
+  /**
+   * A copy or export the browser refused (clipboard blocked, print view failed). Not an API error, so the
+   * product reports it its own way (Portify: `reportErrorToPorter`). Omitted, the failure is silent.
+   */
+  onClientError?: (error: unknown) => void;
+  /** Offer the two "Export conversation" items in the menu. Default true. */
+  exportable?: boolean;
 }
 
 /** Shown while a question waits on the bot check. It sends itself; nobody presses Send again. */
@@ -277,6 +286,8 @@ export function AssistantChat({
   feedback,
   footer,
   humanCheck,
+  onClientError,
+  exportable = true,
   ...attributes
 }: AssistantChatProps & AssistantSurfaceAttributes) {
   /*
@@ -285,8 +296,29 @@ export function AssistantChat({
    * product's own items and the recent conversations.
    */
   const [menuOpen, setMenuOpen] = useState(false);
-  const hasMenu = Boolean(threads) || Boolean(actions?.length);
+  const canExport = exportable && messages.some((m) => m.role === 'assistant' && m.text.trim() !== '');
+  const hasMenu = Boolean(threads) || Boolean(actions?.length) || canExport;
   const activeTitle = (conversationTitle ?? threads?.items.find((t) => t.id === threads?.activeId)?.title ?? '').trim();
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const assistantName = typeof title === 'string' ? title : 'Assistant';
+  // Follow-ups belong to the answer the person is replying to: the newest message, when it is the assistant's.
+  const last = messages[messages.length - 1];
+  const followUpsFor = last?.role === 'assistant' && last.streaming !== true ? last.id : null;
+
+  /** Export what is on screen, as drawn (owner, 2026-11-03): a print view for PDF, or a text file. */
+  const exportAs = (how: 'pdf' | 'text') => {
+    setMenuOpen(false);
+    const container = conversationRef.current;
+    if (!container) return;
+    try {
+      const turns = readRenderedTurns(container, { user: 'You', assistant: assistantName });
+      const name = activeTitle !== '' ? activeTitle : `Conversation with ${assistantName}`;
+      if (how === 'pdf') printConversation(name, turns);
+      else downloadConversationText(name, turns);
+    } catch (error) {
+      onClientError?.(error);
+    }
+  };
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -382,7 +414,7 @@ export function AssistantChat({
       }
       {...attributes}
     >
-      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div ref={conversationRef} className="relative flex min-h-0 flex-1 flex-col">
         <AssistantPanel
           messages={messages}
           busy={busy}
@@ -408,18 +440,26 @@ export function AssistantChat({
              * typing `**` means those characters, and a question pasted from a
              * document must not come back reinterpreted.
              */
+            // The marked wrapper is what Copy and Export read: the words as drawn, never the controls.
             const body =
-              message.role === 'user' ? undefined : (
-                <AssistantMessageBody
-                  message={message}
-                  handlers={handlers}
-                  markdownTheme={markdownTheme}
-                />
+              message.role === 'user' ? (
+                <div data-ai-copy-source="" data-ai-export-role="user">
+                  <p className="whitespace-pre-wrap">{message.text}</p>
+                </div>
+              ) : (
+                <div data-ai-copy-source="" data-ai-export-role="assistant">
+                  <AssistantMessageBody
+                    message={message}
+                    handlers={handlers}
+                    markdownTheme={markdownTheme}
+                  />
+                </div>
               );
+            const rateable = feedback !== undefined && (feedback.canRate ?? defaultCanRate)(message);
 
             return (
               <MessageBubble
-                message={body === undefined ? message : { ...message, content: body }}
+                message={{ ...message, content: body }}
                 markdownTheme={markdownTheme}
                 className={`${ASSISTANT_GEOMETRY.row} ${
                   message.role === 'user' ? 'justify-end' : 'justify-start'
@@ -429,19 +469,30 @@ export function AssistantChat({
                 contentClassName="break-words [&_a]:break-words"
                 confidenceClassName={`${ASSISTANT_GEOMETRY.caveat} text-[var(--ai-muted)]`}
                 footer={
-                  feedback && (feedback.canRate ?? defaultCanRate)(message) ? (
-                    <AssistantFeedback
-                      onSubmit={(payload) =>
-                        feedback.onSubmit({ ...payload, messageId: message.id })
+                  message.role === 'assistant' ? (
+                    <MessageActions
+                      canCopy={message.streaming !== true && message.text.trim() !== ''}
+                      feedback={
+                        rateable && feedback ? (
+                          <AssistantFeedback
+                            onSubmit={(payload) =>
+                              feedback.onSubmit({ ...payload, messageId: message.id })
+                            }
+                            maxTextLength={feedback.maxTextLength}
+                            upIcon={feedback.upIcon}
+                            downIcon={feedback.downIcon}
+                            className=""
+                            buttonClassName={FEEDBACK_BUTTON}
+                            chipClassName={FEEDBACK_CHIP}
+                            chipSelectedClassName={FEEDBACK_CHIP_ON}
+                            submitClassName={FEEDBACK_SUBMIT}
+                          />
+                        ) : undefined
                       }
-                      maxTextLength={feedback.maxTextLength}
-                      upIcon={feedback.upIcon}
-                      downIcon={feedback.downIcon}
-                      className="mt-1.5"
-                      buttonClassName={FEEDBACK_BUTTON}
-                      chipClassName={FEEDBACK_CHIP}
-                      chipSelectedClassName={FEEDBACK_CHIP_ON}
-                      submitClassName={FEEDBACK_SUBMIT}
+                      followUps={message.id === followUpsFor ? readFollowUps(readMeta(message.meta)) : []}
+                      onFollowUp={send}
+                      busy={busy}
+                      onCopyError={onClientError}
                     />
                   ) : undefined
                 }
@@ -539,6 +590,16 @@ export function AssistantChat({
                   >
                     <PlusIcon /> New conversation
                   </button>
+                ) : null}
+                {canExport ? (
+                  <>
+                    <button type="button" onClick={() => exportAs('pdf')} className="flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm text-[var(--ai-fg)] outline-none transition-colors hover:bg-[var(--ai-accent-soft)] focus-visible:bg-[var(--ai-accent-soft)]">
+                      <PrintIcon /> Export conversation as PDF
+                    </button>
+                    <button type="button" onClick={() => exportAs('text')} className="flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm text-[var(--ai-fg)] outline-none transition-colors hover:bg-[var(--ai-accent-soft)] focus-visible:bg-[var(--ai-accent-soft)]">
+                      <DownloadIcon /> Export conversation as text
+                    </button>
+                  </>
                 ) : null}
                 {actions?.map((action) => (
                   <button

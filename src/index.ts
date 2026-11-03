@@ -148,7 +148,22 @@ export type {
   AssistantRunCheck,
 } from './messages/ActionConfirm';
 
-export { ChatIcon, ThumbDownIcon, ThumbUpIcon, TrashIcon } from './icons';
+export { ChatIcon, CheckIcon, CopyIcon, DownloadIcon, PrintIcon, ThumbDownIcon, ThumbUpIcon, TrashIcon } from './icons';
+
+export { MessageActions } from './components/MessageActions';
+export type { MessageActionsProps } from './components/MessageActions';
+export {
+  cleanClone,
+  conversationAsHtml,
+  conversationAsText,
+  copyRendered,
+  downloadConversationText,
+  htmlToPlainText,
+  printConversation,
+  readRenderedTurns,
+} from './conversationCopy';
+export type { ExportedTurn } from './conversationCopy';
+export { readFollowUps } from './messages/kinds';
 
 export { DEFERRED_LISTEN_MS, openDeferred, useAssistantConversation } from './useAssistantConversation';
 export type {

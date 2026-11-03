@@ -67,3 +67,35 @@ export function PlusIcon({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+
+export function CopyIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M9 9h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2z M5 15H4a1 1 0 0 1-1-1V5a2 2 0 0 1 2-2h9a1 1 0 0 1 1 1v1" />
+    </svg>
+  );
+}
+
+export function CheckIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+export function DownloadIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M12 3v12 M7 10l5 5 5-5 M5 21h14" />
+    </svg>
+  );
+}
+
+export function PrintIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M6 9V3h12v6 M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2 M6 14h12v7H6z" />
+    </svg>
+  );
+}

@@ -139,9 +139,13 @@ describe('AssistantChat', () => {
 
   const MENU = /Open the menu/;
 
-  it('shows the menu only when a product passes threads or items, and New lives inside it', () => {
-    const plain = mount(PORTER);
+  it('shows the menu only when there is something in it, and New lives inside it', () => {
+    // Since 1.28.0 an answer on screen puts "Export conversation" in the menu, so the menu appears.
+    const plain = mount(PORTER, { exportable: false });
     expect(plain.queryByRole('button', { name: MENU })).toBeNull();
+    const exportOnly = mount(PORTER);
+    fireEvent.click(exportOnly.getByRole('button', { name: MENU }));
+    expect(exportOnly.getByRole('button', { name: /Export conversation as PDF/ })).toBeTruthy();
 
     const withThreads = mount(PORTER, {
       threads: { items: [], onSelect: vi.fn(), onNew: vi.fn() },
