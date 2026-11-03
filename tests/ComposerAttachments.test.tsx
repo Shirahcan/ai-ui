@@ -99,9 +99,9 @@ describe('AssistantChat with files', () => {
     await waitFor(() => expect((send as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(send);
 
-    expect(onSend).toHaveBeenCalledWith('Here is a file.', [
-      { id: 'id-letter.pdf', name: 'letter.pdf', mime: 'application/pdf', size: 1000 },
-    ]);
+    expect(onSend).toHaveBeenCalledWith('Here is a file.', {
+      attachments: [{ id: 'id-letter.pdf', name: 'letter.pdf', mime: 'application/pdf', size: 1000 }],
+    });
   });
 });
 

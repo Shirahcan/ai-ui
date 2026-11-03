@@ -23,6 +23,7 @@ import { ChatIcon, DownloadIcon, MenuIcon, PlusIcon, PrintIcon, TrashIcon } from
 import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { AttachmentChip, PanelMessage } from '../types';
+import type { AssistantTurnOptions } from '../useAssistantConversation';
 import type { AssistantHumanCheck } from '../useAssistantConversation';
 
 /**
@@ -190,8 +191,11 @@ export interface AssistantChatProps {
   /** A soft, non-error line above the list. */
   notice?: ReactNode;
 
-  /** The person's words, and the files they attached (passed only when there are some). */
-  onSend: (text: string, attachments?: AttachmentChip[]) => void;
+  /**
+   * The person's words. With files, the second argument carries them as the turn options
+   * `useAssistantConversation().send` takes, so `onSend={conversation.send}` still fits.
+   */
+  onSend: (text: string, turn?: AssistantTurnOptions) => void;
   onStop?: () => void;
   onRetry?: () => void;
 
@@ -389,7 +393,7 @@ export function AssistantChat({
     if (trimmed === '') return;
     setDraft('');
     // Without files the call is exactly what it always was, so a product's own checks still hold.
-    if (files.length > 0) onSend(trimmed, files);
+    if (files.length > 0) onSend(trimmed, { attachments: files });
     else onSend(trimmed);
   };
 

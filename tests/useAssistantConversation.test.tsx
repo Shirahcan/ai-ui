@@ -76,6 +76,22 @@ describe('useAssistantConversation', () => {
     expect(sent2.client_timezone).toBe('Africa/Lagos');
   });
 
+  it('sends a message\'s files as attachment_ids and shows them on the person\'s row', async () => {
+    const fetchMock = vi.fn(async () => sse(
+      'event: message\ndata: {"conversation_id":"c-1","message":{"id":"a1","role":"assistant","content":"ok"}}\n\n',
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const file = { id: 'f-1', name: 'letter.pdf', mime: 'application/pdf', size: 1000 };
+
+    const { result } = renderHook(() => useAssistantConversation(base));
+    act(() => result.current.send('Read this', { attachments: [file] }));
+    await waitFor(() => expect(result.current.busy).toBe(false));
+
+    const sent = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(sent.attachment_ids).toEqual(['f-1']);
+    expect(result.current.messages[0]?.attachments).toEqual([file]);
+  });
+
   it('streams an answer and settles it as one message', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => sse(
       'event: stage\ndata: {"label":"Thinking"}\n\n'

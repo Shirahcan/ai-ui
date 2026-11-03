@@ -116,7 +116,10 @@ export interface AssistantTurnOptions {
   display?: string;
   /** Merged into this turn's request only. */
   body?: Record<string, unknown>;
-  /** The files on this message, drawn as chips on the person's row straight away. */
+  /**
+   * The files on this message: drawn as chips on the person's row straight away, and sent as
+   * `attachment_ids` with this turn (the product's upload route returned these ids).
+   */
   attachments?: AttachmentChip[];
 }
 
@@ -461,7 +464,11 @@ export function useAssistantConversation(options: AssistantConversationOptions):
 
     // Both questions go to the model together, and the turn resolves which one stands.
     const question = pendingRef.current.filter((q, i, all) => all.indexOf(q) === i).join('\n');
-    void run(question, turn.body ?? {});
+    const files = turn.attachments ?? [];
+    void run(question, {
+      ...(turn.body ?? {}),
+      ...(files.length > 0 ? { attachment_ids: files.map((f) => f.id) } : {}),
+    });
   }, [halt, needsCheck, ready, run]);
 
   const retry = useMemo(
