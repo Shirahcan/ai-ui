@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { useConsole } from './ConsoleContext';
 import { AiEstateOverview } from './AiEstateOverview';
 import { AiFeedbackInbox } from './AiFeedbackInbox';
+import { AiGapInbox } from './AiGapInbox';
 import { AiKnowledgeBrowser } from './AiKnowledgeBrowser';
 import { AiPromptTemplates } from './AiPromptTemplates';
 import { AiRecentCalls } from './AiRecentCalls';
@@ -13,7 +14,7 @@ import { ProductPicker } from './ProductPicker';
 import { ConsoleSidebar, type ConsoleSidebarGroup } from './ConsoleSidebar';
 import { AiVault, AI_VAULT_SECTIONS, type AiVaultSectionKey } from './vault/AiVault';
 import type { ConsoleCapabilities } from './types';
-import { BookOpen, Clock, DollarSign, FileText, Gauge, KeyRound, Layers, ListIcon, MessageVoice, OctagonX, Route, ShieldCheck, ThumbsUp, Wallet } from './vault/icons';
+import { AlertTriangle, BookOpen, Clock, DollarSign, FileText, Gauge, KeyRound, Layers, ListIcon, MessageVoice, OctagonX, Route, ShieldCheck, ThumbsUp, Wallet } from './vault/icons';
 
 /** One icon per section, so the collapsed sidebar is a rail of recognisable glyphs. */
 const TAB_ICONS: Record<string, (p: { className?: string }) => React.ReactElement> = {
@@ -23,6 +24,7 @@ const TAB_ICONS: Record<string, (p: { className?: string }) => React.ReactElemen
   voice: MessageVoice,
   knowledge: BookOpen,
   feedback: ThumbsUp,
+  gaps: AlertTriangle,
   estate: Layers,
   'vault.keys': KeyRound,
   'vault.routing': Route,
@@ -38,7 +40,7 @@ function tabIcon(key: string) {
   return Icon ? <Icon className="h-4 w-4" /> : undefined;
 }
 
-export type AiConsoleTab = 'overview' | 'calls' | 'prompts' | 'voice' | 'knowledge' | 'feedback' | 'estate' | `vault.${AiVaultSectionKey}`;
+export type AiConsoleTab = 'overview' | 'calls' | 'prompts' | 'voice' | 'knowledge' | 'feedback' | 'gaps' | 'estate' | `vault.${AiVaultSectionKey}`;
 
 /** The console's sections, in order, with the words a tab bar shows. */
 export const AI_CONSOLE_TABS: ReadonlyArray<{ key: AiConsoleTab; label: string; estateOnly?: boolean }> = [
@@ -48,11 +50,12 @@ export const AI_CONSOLE_TABS: ReadonlyArray<{ key: AiConsoleTab; label: string; 
   { key: 'voice', label: 'Voice' },
   { key: 'knowledge', label: 'Knowledge' },
   { key: 'feedback', label: 'Feedback' },
+  { key: 'gaps', label: 'Could not do' },
   { key: 'estate', label: 'All products', estateOnly: true },
 ];
 
 /** The sections that show ONE product's AI, so the product picker sits above them. */
-const PRODUCT_SECTIONS: ReadonlyArray<AiConsoleTab> = ['overview', 'calls', 'prompts', 'voice', 'knowledge', 'feedback'];
+const PRODUCT_SECTIONS: ReadonlyArray<AiConsoleTab> = ['overview', 'calls', 'prompts', 'voice', 'knowledge', 'feedback', 'gaps'];
 
 /**
  * One section of the console by name, for a product that routes each section to its own URL.
@@ -92,6 +95,8 @@ function sectionBody(tab: AiConsoleTab): ReactNode {
       return <AiKnowledgeBrowser />;
     case 'feedback':
       return <AiFeedbackInbox />;
+    case 'gaps':
+      return <AiGapInbox />;
     case 'estate':
       return <AiEstateOverview />;
     default:

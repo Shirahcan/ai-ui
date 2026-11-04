@@ -25,6 +25,7 @@ export { AiPromptTemplates } from './AiPromptTemplates';
 export { AiVoiceEditor } from './AiVoiceEditor';
 export { AiKnowledgeBrowser } from './AiKnowledgeBrowser';
 export { AiFeedbackInbox } from './AiFeedbackInbox';
+export { AiGapInbox, type AssistantGap } from './AiGapInbox';
 export { AiEstateOverview } from './AiEstateOverview';
 
 export { dollars } from './types';
