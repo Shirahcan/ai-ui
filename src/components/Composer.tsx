@@ -316,90 +316,108 @@ export function Composer({
     }
   };
 
+  /*
+   * ⚠ ONE BOX, THE WORDS ON TOP AND THE TOOLS UNDERNEATH (1.33.0). The paperclip, the microphone
+   * and Send used to share a row with the text box, so every new tool took width from the words:
+   * on a 400px panel the box was down to half its width with two icons. Every chat surface people
+   * know (Claude, ChatGPT, Gemini, Slack) puts the box full width and the tools in a row below it,
+   * inside the same border, so that is the shape here. Tools sit left, Send right, and the
+   * dictation status line takes the space between them.
+   */
+  const hasTools = Boolean(attachments) || Boolean(dictationConfig);
+
   return (
     <div
-      className={className ?? 'flex items-end gap-2 p-2'}
+      className={className ?? 'p-2'}
       style={{
         borderTop: `1px solid ${aiVar('--ai-border')}`,
-        // Files wrap onto their own row above the box; the box and its buttons stay one row.
-        ...(attachments || dictationConfig ? { flexWrap: 'wrap' as const } : {}),
         ...(dragging ? { outline: `2px dashed ${aiVar('--ai-accent')}`, outlineOffset: '-4px' } : {}),
       }}
       {...dropHandlers}
     >
-      {attachments && files.items.length > 0 ? (
-        <div className="basis-full">
-          <PendingAttachmentChips items={files.items} onRemove={files.remove} />
-        </div>
-      ) : null}
+      <div
+        data-ai-composer-box=""
+        className="flex flex-col rounded-2xl border transition-colors focus-within:border-[var(--ai-accent)]"
+        style={{ borderColor: aiVar('--ai-border'), background: aiVar('--ai-surface') }}
+      >
+        {attachments && files.items.length > 0 ? (
+          <div className="px-2 pt-2">
+            <PendingAttachmentChips items={files.items} onRemove={files.remove} />
+          </div>
+        ) : null}
 
-      {attachments ? (
-        <AttachButton config={attachments} onFiles={files.add} disabled={disabled} />
-      ) : null}
-
-      {dictationConfig ? <DictationButton dictation={dictation} disabled={disabled} /> : null}
-
-      <textarea
-        onPaste={onPaste}
-        ref={ref}
-        id={id}
-        name={name}
-        rows={1}
-        maxLength={maxLength}
-        value={value}
-        /*
-         * ⚠ TYPING LEAVES THE RECALL RING, and this is the only place that can
-         * tell typing apart from a recall: a recall writes through `onChange`
-         * directly and never reaches this handler.
-         */
-        onChange={(event) => {
-          setRecallIndex(-1);
-          onChange(event.target.value);
-        }}
-        onKeyDown={onKeyDown}
-        placeholder={placeholder}
-        disabled={disabled}
-        aria-label={placeholder}
-        className={
-          textareaClassName ??
-          'flex-1 resize-none overflow-y-auto bg-transparent px-3 py-2 text-sm outline-none'
-        }
-        style={{ color: aiVar('--ai-fg') }}
-      />
-
-      {busy && onStop ? (
-        <StopButton
-          onStop={onStop}
-          label={stopLabel}
-          className={
-            stopClassName ??
-            buttonClassName ??
-            'shrink-0 rounded-full px-3 py-2 text-sm font-medium outline-none'
-          }
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={send}
+        <textarea
+          onPaste={onPaste}
+          ref={ref}
+          id={id}
+          name={name}
+          rows={1}
+          maxLength={maxLength}
+          value={value}
           /*
-           * ⚠ DISABLED ON AN EMPTY BOX, NOT ON `busy` ALONE. A product that
-           * only disables while busy ships a Send that fires an empty turn,
-           * and an empty turn still costs a provider call and still writes a
-           * blank message into the history.
+           * ⚠ TYPING LEAVES THE RECALL RING, and this is the only place that can
+           * tell typing apart from a recall: a recall writes through `onChange`
+           * directly and never reaches this handler.
            */
-          disabled={!canSend}
-          aria-label={sendLabel}
+          onChange={(event) => {
+            setRecallIndex(-1);
+            onChange(event.target.value);
+          }}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          disabled={disabled}
+          aria-label={placeholder}
           className={
-            buttonClassName ??
-            'shrink-0 rounded-full px-3 py-2 text-sm font-medium outline-none disabled:opacity-40'
+            textareaClassName ??
+            'w-full resize-none overflow-y-auto bg-transparent px-3 pt-2.5 pb-1 text-sm leading-6 outline-none'
           }
-          style={{ background: aiVar('--ai-accent'), color: aiVar('--ai-accent-fg') }}
-        >
-          {sendLabel}
-        </button>
-      )}
+          style={{ color: aiVar('--ai-fg') }}
+        />
 
-      {showDictationLine ? <DictationStatus dictation={dictation} className="basis-full px-3 pb-1 text-xs" /> : null}
+        <div data-ai-composer-tools="" className="flex items-center gap-1 px-1.5 pb-1.5">
+          {attachments ? (
+            <AttachButton config={attachments} onFiles={files.add} disabled={disabled} />
+          ) : null}
+
+          {dictationConfig ? <DictationButton dictation={dictation} disabled={disabled} /> : null}
+
+          <div className={`min-w-0 flex-1 ${hasTools ? 'px-1' : ''}`}>
+            {showDictationLine ? <DictationStatus dictation={dictation} className="truncate text-xs" /> : null}
+          </div>
+
+          {busy && onStop ? (
+            <StopButton
+              onStop={onStop}
+              label={stopLabel}
+              className={
+                stopClassName ??
+                buttonClassName ??
+                'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium outline-none'
+              }
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={send}
+              /*
+               * ⚠ DISABLED ON AN EMPTY BOX, NOT ON `busy` ALONE. A product that
+               * only disables while busy ships a Send that fires an empty turn,
+               * and an empty turn still costs a provider call and still writes a
+               * blank message into the history.
+               */
+              disabled={!canSend}
+              aria-label={sendLabel}
+              className={
+                buttonClassName ??
+                'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium outline-none disabled:opacity-40'
+              }
+              style={{ background: aiVar('--ai-accent'), color: aiVar('--ai-accent-fg') }}
+            >
+              {sendLabel}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

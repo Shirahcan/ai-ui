@@ -24,16 +24,24 @@ describe('the phrase chunker (shaped by Groq\'s 10-second minimum)', () => {
     expect(cut[0]).toBeGreaterThanOrEqual(2000);
   });
 
-  it('holds short pauses until about 8 s of speech has gathered', () => {
-    const { cut } = run([['speak', 3000], ['pause', 700], ['speak', 3000], ['pause', 700], ['speak', 3000], ['pause', 700]]);
+  it('holds a breath before ~4 s of speech, and sends at the first breath after it', () => {
+    const { cut } = run([['speak', 3000], ['pause', 700], ['speak', 2000], ['pause', 300], ['speak', 1000]]);
     expect(cut).toHaveLength(1);
-    expect(cut[0]).toBeGreaterThan(9000);
+    expect(cut[0]).toBeGreaterThan(5000);
+    expect(cut[0]).toBeLessThan(6500);
   });
 
-  it('cuts a monologue after 25 s at the next small dip, and never lets one run past 30 s', () => {
-    const dip = run([['speak', 26000], ['pause', 250], ['speak', 1000]]);
-    expect(dip.cut[0]).toBeGreaterThanOrEqual(25000);
-    const hard = run([['speak', 31000]]);
+  it('streams a speaker who never pauses: a phrase about every 6 s, nothing lost between them', () => {
+    const { cut, chunker } = run([['speak', 14000]]);
+    expect(cut.length).toBe(2);
+    cut.forEach((ms) => expect(ms).toBeLessThanOrEqual(6300));
+    const rest = chunker.flush();
+    const total = cut.reduce((a, b) => a + b, 0) + Math.round((rest?.pcm.length ?? 0) / 16);
+    expect(total).toBeGreaterThanOrEqual(13900);
+  });
+
+  it('still never lets one phrase run past the hard cap when the interval is turned off', () => {
+    const hard = run([['speak', 31000]], new PhraseChunker({ intervalMs: 1e9, intervalMaxMs: 1e9 }));
     expect(hard.cut[0]).toBeLessThanOrEqual(30000);
   });
 

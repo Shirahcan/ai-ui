@@ -73,10 +73,13 @@ export const ASSISTANT_GEOMETRY = {
   /** The ungrounded caveat under an answer. */
   caveat: 'mt-1.5 block text-[11px] font-bold uppercase tracking-wider',
 
-  /** The typing area and its two controls. */
-  composer: 'flex items-end gap-2.5 p-3.5',
-  composerInput: 'flex-1 resize-none overflow-y-auto rounded-2xl px-4 py-3 text-sm leading-6',
-  composerButton: 'shrink-0 rounded-full px-6 py-3 text-sm font-semibold whitespace-nowrap',
+  /**
+   * The typing area: one bordered box, the words full width on top and the tools (paperclip,
+   * microphone, Send) in a row beneath them (1.33.0), so a new tool never narrows the box.
+   */
+  composer: 'p-3',
+  composerInput: 'w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-sm leading-6',
+  composerButton: 'shrink-0 rounded-full px-5 py-2 text-sm font-semibold whitespace-nowrap',
 
   /** The header: the panel's name, its actions, and the way out. */
   header: 'flex items-center justify-between gap-3 px-5 py-3.5',

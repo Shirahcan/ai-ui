@@ -186,6 +186,29 @@ describe('Composer', () => {
     });
   });
 
+  it('keeps the box full width: the tools and Send sit in a row BELOW the words, inside one border', () => {
+    // jsdom has no microphone, and the button rightly hides without one; give it one.
+    Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: vi.fn() }, configurable: true });
+    (window as unknown as { AudioContext: unknown }).AudioContext = class {};
+    const { container } = render(
+      <Harness
+        attachments={{ accept: ['application/pdf'], maxFiles: 1, maxBytes: 1, onUpload: async () => ({ id: 'x' }) } as never}
+        dictation={{ transcribe: async () => '' }}
+      />,
+    );
+    const frame = container.querySelector('[data-ai-composer-box]')!;
+    const tools = container.querySelector('[data-ai-composer-tools]')!;
+
+    // The textarea is the box's first child (attachment chips aside) and the tool row comes after it.
+    expect(frame.contains(box())).toBe(true);
+    expect(box().compareDocumentPosition(tools) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(box().className).toContain('w-full');
+    // Every control lives in the tool row, so adding one never takes width from the words.
+    for (const name of ['Attach a file', 'Dictate', 'Send']) {
+      expect(tools.contains(screen.getByRole('button', { name }))).toBe(true);
+    }
+  });
+
   it('swaps Send for Stop while a turn is running', () => {
     const onStop = vi.fn();
     render(<Harness busy onStop={onStop} stopClassName="porter-stop" />);

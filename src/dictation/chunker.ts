@@ -13,6 +13,12 @@ import { DICTATION_SAMPLE_RATE, rms, toPcm16 } from './audio';
  *  - silence is never sent: both providers invent sentences for it (Gemini answered two seconds of
  *    silence with "The house is cold." on production's key).
  *
+ * ⚠ AND A STEADY TALKER STILL SEES WORDS (owner, 2026-11-05). The pause rules alone meant someone
+ * who never stops for breath saw nothing for up to 25 s. So, IN ADDITION to every rule above, once
+ * ~4 s of speech has gathered the next small dip (a breath between words, >= 200 ms) sends it; if
+ * no dip comes by ~6 s, it is cut at the quietest moment of the last 1.5 s, never mid-loudness, and
+ * whatever follows that moment starts the next phrase rather than being thrown away.
+ *
  * Pure and clock-free: it is fed 16 kHz frames and returns phrases, so the policy is unit-tested
  * without a microphone.
  */
@@ -23,6 +29,11 @@ export interface ChunkPolicy {
   minSpeechForShortPauseMs: number;
   softMaxMs: number;
   hardMaxMs: number;
+  /** Fixed-interval rule: speech gathered before a small dip sends it. */
+  intervalMs: number;
+  intervalDipMs: number;
+  /** No dip by this length: cut at the quietest recent moment. */
+  intervalMaxMs: number;
   minSpeechMs: number;
   preRollMs: number;
   calibrationMs: number;
@@ -35,6 +46,9 @@ export const DEFAULT_CHUNK_POLICY: ChunkPolicy = {
   minSpeechForShortPauseMs: 8000,
   softMaxMs: 25000,
   hardMaxMs: 30000,
+  intervalMs: 4000,
+  intervalDipMs: 200,
+  intervalMaxMs: 6000,
   minSpeechMs: 300,
   preRollMs: 200,
   calibrationMs: 300,
@@ -51,6 +65,9 @@ export class PhraseChunker {
   private readonly frameSamples: number;
   private pendingSamples: number[] = [];
   private frames: Float32Array[] = [];
+  /** Per frame: loudness and whether it was speech, so a cut can carry the tail into the next phrase. */
+  private loudness: number[] = [];
+  private speechFlags: boolean[] = [];
   private noise: number | null = null;
   private calibration: number[] = [];
   private hasSpeech = false;
@@ -109,6 +126,8 @@ export class PhraseChunker {
     const voiced = loudness >= this.threshold();
     this.voiced = voiced;
     this.frames.push(frame);
+    this.loudness.push(loudness);
+    this.speechFlags.push(voiced);
 
     if (voiced) {
       this.hasSpeech = true;
@@ -122,7 +141,12 @@ export class PhraseChunker {
 
     if (!this.hasSpeech) {
       const keep = Math.ceil(p.preRollMs / p.frameMs);
-      if (this.frames.length > keep) this.frames.splice(0, this.frames.length - keep);
+      if (this.frames.length > keep) {
+        const drop = this.frames.length - keep;
+        this.frames.splice(0, drop);
+        this.loudness.splice(0, drop);
+        this.speechFlags.splice(0, drop);
+      }
       return null;
     }
 
@@ -134,7 +158,36 @@ export class PhraseChunker {
     if (phraseMs >= p.softMaxMs && this.silenceRunMs >= p.frameMs * 10) return this.emitOrDrop(trailing);
     if (phraseMs >= p.hardMaxMs) return this.emitOrDrop(0);
 
+    // The fixed interval, on top of the pause rules above.
+    if (this.speechMs >= p.intervalMs && this.silenceRunMs >= p.intervalDipMs) return this.emitOrDrop(trailing);
+    if (this.speechMs >= p.intervalMaxMs) return this.cutAtQuietest();
+
     return null;
+  }
+
+  /** Cut at the quietest frame of the last 1.5 s; the frames after it begin the next phrase. */
+  private cutAtQuietest(): Phrase {
+    const window = Math.ceil(1500 / this.policy.frameMs);
+    const from = Math.max(1, this.frames.length - window);
+    let best = this.frames.length - 1;
+    for (let i = from; i < this.frames.length; i++) {
+      if ((this.loudness[i] ?? 1) < (this.loudness[best] ?? 1)) best = i;
+    }
+
+    const tailFrames = this.frames.slice(best + 1);
+    const tailLoud = this.loudness.slice(best + 1);
+    const tailFlags = this.speechFlags.slice(best + 1);
+    this.frames = this.frames.slice(0, best + 1);
+    this.speechMs -= tailFlags.filter(Boolean).length * this.policy.frameMs;
+
+    const phrase = this.cut(0);
+
+    this.frames = tailFrames;
+    this.loudness = tailLoud;
+    this.speechFlags = tailFlags;
+    this.speechMs = tailFlags.filter(Boolean).length * this.policy.frameMs;
+    this.hasSpeech = this.speechMs > 0;
+    return phrase;
   }
 
   private emitOrDrop(trailingFrames: number): Phrase | null {
@@ -161,6 +214,8 @@ export class PhraseChunker {
 
   private reset(): null {
     this.frames = [];
+    this.loudness = [];
+    this.speechFlags = [];
     this.hasSpeech = false;
     this.speechMs = 0;
     this.silenceRunMs = 0;

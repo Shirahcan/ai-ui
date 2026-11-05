@@ -547,9 +547,8 @@ export function AssistantChat({
               id={composer?.id}
               name={composer?.name}
               className={`${ASSISTANT_GEOMETRY.composer} border-t border-[var(--ai-border)]`}
-              textareaClassName={`${ASSISTANT_GEOMETRY.composerInput} border
-                border-[var(--ai-border)] bg-[var(--ai-surface)] text-[var(--ai-fg)]
-                outline-none focus:border-[var(--ai-accent)]`}
+              // The border and focus ring belong to the composer's box now, not the textarea.
+              textareaClassName={`${ASSISTANT_GEOMETRY.composerInput} text-[var(--ai-fg)] outline-none`}
               buttonClassName={`${ASSISTANT_GEOMETRY.composerButton}
                 bg-[var(--ai-accent)] text-[var(--ai-accent-fg)] outline-none
                 transition-opacity hover:opacity-90 disabled:opacity-50`}
