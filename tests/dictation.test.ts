@@ -24,17 +24,17 @@ describe('the phrase chunker (shaped by Groq\'s 10-second minimum)', () => {
     expect(cut[0]).toBeGreaterThanOrEqual(2000);
   });
 
-  it('holds a breath before ~4 s, and sends at the first breath after it', () => {
-    const { cut } = run([['speak', 3000], ['pause', 300], ['speak', 2000], ['pause', 300], ['speak', 1000]]);
+  it('holds a breath before ~3 s, and sends at the first breath after it', () => {
+    const { cut } = run([['speak', 2000], ['pause', 300], ['speak', 1500], ['pause', 300], ['speak', 500]]);
     expect(cut).toHaveLength(1);
-    expect(cut[0]).toBeGreaterThan(5000);
-    expect(cut[0]).toBeLessThan(6500);
+    expect(cut[0]).toBeGreaterThan(3500);
+    expect(cut[0]).toBeLessThan(4500);
   });
 
-  it('streams a speaker who never pauses: a phrase about every 6 s, nothing lost between them', () => {
+  it('streams a speaker who never pauses: a phrase about every 4.5 s, nothing lost between them', () => {
     const { cut, chunker } = run([['speak', 14000]]);
-    expect(cut.length).toBe(2);
-    cut.forEach((ms) => expect(ms).toBeLessThanOrEqual(6300));
+    expect(cut.length).toBe(3);
+    cut.forEach((ms) => expect(ms).toBeLessThanOrEqual(4800));
     const rest = chunker.flush();
     const total = cut.reduce((a, b) => a + b, 0) + Math.round((rest?.pcm.length ?? 0) / 16);
     expect(total).toBeGreaterThanOrEqual(13900);

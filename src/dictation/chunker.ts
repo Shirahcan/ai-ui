@@ -15,8 +15,8 @@ import { DICTATION_SAMPLE_RATE, rms, toPcm16 } from './audio';
  *
  * ⚠ AND A STEADY TALKER STILL SEES WORDS (owner, 2026-11-05). The pause rules alone meant someone
  * who never stops for breath saw nothing for up to 25 s. So, IN ADDITION to every rule above, once
- * ~4 s of speech has gathered the next small dip (a breath between words, >= 200 ms) sends it; if
- * no dip comes by ~6 s, it is cut at the quietest moment of the last 1.5 s, never mid-loudness, and
+ * ~3 s of speech has gathered the next small dip (a breath between words, >= 150 ms) sends it; if
+ * no dip comes by ~4.5 s, it is cut at the quietest moment of the last 1.5 s, never mid-loudness, and
  * whatever follows that moment starts the next phrase rather than being thrown away.
  *
  * Pure and clock-free: it is fed 16 kHz frames and returns phrases, so the policy is unit-tested
@@ -46,9 +46,11 @@ export const DEFAULT_CHUNK_POLICY: ChunkPolicy = {
   minSpeechForShortPauseMs: 8000,
   softMaxMs: 25000,
   hardMaxMs: 30000,
-  intervalMs: 4000,
-  intervalDipMs: 200,
-  intervalMaxMs: 6000,
+  // Measured on the test box 2026-11-05: 4 s / 6 s left a steady talker waiting ~12 s for the
+  // first words (the phrase, then ~3-4 s for the round trip). 3 s / 4.5 s brings it to ~7-8 s.
+  intervalMs: 3000,
+  intervalDipMs: 150,
+  intervalMaxMs: 4500,
   minSpeechMs: 300,
   preRollMs: 200,
   calibrationMs: 300,
