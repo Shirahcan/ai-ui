@@ -24,8 +24,8 @@ describe('the phrase chunker (shaped by Groq\'s 10-second minimum)', () => {
     expect(cut[0]).toBeGreaterThanOrEqual(2000);
   });
 
-  it('holds a breath before ~4 s of speech, and sends at the first breath after it', () => {
-    const { cut } = run([['speak', 3000], ['pause', 700], ['speak', 2000], ['pause', 300], ['speak', 1000]]);
+  it('holds a breath before ~4 s, and sends at the first breath after it', () => {
+    const { cut } = run([['speak', 3000], ['pause', 300], ['speak', 2000], ['pause', 300], ['speak', 1000]]);
     expect(cut).toHaveLength(1);
     expect(cut[0]).toBeGreaterThan(5000);
     expect(cut[0]).toBeLessThan(6500);

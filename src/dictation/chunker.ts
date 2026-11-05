@@ -158,9 +158,13 @@ export class PhraseChunker {
     if (phraseMs >= p.softMaxMs && this.silenceRunMs >= p.frameMs * 10) return this.emitOrDrop(trailing);
     if (phraseMs >= p.hardMaxMs) return this.emitOrDrop(0);
 
-    // The fixed interval, on top of the pause rules above.
-    if (this.speechMs >= p.intervalMs && this.silenceRunMs >= p.intervalDipMs) return this.emitOrDrop(trailing);
-    if (this.speechMs >= p.intervalMaxMs) return this.cutAtQuietest();
+    /*
+     * The fixed interval, on top of the pause rules above. ⚠ TIMED ON THE PHRASE'S LENGTH, not on
+     * its voiced milliseconds: the gaps between words are unvoiced, so counting only speech made a
+     * steady talker wait ~12 s for the first words (measured 2026-11-05).
+     */
+    if (phraseMs >= p.intervalMs && this.speechMs >= p.minSpeechMs && this.silenceRunMs >= p.intervalDipMs) return this.emitOrDrop(trailing);
+    if (phraseMs >= p.intervalMaxMs && this.speechMs >= p.minSpeechMs) return this.cutAtQuietest();
 
     return null;
   }

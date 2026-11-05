@@ -52,7 +52,7 @@ export interface DictationLabels {
 export const DEFAULT_DICTATION_LABELS: DictationLabels = {
   start: 'Dictate',
   stop: 'Stop dictating',
-  listening: 'Listening. Pause to see your words.',
+  listening: 'Listening. Your words appear as you go.',
   writing: 'Writing what you said',
   blocked: 'The microphone is blocked. Allow it in your browser’s site settings, then try again.',
   noMicrophone: 'No microphone was found. Connect one and try again.',
