@@ -1,0 +1,11 @@
+export { useDictation } from './useDictation';
+export type { Dictation } from './useDictation';
+export { DictationButton, DictationStatus } from './DictationButton';
+export type { DictationButtonProps } from './DictationButton';
+export { DictationSession, DEFAULT_DICTATION_LABELS } from './session';
+export type { DictationConfig, DictationContext, DictationLabels, DictationState } from './session';
+export { PhraseChunker, DEFAULT_CHUNK_POLICY } from './chunker';
+export type { ChunkPolicy, Phrase } from './chunker';
+export { encodeWav, Resampler, DICTATION_SAMPLE_RATE } from './audio';
+export { applyCommands, insertPhrase, joinAt } from './text';
+export type { Insertion } from './text';

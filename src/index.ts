@@ -181,3 +181,31 @@ export type {
 } from './useAssistantConversation';
 export { HumanCheck } from './components/HumanCheck';
 export type { HumanCheckProps } from './components/HumanCheck';
+
+// Live dictation (1.32.0): speak instead of typing, phrase by phrase through the product's own route.
+export {
+  useDictation,
+  DictationButton,
+  DictationStatus,
+  DictationSession,
+  DEFAULT_DICTATION_LABELS,
+  PhraseChunker,
+  DEFAULT_CHUNK_POLICY,
+  encodeWav,
+  Resampler,
+  DICTATION_SAMPLE_RATE,
+  applyCommands,
+  insertPhrase,
+  joinAt,
+} from './dictation';
+export type {
+  Dictation,
+  DictationButtonProps,
+  DictationConfig,
+  DictationContext,
+  DictationLabels,
+  DictationState,
+  ChunkPolicy,
+  Phrase,
+  Insertion,
+} from './dictation';

@@ -8,6 +8,10 @@ import {
 } from './ComposerAttachments';
 import type { AttachmentChip } from '../types';
 import { aiVar } from '../theme';
+import { useDictation } from '../dictation/useDictation';
+import { DictationButton, DictationStatus } from '../dictation/DictationButton';
+import { insertPhrase } from '../dictation/text';
+import type { DictationConfig } from '../dictation/session';
 
 /** Tallest the input grows before it scrolls internally (px) - about 6 lines. */
 const MAX_HEIGHT = 160;
@@ -35,6 +39,13 @@ export interface ComposerProps {
    * Send waits while a file is still uploading, and a message may be files with no words.
    */
   attachments?: ComposerAttachmentsConfig;
+
+  /**
+   * Speak instead of typing (1.32.0). A microphone beside the paperclip; each phrase lands at the
+   * caret a moment after the person pauses. Omit it and there is no microphone. `transcribe` is the
+   * product's own route: this package never calls ai-service.
+   */
+  dictation?: DictationConfig;
 
   /** While true, Send is replaced by Stop and the textarea stays editable. */
   busy?: boolean;
@@ -127,6 +138,7 @@ export function Composer({
   onChange,
   onSend,
   attachments,
+  dictation: dictationConfig,
   busy = false,
   onStop,
   id = 'ai-composer',
@@ -180,6 +192,31 @@ export function Composer({
   }, [value]);
 
   const files = useComposerAttachments(attachments);
+
+  /*
+   * ⚠ THE VALUE IS READ FROM A REF, not from the render's `value`. Two phrases can come back in the
+   * same tick; the second must land after the first, and the render that carries the first has not
+   * happened yet.
+   */
+  const valueRef = useRef(value);
+  useLayoutEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  const dictation = useDictation(dictationConfig, (phrase) => {
+    const el = ref.current;
+    const current = valueRef.current;
+    const start = el ? el.selectionStart : current.length;
+    const end = el ? el.selectionEnd : current.length;
+    const next = insertPhrase(current, start, end, phrase);
+    valueRef.current = next.value;
+    onChange(next.value);
+    requestAnimationFrame(() => {
+      // A controlled value change throws the caret to the end; put it after the words just added.
+      ref.current?.setSelectionRange(next.caret, next.caret);
+    });
+  });
+  const showDictationLine = Boolean(dictationConfig) && (dictation.preview !== '' || dictation.message !== null);
 
   const canSend =
     !disabled && !sendDisabled && (sendWhileBusy || !busy) && !files.uploading
@@ -285,7 +322,7 @@ export function Composer({
       style={{
         borderTop: `1px solid ${aiVar('--ai-border')}`,
         // Files wrap onto their own row above the box; the box and its buttons stay one row.
-        ...(attachments ? { flexWrap: 'wrap' as const } : {}),
+        ...(attachments || dictationConfig ? { flexWrap: 'wrap' as const } : {}),
         ...(dragging ? { outline: `2px dashed ${aiVar('--ai-accent')}`, outlineOffset: '-4px' } : {}),
       }}
       {...dropHandlers}
@@ -299,6 +336,8 @@ export function Composer({
       {attachments ? (
         <AttachButton config={attachments} onFiles={files.add} disabled={disabled} />
       ) : null}
+
+      {dictationConfig ? <DictationButton dictation={dictation} disabled={disabled} /> : null}
 
       <textarea
         onPaste={onPaste}
@@ -359,6 +398,8 @@ export function Composer({
           {sendLabel}
         </button>
       )}
+
+      {showDictationLine ? <DictationStatus dictation={dictation} className="basis-full px-3 pb-1 text-xs" /> : null}
     </div>
   );
 }

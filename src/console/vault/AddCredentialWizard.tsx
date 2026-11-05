@@ -166,7 +166,7 @@ function AddCredentialBody({ onClose, onAdded }: { onClose: () => void; onAdded:
                   value: 'transcription',
                   label: 'Turning speech into text',
                   description:
-                    "A speech-to-text model such as Groq Whisper, used for candidates' intro videos. Never used until you clear it for client data, because every recording is a person speaking.",
+                    "A speech-to-text model such as Groq Whisper, or Gemini as a paid second rung, used for dictation and candidates' intro videos. Tried in order, so a free key goes first. Never used until you clear it for client data, because every recording is a person speaking.",
                   icon: Mic,
                 },
               ]}
@@ -214,7 +214,7 @@ function AddCredentialBody({ onClose, onAdded }: { onClose: () => void; onAdded:
                   className={FIELD}
                   value={s.model}
                   onChange={(e) => p({ model: e.target.value })}
-                  placeholder={s.kind === 'transcription' ? 'whisper-large-v3-turbo' : 'gemini-2.5-flash, openai/gpt-oss-120b'}
+                  placeholder={s.kind === 'transcription' ? 'whisper-large-v3-turbo, gemini-3.5-flash-lite' : 'gemini-2.5-flash, openai/gpt-oss-120b'}
                   autoComplete="off"
                 />
                 <p className={HINT}>

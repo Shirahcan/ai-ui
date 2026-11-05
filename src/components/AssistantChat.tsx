@@ -24,6 +24,7 @@ import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { AttachmentChip, PanelMessage } from '../types';
 import type { AssistantTurnOptions } from '../useAssistantConversation';
+import type { DictationConfig } from '../dictation/session';
 import type { AssistantHumanCheck } from '../useAssistantConversation';
 
 /**
@@ -168,6 +169,8 @@ export interface AssistantChatComposer {
    * Files on a message (1.29.0): the paperclip, drag-and-drop and paste. Omit it and there is none.
    * The product's `onUpload` stores the file; `onSend` then receives the chips with the text.
    */
+  /** Speak instead of typing (1.32.0): a microphone in the composer. The product's route transcribes. */
+  dictation?: DictationConfig;
   attachments?: ComposerAttachmentsConfig & {
     /** The words sent when a message is files alone. Default "Here is a file." */
     emptyText?: string;
@@ -533,6 +536,7 @@ export function AssistantChat({
               onChange={setDraft}
               onSend={(files) => send(draft, files)}
               attachments={composer?.attachments}
+              dictation={composer?.dictation}
               busy={busy}
               onStop={onStop ? stop : undefined}
               sendDisabled={composer?.sendDisabled}
