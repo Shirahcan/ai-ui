@@ -203,17 +203,26 @@ export function Composer({
     valueRef.current = value;
   }, [value]);
 
+  /*
+   * ⚠ AND THE CARET IS READ FROM A REF UNTIL THE BROWSER HAS MOVED IT. Two phrases can land in the
+   * same tick (the last one on Stop, right behind the one before); the second read the DOM caret,
+   * which still sat before the first insert, and went in AHEAD of it (measured 2026-11-05).
+   */
+  const caretRef = useRef<number | null>(null);
+
   const dictation = useDictation(dictationConfig, (phrase) => {
     const el = ref.current;
     const current = valueRef.current;
-    const start = el ? el.selectionStart : current.length;
-    const end = el ? el.selectionEnd : current.length;
+    const start = caretRef.current ?? (el ? el.selectionStart : current.length);
+    const end = caretRef.current ?? (el ? el.selectionEnd : current.length);
     const next = insertPhrase(current, start, end, phrase);
     valueRef.current = next.value;
+    caretRef.current = next.caret;
     onChange(next.value);
     requestAnimationFrame(() => {
       // A controlled value change throws the caret to the end; put it after the words just added.
       ref.current?.setSelectionRange(next.caret, next.caret);
+      caretRef.current = null;
     });
   });
   const showDictationLine = Boolean(dictationConfig) && (dictation.preview !== '' || dictation.message !== null);
