@@ -2,6 +2,7 @@ import { encodeWav } from './audio';
 import { PhraseChunker, type ChunkPolicy, type Phrase } from './chunker';
 import { microphoneSupported, openMicrophone, type Microphone } from './microphone';
 import { onDevicePreviewAvailable, startOnDevicePreview, type OnDevicePreview } from './onDevicePreview';
+import { stitchPiece } from './text';
 
 /**
  * One dictation session: microphone -> phrases -> the product's transcribe call -> words, in order.
@@ -95,7 +96,9 @@ export class DictationSession {
   private nextToDeliver = 1;
   private inFlight = 0;
   private queue: Array<{ sequence: number; phrase: Phrase }> = [];
-  private results = new Map<number, string>();
+  private results = new Map<number, { text: string; midSentence: boolean }>();
+  /** Whether the last piece that reached the box was cut while the person kept talking. */
+  private lastMidSentence = false;
   private written = '';
   private quietMs = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -191,6 +194,7 @@ export class DictationSession {
     this.results.clear();
     this.queue = [];
     this.written = '';
+    this.lastMidSentence = false;
     this.quietMs = 0;
   }
 
@@ -245,7 +249,7 @@ export class DictationSession {
       } catch (error) {
         const status = statusOf(error);
         if (status !== null && STOPPING_STATUSES.includes(status)) {
-          this.results.set(sequence, '');
+          this.results.set(sequence, { text: '', midSentence: false });
           this.deliver();
           this.fail(messageOf(error) ?? this.labels.unavailable);
           return;
@@ -257,22 +261,25 @@ export class DictationSession {
       }
     }
 
-    this.results.set(sequence, text);
+    this.results.set(sequence, { text, midSentence: phrase.midSentence });
     this.deliver();
   }
 
   /** Words land in the order they were spoken, even when a later phrase came back first. */
   private deliver(): void {
     while (this.results.has(this.nextToDeliver)) {
-      const text = this.results.get(this.nextToDeliver)!;
+      const piece = this.results.get(this.nextToDeliver)!;
       this.results.delete(this.nextToDeliver);
       this.nextToDeliver++;
       if (this.state === 'idle' && this.mic === null && this.queue.length === 0 && this.inFlight === 0) {
         // Destroyed: the box this was for may be gone.
         continue;
       }
+      // One sentence spoken across pieces reads as one sentence, not one per piece.
+      const text = piece.text === '' ? '' : stitchPiece(piece.text, this.lastMidSentence, piece.midSentence);
       if (text !== '') {
         this.written = (this.written + ' ' + text).trim();
+        this.lastMidSentence = piece.midSentence;
         this.events.onText(text);
       }
     }

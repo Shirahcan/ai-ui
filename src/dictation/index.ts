@@ -7,5 +7,5 @@ export type { DictationConfig, DictationContext, DictationLabels, DictationState
 export { PhraseChunker, DEFAULT_CHUNK_POLICY } from './chunker';
 export type { ChunkPolicy, Phrase } from './chunker';
 export { encodeWav, Resampler, DICTATION_SAMPLE_RATE } from './audio';
-export { applyCommands, insertPhrase, joinAt } from './text';
+export { applyCommands, insertPhrase, joinAt, stitchPiece } from './text';
 export type { Insertion } from './text';

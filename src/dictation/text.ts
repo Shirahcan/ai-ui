@@ -41,6 +41,40 @@ export function applyCommands(phrase: string): string {
   return said;
 }
 
+/**
+ * Words that carry a sentence on. When the previous piece was cut mid-sentence and the next one
+ * begins with one of these, its capital is the transcriber's guess at a new sentence, not the
+ * speaker's: "...account history. And the manager said" reads "...account history and the manager
+ * said". Only these: a capital on a name, a programme ("IRCC") or "I" is never touched.
+ */
+const CONTINUATIONS = new Set([
+  'and', 'but', 'or', 'so', 'because', 'then', 'that', 'which', 'who', 'when', 'while', 'if', 'as',
+  'the', 'a', 'an', 'to', 'of', 'in', 'on', 'at', 'for', 'with', 'from', 'by', 'about', 'it', 'its',
+  'this', 'these', 'those', 'we', 'you', 'they', 'he', 'she', 'my', 'your', 'our', 'their', 'is',
+  'are', 'was', 'were', 'will', 'would', 'should', 'can', 'could', 'please',
+  'et', 'mais', 'ou', 'donc', 'car', 'que', 'qui', 'le', 'la', 'les', 'un', 'une', 'des', 'de', 'du',
+]);
+
+/**
+ * Tidy one piece for where it lands in the sentence.
+ * - `afterMidSentence`: the piece before was cut while the person kept talking, so a capital on a
+ *   carrying-on word here is the transcriber's guess at a new sentence: lowercase it.
+ * - `midSentence`: THIS piece was cut while they kept talking, so its closing full stop is the
+ *   transcriber's, not the speaker's: drop it (a question or exclamation mark is kept). A missing
+ *   full stop is the cheaper mistake: adding one back could split "Adebanjo. Deborah".
+ */
+export function stitchPiece(text: string, afterMidSentence: boolean, midSentence: boolean): string {
+  let out = text;
+
+  if (afterMidSentence) {
+    const first = /^\p{Lu}\p{Ll}*/u.exec(out);
+    if (first && CONTINUATIONS.has(first[0].toLowerCase())) out = first[0].toLowerCase() + out.slice(first[0].length);
+  }
+  if (midSentence) out = out.replace(/\.\s*$/u, '');
+
+  return out;
+}
+
 const startsWithPunctuation = (s: string) => /^[.,!?;:]/u.test(s);
 const endsSentence = (s: string) => s.trim() === '' || /[.!?]\s*$/u.test(s) || /\n\s*$/u.test(s);
 

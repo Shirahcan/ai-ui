@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { PhraseChunker } from '../src/dictation/chunker';
-import { applyCommands, insertPhrase } from '../src/dictation/text';
+import { applyCommands, insertPhrase, stitchPiece } from '../src/dictation/text';
 import { encodeWav, Resampler } from '../src/dictation/audio';
 
 const RATE = 16000;
@@ -73,6 +73,32 @@ describe('spoken commands and inserting at the caret', () => {
     expect(insertPhrase('Dear Ada', 8, 8, 'Comma.')).toEqual({ value: 'Dear Ada,', caret: 9 });
     expect(insertPhrase('Hi  there', 3, 3, 'Ada')).toEqual({ value: 'Hi Ada there', caret: 6 });
     expect(insertPhrase('', 0, 0, 'please send it')).toEqual({ value: 'Please send it', caret: 14 });
+  });
+
+  it('reads one sentence spoken across pieces as one sentence, and never lowercases a name', () => {
+    // A piece cut while the person kept talking loses the transcriber's full stop...
+    expect(stitchPiece('I spoke with the bank about your account history.', false, true)).toBe('I spoke with the bank about your account history');
+    // ...and the next one carries on in lower case when it starts with a joining word.
+    expect(stitchPiece('And the manager said it will arrive.', true, false)).toBe('and the manager said it will arrive.');
+    expect(stitchPiece('Adebanjo will bring it.', true, false)).toBe('Adebanjo will bring it.');
+    expect(stitchPiece('IRCC wants it.', true, false)).toBe('IRCC wants it.');
+    // A question the speaker asked keeps its mark; a piece that ended at a pause keeps its stop.
+    expect(stitchPiece('Can you send it?', false, true)).toBe('Can you send it?');
+    expect(stitchPiece('Thank you.', false, false)).toBe('Thank you.');
+  });
+
+  it('cuts a monologue in the gap between words, not inside one', () => {
+    // 4.4 s of speech whose only real gap (120 ms) sits at 3.5 s, with a 20 ms near-silent
+    // "consonant" at 4.2 s: the cut must land in the gap.
+    const chunker = new PhraseChunker();
+    chunker.push(quiet(300));
+    const cut: number[] = [];
+    for (const piece of [tone(3500), quiet(120), tone(700), quiet(20), tone(500)]) {
+      for (const p of chunker.push(piece)) cut.push(Math.round(p.pcm.length / 16));
+    }
+    expect(cut).toHaveLength(1);
+    expect(cut[0]).toBeGreaterThan(3600);
+    expect(cut[0]).toBeLessThan(3900);
   });
 
   it('replaces only a selection the person made', () => {

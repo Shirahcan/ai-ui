@@ -60,6 +60,12 @@ export interface Phrase {
   pcm: Int16Array;
   /** Milliseconds of the phrase judged to be speech. */
   speechMs: number;
+  /**
+   * Cut by the interval while the person kept talking, so the sentence very likely carries on in
+   * the next phrase. The transcript of a cut piece ends in a full stop anyway (each piece is heard
+   * as a whole utterance), which the session takes off.
+   */
+  midSentence: boolean;
 }
 
 export class PhraseChunker {
@@ -165,19 +171,41 @@ export class PhraseChunker {
      * its voiced milliseconds: the gaps between words are unvoiced, so counting only speech made a
      * steady talker wait ~12 s for the first words (measured 2026-11-05).
      */
-    if (phraseMs >= p.intervalMs && this.speechMs >= p.minSpeechMs && this.silenceRunMs >= p.intervalDipMs) return this.emitOrDrop(trailing);
+    if (phraseMs >= p.intervalMs && this.speechMs >= p.minSpeechMs && this.silenceRunMs >= p.intervalDipMs) {
+      return this.emitOrDrop(trailing, true);
+    }
     if (phraseMs >= p.intervalMaxMs && this.speechMs >= p.minSpeechMs) return this.cutAtQuietest();
 
     return null;
   }
 
-  /** Cut at the quietest frame of the last 1.5 s; the frames after it begin the next phrase. */
+  /**
+   * Cut in the gap between two words in the last 1.5 s; the frames after it begin the next phrase.
+   *
+   * ⚠ THE LONGEST QUIET STRETCH, NOT THE QUIETEST FRAME. A stop consonant (the "c" in "account") is
+   * near-silent for a frame or two, and cutting there split the word across two phrases, both of
+   * which wrote it ("your account. Account history", measured on the test box 2026-11-05). The
+   * gap between words is the longer run of quiet frames, so cut in its middle.
+   */
   private cutAtQuietest(): Phrase {
     const window = Math.ceil(1500 / this.policy.frameMs);
     const from = Math.max(1, this.frames.length - window);
+    const recent = this.loudness.slice(from).slice().sort((a, b) => a - b);
+    const quietBar = recent[Math.floor(recent.length * 0.25)] ?? 0;
+    const isQuiet = (i: number) => this.speechFlags[i] === false || (this.loudness[i] ?? 1) <= quietBar;
+
     let best = this.frames.length - 1;
+    let bestLength = 0;
     for (let i = from; i < this.frames.length; i++) {
-      if ((this.loudness[i] ?? 1) < (this.loudness[best] ?? 1)) best = i;
+      if (!isQuiet(i)) continue;
+      let j = i;
+      while (j + 1 < this.frames.length && isQuiet(j + 1)) j++;
+      // Prefer the longer gap; on a tie, the later one (more of the speech goes in this phrase).
+      if (j - i + 1 >= bestLength) {
+        bestLength = j - i + 1;
+        best = Math.floor((i + j) / 2);
+      }
+      i = j;
     }
 
     const tailFrames = this.frames.slice(best + 1);
@@ -186,7 +214,7 @@ export class PhraseChunker {
     this.frames = this.frames.slice(0, best + 1);
     this.speechMs -= tailFlags.filter(Boolean).length * this.policy.frameMs;
 
-    const phrase = this.cut(0);
+    const phrase = this.cut(0, true);
 
     this.frames = tailFrames;
     this.loudness = tailLoud;
@@ -196,13 +224,13 @@ export class PhraseChunker {
     return phrase;
   }
 
-  private emitOrDrop(trailingFrames: number): Phrase | null {
+  private emitOrDrop(trailingFrames: number, midSentence = false): Phrase | null {
     if (this.speechMs < this.policy.minSpeechMs) return this.reset();
-    return this.cut(trailingFrames);
+    return this.cut(trailingFrames, midSentence);
   }
 
   /** Keep ~300 ms of the trailing silence so the last word is not clipped. */
-  private cut(trailingFrames: number): Phrase {
+  private cut(trailingFrames: number, midSentence = false): Phrase {
     const keepTail = Math.ceil(300 / this.policy.frameMs);
     const drop = Math.max(0, trailingFrames - keepTail);
     const frames = drop > 0 ? this.frames.slice(0, this.frames.length - drop) : this.frames;
@@ -213,7 +241,7 @@ export class PhraseChunker {
       joined.set(f, offset);
       offset += f.length;
     }
-    const phrase = { pcm: toPcm16(joined), speechMs: this.speechMs };
+    const phrase = { pcm: toPcm16(joined), speechMs: this.speechMs, midSentence };
     this.reset();
     return phrase;
   }

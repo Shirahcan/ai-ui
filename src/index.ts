@@ -197,6 +197,7 @@ export {
   applyCommands,
   insertPhrase,
   joinAt,
+  stitchPiece,
 } from './dictation';
 export type {
   Dictation,
