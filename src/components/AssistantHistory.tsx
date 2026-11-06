@@ -292,7 +292,7 @@ export function AssistantHistory({
                     {title}
                   </span>
                   {thread.snippet ? (
-                    <span className="block line-clamp-2 text-xs" style={{ color: aiVar('--ai-muted') }}>
+                    <span className="line-clamp-2 text-xs" style={{ color: aiVar('--ai-muted') }}>
                       {thread.snippet}
                     </span>
                   ) : null}
