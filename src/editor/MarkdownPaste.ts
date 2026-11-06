@@ -30,8 +30,21 @@ declare module '@tiptap/core' {
  *
  * Lives behind `@shirahcan/ai-ui/editor`, so a product with no TipTap never loads it.
  */
-export const MarkdownPaste = Extension.create({
+export interface MarkdownPasteOptions {
+  /**
+   * Asked at paste time: convert a Markdown paste? Default yes. A product shipping it dark passes its
+   * gate here (a function, so a gate that resolves after the editor mounted still counts).
+   * `insertMarkdown` is not affected: the product decides when to call it.
+   */
+  convertPaste: () => boolean;
+}
+
+export const MarkdownPaste = Extension.create<MarkdownPasteOptions>({
   name: 'markdownPaste',
+
+  addOptions() {
+    return { convertPaste: () => true };
+  },
 
   addCommands() {
     return {
@@ -47,6 +60,7 @@ export const MarkdownPaste = Extension.create({
 
   addProseMirrorPlugins() {
     const editor = this.editor;
+    const options = this.options;
 
     return [
       new Plugin({
@@ -54,6 +68,7 @@ export const MarkdownPaste = Extension.create({
         props: {
           handlePaste: (_view, event) => {
             const data = event.clipboardData;
+            if (!options.convertPaste()) return false;
             if (!data || data.types.includes('text/html') || data.files.length > 0) return false;
             const text = data.getData('text/plain');
             if (!text || !looksLikeMarkdown(text)) return false;

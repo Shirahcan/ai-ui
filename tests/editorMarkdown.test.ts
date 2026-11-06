@@ -51,4 +51,12 @@ describe('MarkdownPaste extension', () => {
     expect(editor.commands.insertMarkdown('   ')).toBe(false);
     expect(editor.getHTML()).toBe('<p>kept</p>');
   });
+
+  it('a product can keep Markdown paste off (shipping it dark) while insertMarkdown still works', () => {
+    editor = new Editor({ extensions: [StarterKit, MarkdownPaste.configure({ convertPaste: () => false })], content: '' });
+
+    expect(editor.extensionManager.extensions.find((e) => e.name === 'markdownPaste')?.options.convertPaste()).toBe(false);
+    expect(editor.commands.insertMarkdown('**ok**')).toBe(true);
+    expect(editor.getHTML()).toContain('<strong>ok</strong>');
+  });
 });
