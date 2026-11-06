@@ -42,7 +42,7 @@ describe('answer actions', () => {
 
     expect(screen.queryByRole('button', { name: 'Stale suggestion' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Apply the fix' }));
-    expect(onSend).toHaveBeenCalledWith('Apply the fix');
+    expect(onSend).toHaveBeenCalledWith('Apply the fix', { input: 'follow_up' });
   });
 
   it('hides follow-ups once the person has replied, and disables them while an answer is written', () => {

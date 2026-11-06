@@ -214,7 +214,7 @@ describe('AssistantChat', () => {
     fireEvent.change(box, { target: { value: '  How do I invite a client?  ' } });
     fireEvent.keyDown(box, { key: 'Enter' });
 
-    expect(onSend).toHaveBeenCalledWith('How do I invite a client?');
+    expect(onSend).toHaveBeenCalledWith('How do I invite a client?', { input: 'typed' });
     expect(box.value).toBe('');
   });
 

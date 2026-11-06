@@ -121,7 +121,17 @@ export interface AssistantTurnOptions {
    * `attachment_ids` with this turn (the product's upload route returned these ids).
    */
   attachments?: AttachmentChip[];
+  /**
+   * How the person asked (1.36.0): sent as `input` with this turn so the product can record it, and
+   * an assistant can answer "how do people use me". Typed unless something else is known.
+   */
+  input?: AssistantInputKind;
 }
+
+/** How a question was asked: the vocabulary ai-service records (`input` on a turn). */
+export type AssistantInputKind =
+  | 'typed' | 'dictated' | 'hands_free' | 'attachment' | 'slash' | 'mention'
+  | 'follow_up' | 'suggestion' | 'ask_again' | 'edit';
 
 const EVENTS = { stage: 'stage', token: 'token', reset: 'reset', message: 'message', error: 'error', turn: 'turn' };
 
@@ -467,6 +477,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     const files = turn.attachments ?? [];
     void run(question, {
       ...(turn.body ?? {}),
+      ...(turn.input ? { input: turn.input } : {}),
       ...(files.length > 0 ? { attachment_ids: files.map((f) => f.id) } : {}),
     });
   }, [halt, needsCheck, ready, run]);

@@ -25,7 +25,7 @@ import { ChatIcon, DownloadIcon, MenuIcon, PencilIcon, PlusIcon, PrintIcon, Tras
 import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { AttachmentChip, PanelMessage } from '../types';
-import type { AssistantTurnOptions } from '../useAssistantConversation';
+import type { AssistantInputKind, AssistantTurnOptions } from '../useAssistantConversation';
 import type { DictationConfig } from '../dictation/session';
 import type { AssistantHumanCheck } from '../useAssistantConversation';
 
@@ -461,16 +461,20 @@ export function AssistantChat({
     setMenuOpen((open) => !open);
   };
 
-  const send = (text: string, files: AttachmentChip[] = []) => {
+  // A draft put back for editing (the pencil): its next send is recorded as an edit.
+  const editingRef = useRef(false);
+
+  const send = (text: string, files: AttachmentChip[] = [], input: AssistantInputKind = 'typed') => {
     let trimmed = text.trim();
     if (trimmed === '' && files.length > 0) {
       trimmed = composer?.attachments?.emptyText ?? (files.length > 1 ? 'Here are some files.' : 'Here is a file.');
     }
     if (trimmed === '') return;
     setDraft('');
-    // Without files the call is exactly what it always was, so a product's own checks still hold.
-    if (files.length > 0) onSend(trimmed, { attachments: files });
-    else onSend(trimmed);
+    const how: AssistantInputKind = input;
+    editingRef.current = false;
+    // How it was asked rides along (1.36.0); a product that ignores it sees the same text as before.
+    onSend(trimmed, files.length > 0 ? { attachments: files, input: how } : { input: how });
   };
 
   return (
@@ -579,7 +583,7 @@ export function AssistantChat({
                       <div data-ai-no-copy="" className="mt-1 flex justify-end">
                         <button
                           type="button"
-                          onClick={() => setDraft(withoutAttachedLine(message.text))}
+                          onClick={() => { editingRef.current = true; setDraft(withoutAttachedLine(message.text)); }}
                           aria-label="Edit this question"
                           title="Edit"
                           className="inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-full px-2 text-xs text-[var(--ai-muted)] outline-none transition-colors hover:text-[var(--ai-accent)] focus-visible:text-[var(--ai-accent)]"
@@ -609,12 +613,12 @@ export function AssistantChat({
                         ) : undefined
                       }
                       followUps={message.id === followUpsFor ? readFollowUps(readMeta(message.meta)) : []}
-                      onFollowUp={send}
+                      onFollowUp={(followUp: string) => send(followUp, [], 'follow_up')}
                       busy={busy}
                       onCopyError={onClientError}
                       onSpeak={readAloudOn && finished ? () => say(message) : undefined}
                       speaking={speakingId === message.id}
-                      onAskAgain={extras?.askAgain && isLatestAnswer && lastUser ? () => send(withoutAttachedLine(lastUser.text)) : undefined}
+                      onAskAgain={extras?.askAgain && isLatestAnswer && lastUser ? () => send(withoutAttachedLine(lastUser.text), [], 'ask_again') : undefined}
                       useThis={finished ? (extras?.useThis ?? []).map((t) => ({ key: t.key, label: t.label, onUse: () => t.onUse(message.text, message) })) : []}
                       sources={extras?.sources && finished ? readReadFrom(readMeta(message.meta)) : []}
                       onOpenSource={extras?.onOpenSource}
@@ -628,7 +632,7 @@ export function AssistantChat({
             <Composer
               value={draft}
               onChange={setDraft}
-              onSend={(files) => send(draft, files)}
+              onSend={(files, input) => send(draft, files, editingRef.current ? 'edit' : input)}
               attachments={composer?.attachments}
               dictation={composer?.dictation}
               handsFree={extras?.handsFree && readAloudOn ? { active: handsFreeOn, suspended: speakingId !== null, onToggle: toggleHandsFree } : undefined}

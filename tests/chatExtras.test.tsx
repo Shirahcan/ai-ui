@@ -90,7 +90,7 @@ describe('AssistantChat extras', () => {
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('What did the client say about her spouse?');
 
     fireEvent.click(screen.getByLabelText('Ask this again'));
-    expect(onSend).toHaveBeenCalledWith('What did the client say about her spouse?');
+    expect(onSend).toHaveBeenCalledWith('What did the client say about her spouse?', { input: 'ask_again' });
 
     fireEvent.click(screen.getByText('Use this'));
     fireEvent.click(screen.getByText('Save as a case note'));
@@ -98,6 +98,11 @@ describe('AssistantChat extras', () => {
 
     fireEvent.click(screen.getByText('Call transcript, 5 Nov'));
     expect(onOpenSource).toHaveBeenCalledWith('/consultant/cases/1');
+
+    // A question put back with the pencil and sent again is recorded as an edit (1.36.0).
+    fireEvent.click(screen.getByLabelText('Edit this question'));
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    expect(onSend).toHaveBeenLastCalledWith('What did the client say about her spouse?', { input: 'edit' });
     expect(screen.getByText('Evil').tagName).toBe('SPAN');
   });
 });

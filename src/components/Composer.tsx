@@ -13,6 +13,7 @@ import { DictationButton, DictationStatus } from '../dictation/DictationButton';
 import { insertPhrase } from '../dictation/text';
 import type { DictationConfig } from '../dictation/session';
 import { useHandsFree, type HandsFreeState } from '../dictation/useHandsFree';
+import type { AssistantInputKind } from '../useAssistantConversation';
 import { HeadsetIcon } from '../icons';
 import {
   ComposerPickerList,
@@ -40,7 +41,11 @@ export interface ComposerProps {
   value: string;
   onChange: (value: string) => void;
   /** The files ready on the message, when `attachments` is on (empty otherwise). */
-  onSend: (attachments: AttachmentChip[]) => void;
+  /**
+   * `input` (1.36.0) says how this draft was made: typed, dictated, sent hands-free, an attachment,
+   * a "/" prompt or an "@" mention. A product records it so its assistant can say how people ask.
+   */
+  onSend: (attachments: AttachmentChip[], input?: AssistantInputKind) => void;
 
   /**
    * Files on the message: a paperclip, drag-and-drop and paste. Omit it and there is no paperclip.
@@ -233,7 +238,11 @@ export function Composer({
    */
   const caretRef = useRef<number | null>(null);
 
+  // How the current draft was made; cleared when it is sent. Dictation wins over typing in one draft.
+  const originRef = useRef<AssistantInputKind | null>(null);
+
   const dictation = useDictation(dictationConfig, (phrase) => {
+    originRef.current = 'dictated';
     const el = ref.current;
     const current = valueRef.current;
     const start = caretRef.current ?? (el ? el.selectionStart : current.length);
@@ -254,6 +263,7 @@ export function Composer({
   const [caret, setCaret] = useState(0);
   const readCaret = () => setCaret(ref.current?.selectionStart ?? value.length);
   const picker = useComposerPicker(value, caret, (next, at) => {
+    if (originRef.current !== 'dictated') originRef.current = value.startsWith('/') ? 'slash' : 'mention';
     onChange(next);
     const to = at ?? next.length;
     setCaret(to);
@@ -293,14 +303,17 @@ export function Composer({
     onChange(entry);
   };
 
-  const send = () => {
+  const send = (handsFreeSend = false) => {
     setRecallIndex(-1);
-    onSend(files.ready);
+    const origin = handsFreeSend ? 'hands_free' : originRef.current;
+    const input: AssistantInputKind = origin ?? (files.ready.length > 0 ? 'attachment' : 'typed');
+    originRef.current = null;
+    onSend(files.ready, input);
     files.clear();
   };
 
   useHandsFree(handsFree && dictationConfig ? handsFree : undefined, dictation, busy, value, () => {
-    if (canSend) send();
+    if (canSend) send(true);
   });
 
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
@@ -478,7 +491,7 @@ export function Composer({
           ) : (
             <button
               type="button"
-              onClick={send}
+              onClick={() => send()}
               /*
                * ⚠ DISABLED ON AN EMPTY BOX, NOT ON `busy` ALONE. A product that
                * only disables while busy ships a Send that fires an empty turn,

@@ -191,6 +191,7 @@ export type {
   AssistantConversationOptions,
   AssistantHumanCheck,
   AssistantTurnOptions,
+  AssistantInputKind,
 } from './useAssistantConversation';
 export { HumanCheck } from './components/HumanCheck';
 export type { HumanCheckProps } from './components/HumanCheck';

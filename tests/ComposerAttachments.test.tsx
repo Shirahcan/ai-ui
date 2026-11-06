@@ -67,7 +67,7 @@ describe('Composer attachments', () => {
     await waitFor(() => expect((send as HTMLButtonElement).disabled).toBe(false));
 
     fireEvent.click(send);
-    expect(onSend).toHaveBeenCalledWith([{ id: 'f1', name: 'letter.pdf', mime: 'application/pdf', size: 1000 }]);
+    expect(onSend).toHaveBeenCalledWith([{ id: 'f1', name: 'letter.pdf', mime: 'application/pdf', size: 1000 }], 'attachment');
     expect(screen.queryByText('letter.pdf')).toBeNull();
   });
 
@@ -119,6 +119,7 @@ describe('AssistantChat with files', () => {
 
     expect(onSend).toHaveBeenCalledWith('Here is a file.', {
       attachments: [{ id: 'id-letter.pdf', name: 'letter.pdf', mime: 'application/pdf', size: 1000 }],
+      input: 'attachment',
     });
   });
 });
