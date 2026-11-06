@@ -313,6 +313,26 @@ ONE events line open (the product proxies ai-service's channel stream, behind it
 The late message is inserted the moment the product publishes it. Nothing polls; the line
 closes when nothing is waiting, and a reload derives the same state from the thread itself.
 
+## When each message was said, and a list that scales (1.37)
+
+Needs `@shirahcan/calendar-ui` >= 0.46 (peer): every time goes through its formatters and
+`useDisplayTimezone`, so a chat time reads like a meeting time ("5:07 PM WAT") in the viewer's clock.
+
+- **`PanelMessage.at`**: the ISO instant the SERVICE recorded. Copy your API's field in
+  `toPanelMessage` (Portify: `at: m.created_at`). The hook stamps this device's clock only on the
+  person's own question sent from this tab.
+- **`extras.timeline`**: the time on each answer's action row (a tap, hover or focus shows "Asked
+  5:07 PM WAT, answered 8 s later"), a quiet divider at each new day, "Still working, 2 min so far" on
+  background work, and each turn's time in both exports. Off by default.
+- **`threads`**: `groupByDay` (Pinned, Today, Yesterday, Previous 7 days, Older), `onSearch` +
+  `search` (a debounced box; say `capped` when the service stopped at the newest 200), `onRename`
+  and `onPin` (one kebab per row, Delete last and still confirmed), `hasMore` + `onLoadMore`.
+- **`expandable`**: an Expand button for a large, viewport-bounded view (Escape returns).
+- **`AssistantLauncher unread`**: a dot and "a new answer is waiting". Your product sets it, from
+  `onAnswer` while its panel is closed.
+
+Each control is drawn only when you supply its handler.
+
 ## Stop, without giving up your turn loop
 
 `useTurnCancel` is the cancel discipline on its own, for a panel that keeps its own turn:

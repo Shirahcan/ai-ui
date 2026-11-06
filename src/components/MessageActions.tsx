@@ -35,6 +35,13 @@ export interface MessageActionsProps {
   /** What the answer was read from, each opening the record (1.34.0). */
   sources?: Array<{ label: string; href?: string }>;
   onOpenSource?: (href: string) => void;
+
+  /**
+   * When this answer was given (1.37.0, owner 2026-11-06): "5:07 PM WAT" first in the row, quiet, and
+   * `detail` ("Asked 5:07 PM WAT, answered 8 s later") on hover, on focus and on a tap, which swaps
+   * the label for the detail so a touch screen reaches it too.
+   */
+  time?: { label: string; detail: string; iso: string };
 }
 
 const ICON_BUTTON =
@@ -54,9 +61,10 @@ const FOLLOW_UP =
 
 export function MessageActions({
   canCopy, feedback, followUps, onFollowUp, busy = false, onCopyError,
-  onSpeak, speaking = false, onAskAgain, useThis = [], sources = [], onOpenSource,
+  onSpeak, speaking = false, onAskAgain, useThis = [], sources = [], onOpenSource, time,
 }: MessageActionsProps) {
   const [useOpen, setUseOpen] = useState(false);
+  const [timeOpen, setTimeOpen] = useState(false);
   const row = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
 
@@ -79,7 +87,7 @@ export function MessageActions({
   };
 
   const showFollowUps = followUps.length > 0 && onFollowUp !== undefined;
-  const hasTools = canCopy || Boolean(feedback) || Boolean(onSpeak) || Boolean(onAskAgain) || useThis.length > 0;
+  const hasTools = canCopy || Boolean(feedback) || Boolean(onSpeak) || Boolean(onAskAgain) || useThis.length > 0 || Boolean(time);
   if (!hasTools && !showFollowUps && sources.length === 0) return null;
 
   return (
@@ -110,6 +118,19 @@ export function MessageActions({
 
       {hasTools ? (
         <div className="mt-1.5 flex items-start gap-1">
+          {time ? (
+            <button
+              type="button"
+              onClick={() => setTimeOpen((open) => !open)}
+              aria-label={time.detail}
+              aria-pressed={timeOpen}
+              title={time.detail}
+              data-ai-message-time=""
+              className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-full px-1.5 text-[11px] text-[var(--ai-muted)] outline-none transition-colors hover:text-[var(--ai-fg)] focus-visible:text-[var(--ai-fg)]"
+            >
+              <time dateTime={time.iso}>{timeOpen ? time.detail : time.label}</time>
+            </button>
+          ) : null}
           {canCopy ? (
             <button
               type="button"

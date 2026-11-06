@@ -55,14 +55,33 @@ function isPartOfIdentifier(text: string, start: number, end: number): boolean {
   return (before !== '' && glued.test(before) && !/[$€£₦]/.test(text.charAt(start))) || (after !== '' && /[A-Za-z0-9_\-/#]/.test(after));
 }
 
+/**
+ * The spans of `value` that are quoted, closed on the same line: "..." or “...”.
+ *
+ * ⚠ A QUOTE IS SOMEBODY'S OWN WORDS, AND BOLDING INSIDE IT CHANGES THEM (owner audit, 2026-11-06).
+ * Porter listing a person's questions printed `"Show me questions from the last **7 days**"`. Single
+ * quotes are NOT quotes here: an apostrophe ("the client's 3 cases") would open one. An unclosed quote
+ * is not a span either, so a stray `"` cannot swallow the rest of the line.
+ */
+function quotedSpans(value: string): Array<[number, number]> {
+  const spans: Array<[number, number]> = [];
+  const QUOTED = /"[^"\n]*"|“[^”\n]*”/g;
+  for (let m = QUOTED.exec(value); m !== null; m = QUOTED.exec(value)) {
+    spans.push([m.index, m.index + m[0].length]);
+  }
+
+  return spans;
+}
+
 function split(value: string): Node[] {
   const out: Node[] = [];
   let last = 0;
+  const quoted = quotedSpans(value);
   FIGURE.lastIndex = 0;
   for (let m = FIGURE.exec(value); m !== null; m = FIGURE.exec(value)) {
     const start = m.index;
     const end = start + m[0].length;
-    if (m[0].trim() === '' || isPartOfIdentifier(value, start, end)) {
+    if (m[0].trim() === '' || isPartOfIdentifier(value, start, end) || quoted.some(([a, b]) => start > a && start < b)) {
       continue;
     }
     if (start > last) {
@@ -81,7 +100,8 @@ function split(value: string): Node[] {
   return out;
 }
 
-const SKIP = new Set(['strong', 'link', 'linkReference', 'inlineCode', 'code', 'heading', 'html', 'definition', 'image']);
+// A blockquote is quoted words too (see quotedSpans).
+const SKIP = new Set(['strong', 'link', 'linkReference', 'inlineCode', 'code', 'heading', 'html', 'definition', 'image', 'blockquote']);
 
 function walk(node: Node): void {
   if (!node.children) {

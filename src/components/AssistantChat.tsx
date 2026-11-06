@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { AssistantHistory, type AssistantThread } from './AssistantHistory';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { formatZonedDate, useDisplayTimezone } from '@shirahcan/calendar-ui';
+import { type AssistantThread } from './AssistantHistory';
+import { ThreadList } from './ThreadList';
+import { answerTime, dayLabel, elapsed, sameDay } from '../chatTime';
 import {
   AssistantMessageBody,
   type AssistantMessageHandlers,
@@ -21,7 +24,7 @@ import { readFollowUps, readKind, readMeta, readReadFrom } from '../messages/kin
 import { canReadAloud, speak, stopSpeaking } from '../speech/readAloud';
 import type { ComposerMentionsConfig, ComposerSlashCommand } from './ComposerPicker';
 import { downloadConversationText, printConversation, readRenderedTurns } from '../conversationCopy';
-import { ChatIcon, DownloadIcon, MenuIcon, PencilIcon, PlusIcon, PrintIcon, TrashIcon } from '../icons';
+import { CollapseIcon, DownloadIcon, ExpandIcon, MenuIcon, PencilIcon, PlusIcon, PrintIcon } from '../icons';
 import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { AttachmentChip, PanelMessage } from '../types';
@@ -122,6 +125,30 @@ export interface AssistantChatThreads {
   deleteIcon?: ReactNode;
   /** Starting a fresh thread. Omit it and no "New" control is drawn. */
   onNew?: () => void;
+
+  /*
+   * 1.37.0 (owner 2026-11-06): a list that scales and can be found in. Each control appears only when
+   * its handler is supplied.
+   */
+  /** Group under Pinned, Today, Yesterday, Previous 7 days, Older (viewer's calendar). */
+  groupByDay?: boolean;
+  /** Rename, from the row's kebab. */
+  onRename?: (id: string, title: string) => void;
+  /** Pin or unpin, from the row's kebab. */
+  onPin?: (id: string, pinned: boolean) => void;
+  /** A search box over the list: called (debounced, 2+ characters) with the words; '' clears. */
+  onSearch?: (q: string) => void;
+  /** What the product's search found, for the words it was last given. */
+  search?: {
+    status: 'idle' | 'loading' | 'ready' | 'failed';
+    results: AssistantThread[];
+    /** The service stopped at the newest conversations; say so rather than imply the rest do not exist. */
+    capped?: boolean;
+  };
+  /** More, older conversations exist: a "Load older conversations" button at the end. */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
 }
 
 /**
@@ -203,6 +230,12 @@ export interface AssistantChatExtras {
   /** Chips naming the records an answer was read from (`meta.read_from`); `onOpenSource` opens one in-app. */
   sources?: boolean;
   onOpenSource?: (href: string) => void;
+  /**
+   * When each message was said (1.37.0, owner 2026-11-06): the time on each answer's action row, a
+   * quiet divider at each new day, "working for 2 min" on background work, and times in the exports.
+   * Reads `PanelMessage.at`, in the viewer's clock (calendar-ui `useDisplayTimezone`), zone named.
+   */
+  timeline?: boolean;
 }
 
 export interface AssistantChatProps {
@@ -271,6 +304,14 @@ export interface AssistantChatProps {
   onClientError?: (error: unknown) => void;
   /** Offer the two "Export conversation" items in the menu. Default true. */
   exportable?: boolean;
+  /**
+   * An "Expand" button in the header (1.37.0, owner 2026-11-06): a large, viewport-bounded view for
+   * wide tables and long answers. Escape or the same button returns to the small panel. Uncontrolled
+   * unless `expanded` is passed; `onExpandedChange` hears every change either way.
+   */
+  expandable?: boolean;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
 /** Shown while a question waits on the bot check. It sends itself; nobody presses Send again. */
@@ -336,6 +377,9 @@ export function AssistantChat({
   onClientError,
   exportable = true,
   extras,
+  expandable = false,
+  expanded: expandedProp,
+  onExpandedChange,
   ...attributes
 }: AssistantChatProps & AssistantSurfaceAttributes) {
   /*
@@ -344,6 +388,15 @@ export function AssistantChat({
    * product's own items and the recent conversations.
    */
   const [menuOpen, setMenuOpen] = useState(false);
+  // The large view (1.37.0): controlled when the product passes `expanded`, else kept here.
+  const [expandedState, setExpandedState] = useState(false);
+  const isExpanded = expandable && (expandedProp ?? expandedState);
+  const setExpanded = (next: boolean) => {
+    setExpandedState(next);
+    onExpandedChange?.(next);
+  };
+  // The reader's clock: this device's zone, or the one picked with "Show times in" (calendar-ui).
+  const { timezone: zone } = useDisplayTimezone();
   const canExport = exportable && messages.some((m) => m.role === 'assistant' && m.text.trim() !== '');
   const hasMenu = Boolean(threads) || Boolean(actions?.length) || canExport;
   const activeTitle = (conversationTitle ?? threads?.items.find((t) => t.id === threads?.activeId)?.title ?? '').trim();
@@ -359,7 +412,7 @@ export function AssistantChat({
     const container = conversationRef.current;
     if (!container) return;
     try {
-      const turns = readRenderedTurns(container, { user: 'You', assistant: assistantName });
+      const turns = readRenderedTurns(container, { user: 'You', assistant: assistantName }, zone);
       const name = activeTitle !== '' ? activeTitle : `Conversation with ${assistantName}`;
       if (how === 'pdf') printConversation(name, turns);
       else downloadConversationText(name, turns);
@@ -377,6 +430,19 @@ export function AssistantChat({
 
     return () => window.removeEventListener('keydown', onKey);
   }, [menuOpen]);
+
+  // Escape leaves the large view, after the sidebar (which closes first if it is open).
+  const collapseRef = useRef<() => void>(() => {});
+  collapseRef.current = () => setExpanded(false);
+  useEffect(() => {
+    if (!isExpanded || menuOpen) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') collapseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isExpanded, menuOpen]);
   /*
    * ⚠ THE DRAFT LIVES HERE, NOT IN THE PANEL BELOW. `AssistantPanel.send`
    * refuses to send while busy, which is right for a panel with no supersede
@@ -427,6 +493,43 @@ export function AssistantChat({
   };
   const lastUserIndex = messages.map((m) => m.role).lastIndexOf('user');
   const lastUser = lastUserIndex >= 0 ? messages[lastUserIndex] : undefined;
+
+  /*
+   * When each message was said (1.37.0). A divider goes over the first dated row of each day in the
+   * viewer's zone, and each answer's time names the question it answered. Off unless the product asks.
+   */
+  const timeline = extras?.timeline === true;
+  const times = useMemo(() => {
+    const dividers = new Map<string, { label: string; full: string }>();
+    const asked = new Map<string, string>();
+    if (!timeline) return { dividers, asked };
+    let lastDated: string | null = null;
+    let question: string | null = null;
+    for (const m of messages) {
+      if (m.role === 'user' && m.at) question = m.at;
+      if (m.role === 'assistant' && question) asked.set(m.id, question);
+      if (!m.at) continue;
+      if (lastDated === null || !sameDay(lastDated, m.at, zone)) {
+        const label = dayLabel(m.at, zone);
+        if (label) dividers.set(m.id, { label, full: formatZonedDate(m.at, zone, 'long') });
+      }
+      lastDated = m.at;
+    }
+
+    return { dividers, asked };
+  }, [timeline, messages, zone]);
+
+  const answerTimeFor = (message: PanelMessage): { label: string; detail: string; iso: string } | undefined => {
+    if (!timeline || !message.at || message.streaming === true) return undefined;
+    const label = answerTime(message.at, zone);
+    if (!label) return undefined;
+    const question = times.asked.get(message.id);
+    const askedLabel = question ? answerTime(question, zone) : null;
+    const took = question ? elapsed(question, message.at) : null;
+    const detail = askedLabel && took ? `Asked ${askedLabel}, answered ${took} later` : `Answered ${label}`;
+
+    return { label, detail, iso: message.at };
+  };
 
   const plain = theme.assistantBubble === 'plain';
 
@@ -502,18 +605,36 @@ export function AssistantChat({
         ) : undefined
       }
       actions={
-        activeTitle !== '' ? (
-          <span
-            className="block min-w-0 max-w-[14rem] truncate text-sm font-medium text-[var(--ai-muted)]"
-            title={activeTitle}
-          >
-            {activeTitle}
-          </span>
+        activeTitle !== '' || expandable ? (
+          <>
+            {activeTitle !== '' ? (
+              <span
+                className={`block min-w-0 ${isExpanded ? 'max-w-[32rem]' : 'max-w-[14rem]'} truncate text-sm font-medium text-[var(--ai-muted)]`}
+                title={activeTitle}
+              >
+                {activeTitle}
+              </span>
+            ) : null}
+            {expandable ? (
+              <button
+                type="button"
+                onClick={() => setExpanded(!isExpanded)}
+                aria-label={isExpanded ? 'Back to the small panel' : 'Expand'}
+                aria-pressed={isExpanded}
+                title={isExpanded ? 'Back to the small panel' : 'Expand'}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--ai-muted)] outline-none transition-colors hover:bg-[var(--ai-accent-soft)] hover:text-[var(--ai-fg)] focus-visible:bg-[var(--ai-accent-soft)]"
+              >
+                {isExpanded ? <CollapseIcon /> : <ExpandIcon />}
+              </button>
+            ) : null}
+          </>
         ) : undefined
       }
+      expanded={isExpanded}
       {...attributes}
     >
-      <div ref={conversationRef} className="relative flex min-h-0 flex-1 flex-col">
+      {/* The large view keeps a readable column: answers do not run 72rem wide. */}
+      <div ref={conversationRef} className={`relative flex min-h-0 flex-1 flex-col ${isExpanded ? 'mx-auto w-full max-w-4xl' : ''}`}>
         <AssistantPanel
           messages={messages}
           busy={busy}
@@ -532,6 +653,24 @@ export function AssistantChat({
               </p>
             ) : undefined
           }
+          renderDivider={(message) => {
+            const divider = times.dividers.get(message.id);
+            if (!divider) return null;
+
+            // Quiet, outside every copy source: Copy and Export never read it.
+            return (
+              <div
+                role="separator"
+                aria-label={divider.full}
+                data-ai-no-copy=""
+                className="my-2 flex items-center gap-3 px-5 text-[11px] font-medium text-[var(--ai-muted)]"
+              >
+                <span aria-hidden="true" className="h-px flex-1 bg-[var(--ai-border)]" />
+                <span>{divider.label}</span>
+                <span aria-hidden="true" className="h-px flex-1 bg-[var(--ai-border)]" />
+              </div>
+            );
+          }}
           renderBubble={(message) => {
             /*
              * ⚠ ONLY AN ASSISTANT ROW GETS A BODY RENDERER. A person's own
@@ -542,7 +681,12 @@ export function AssistantChat({
             // The marked wrapper is what Copy and Export read: the words as drawn, never the controls.
             const body =
               message.role === 'user' ? (
-                <div data-ai-copy-source="" data-ai-export-role="user">
+                <div
+                  data-ai-copy-source=""
+                  data-ai-export-role="user"
+                  data-ai-export-at={timeline && message.at ? message.at : undefined}
+                  title={timeline && message.at ? `Sent ${answerTime(message.at, zone) ?? ''}`.trim() : undefined}
+                >
                   {/* Files as chips (their NAMES reach Copy and Export; never their contents). */}
                   {message.attachments && message.attachments.length > 0 ? (
                     <MessageAttachmentChips attachments={message.attachments} />
@@ -554,12 +698,19 @@ export function AssistantChat({
                   </p>
                 </div>
               ) : (
-                <div data-ai-copy-source="" data-ai-export-role="assistant">
+                <div
+                  data-ai-copy-source=""
+                  data-ai-export-role="assistant"
+                  data-ai-export-at={timeline && message.at ? message.at : undefined}
+                >
                   <AssistantMessageBody
                     message={message}
                     handlers={handlers}
                     markdownTheme={markdownTheme}
                   />
+                  {timeline && message.streaming === true && message.at && (message.deferred?.length ?? 0) > 0 ? (
+                    <StillWorkingFor since={message.at} />
+                  ) : null}
                 </div>
               );
             const rateable = feedback !== undefined && (feedback.canRate ?? defaultCanRate)(message);
@@ -622,6 +773,7 @@ export function AssistantChat({
                       useThis={finished ? (extras?.useThis ?? []).map((t) => ({ key: t.key, label: t.label, onUse: () => t.onUse(message.text, message) })) : []}
                       sources={extras?.sources && finished ? readReadFrom(readMeta(message.meta)) : []}
                       onOpenSource={extras?.onOpenSource}
+                      time={answerTimeFor(message)}
                     />
                   ) : undefined
                 }
@@ -755,6 +907,7 @@ export function AssistantChat({
                   <p className="shrink-0 px-5 pb-1 pt-3 text-xs font-semibold text-[var(--ai-muted)]">Recent conversations</p>
                   <ThreadList
                     threads={threads}
+                    zone={zone}
                     onSelect={(id) => {
                       setMenuOpen(false);
                       threads.onSelect(id);
@@ -776,78 +929,25 @@ export function AssistantChat({
 }
 
 /**
- * The conversation list, with the three states a product used to draw itself.
+ * "Still working, 2 min so far" under an answer whose work is running in the background (1.37.0).
  *
- * ⚠ A FAILED LOAD SAYS SO AND OFFERS ANOTHER GO. The alternative - an empty
- * list after a failed request - tells somebody their conversations are gone.
+ * ⚠ A CURSOR ALONE SAYS NOTHING ABOUT TIME. A long data list can take minutes, and a reader who
+ * cannot tell 10 seconds from 10 minutes cannot decide whether to wait or ask again. It ticks every
+ * 30 s, which is as fine as a minute-level label needs, and is not part of any copy or export.
  */
-function ThreadList({
-  threads,
-  onSelect,
-}: {
-  threads: AssistantChatThreads;
-  onSelect: (id: string) => void;
-}) {
-  const status = threads.status ?? 'ready';
+function StillWorkingFor({ since }: { since: string }) {
+  const [now, setNow] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date().toISOString()), 30_000);
 
-  if (status === 'loading') {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6 text-sm text-[var(--ai-muted)]">
-        Loading your conversations...
-      </div>
-    );
-  }
-
-  if (status === 'failed') {
-    return (
-      <div className="flex-1 space-y-2 p-4 text-sm text-[var(--ai-muted)]">
-        <p>Could not load your conversations.</p>
-        {threads.onReload ? (
-          <button
-            type="button"
-            onClick={threads.onReload}
-            className={`${ASSISTANT_GEOMETRY.historyConfirmButton} bg-[var(--ai-accent)] text-[var(--ai-accent-fg)]`}
-          >
-            Try again
-          </button>
-        ) : null}
-      </div>
-    );
-  }
+    return () => window.clearInterval(t);
+  }, []);
+  const took = elapsed(since, now);
+  if (!took) return null;
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <AssistantHistory
-        threads={threads.items}
-        activeId={threads.activeId}
-        onSelect={onSelect}
-        onDelete={threads.onDelete}
-        deleting={threads.deleting}
-        deleteFailed={threads.deleteFailed}
-        empty={
-          <div className="flex flex-col items-center gap-1 px-6 py-12 text-center">
-            <p className="text-sm font-medium text-[var(--ai-muted)]">
-              {threads.emptyTitle ?? 'No conversations yet'}
-            </p>
-            <p className="text-xs text-[var(--ai-muted)]">
-              {threads.emptyBody ?? 'Anything you ask here is kept so you can pick it up again.'}
-            </p>
-          </div>
-        }
-        icon={threads.icon ?? <ChatIcon />}
-        deleteIcon={threads.deleteIcon ?? <TrashIcon />}
-        className={ASSISTANT_GEOMETRY.historyList}
-        rowClassName={`${ASSISTANT_GEOMETRY.historyRow} transition-colors hover:bg-[var(--ai-accent-soft)]`}
-        iconClassName={`${ASSISTANT_GEOMETRY.historyIcon} bg-[var(--ai-accent-soft)] text-[var(--ai-accent)]`}
-        activeIconClassName={`${ASSISTANT_GEOMETRY.historyIcon} bg-[var(--ai-accent)] text-[var(--ai-accent-fg)]`}
-        titleClassName={`${ASSISTANT_GEOMETRY.historyTitle} text-[var(--ai-fg)]`}
-        metaClassName={`${ASSISTANT_GEOMETRY.historyMeta} text-[var(--ai-muted)]`}
-        currentClassName="font-semibold text-[var(--ai-accent)]"
-        deleteClassName="shrink-0 rounded-full p-1.5 text-[var(--ai-muted)] outline-none transition-colors hover:bg-red-50 hover:text-[var(--ai-danger)]"
-        confirmRowClassName={`${ASSISTANT_GEOMETRY.historyConfirmRow} bg-red-50 text-[var(--ai-danger)]`}
-        confirmClassName={`${ASSISTANT_GEOMETRY.historyConfirmButton} bg-[var(--ai-danger)] text-white disabled:opacity-50`}
-        cancelClassName={`${ASSISTANT_GEOMETRY.historyConfirmButton} border border-[var(--ai-border)] text-[var(--ai-muted)] disabled:opacity-50`}
-      />
-    </div>
+    <p data-ai-no-copy="" className="mt-1 text-[11px] text-[var(--ai-muted)]" aria-live="off">
+      Still working, {took} so far
+    </p>
   );
 }

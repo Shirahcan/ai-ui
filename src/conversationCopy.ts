@@ -11,6 +11,9 @@
  * `data-ai-no-copy` are removed from the copy, so a pasted answer never reads "Apply it Cancel".
  */
 
+import { deviceTimezone } from '@shirahcan/calendar-ui';
+import { fullTime } from './chatTime';
+
 const BLOCKS = new Set(['P', 'DIV', 'SECTION', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'TABLE', 'BLOCKQUOTE', 'PRE', 'HR']);
 
 /** A detached copy of `el` without its controls. */
@@ -109,17 +112,31 @@ export interface ExportedTurn {
   /** The rendered answer or question, cleaned of controls. */
   html: string;
   text: string;
+  /**
+   * When it was said, in words ("Fri, Nov 6, 2026, 5:07 PM WAT"), when the row carried
+   * `data-ai-export-at` (1.37.0). A transcript kept as a record must say when each answer was given.
+   */
+  when?: string;
 }
 
-/** The turns of the conversation as rendered, read from the rows that carry `data-ai-export-role`. */
-export function readRenderedTurns(container: HTMLElement, names: { user: string; assistant: string }): ExportedTurn[] {
+/**
+ * The turns of the conversation as rendered, read from the rows that carry `data-ai-export-role`.
+ * `zone` is the reader's clock (default: this device's), for the time of a row that carries one.
+ */
+export function readRenderedTurns(
+  container: HTMLElement,
+  names: { user: string; assistant: string },
+  zone: string = deviceTimezone(),
+): ExportedTurn[] {
   return Array.from(container.querySelectorAll<HTMLElement>('[data-ai-export-role]')).map((row) => {
     const clone = cleanClone(row);
+    const when = fullTime(row.dataset.aiExportAt, zone);
 
     return {
       speaker: row.dataset.aiExportRole === 'user' ? names.user : names.assistant,
       html: clone.innerHTML,
       text: htmlToPlainText(clone),
+      ...(when ? { when } : {}),
     };
   });
 }
@@ -128,12 +145,18 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }
 
-function stamp(): string {
-  // The reader's own clock and zone, like every other time the estate shows them.
-  // ⚠ Not dateStyle/timeStyle: combined with timeZoneName they throw "Invalid option" in browsers.
-  return new Date().toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
-  });
+/**
+ * Now, in the reader's clock, zone NAMED ("WAT", never "GMT+1"): through calendar-ui like every other
+ * time the estate shows (owner time rules). Until 1.37.0 this hand-rolled `toLocaleString`, which
+ * printed an offset where ICU has no abbreviation.
+ */
+function stamp(zone: string = deviceTimezone()): string {
+  return fullTime(new Date().toISOString(), zone) ?? new Date().toISOString();
+}
+
+/** "You (Fri, Nov 6, 2026, 5:07 PM WAT)" when the turn says when, else just "You". */
+function heading(turn: ExportedTurn): string {
+  return turn.when ? `${turn.speaker} (${turn.when})` : turn.speaker;
 }
 
 function fileName(title: string, ext: string): string {
@@ -144,7 +167,7 @@ function fileName(title: string, ext: string): string {
 
 /** A text file anyone can open: the speaker, then what they said, as it read on screen. */
 export function conversationAsText(title: string, turns: ExportedTurn[]): string {
-  return [`${title}`, `Exported ${stamp()}`, '', ...turns.flatMap((t) => [`${t.speaker}:`, t.text, ''])].join('\n').trim() + '\n';
+  return [`${title}`, `Exported ${stamp()}`, '', ...turns.flatMap((t) => [`${heading(t)}:`, t.text, ''])].join('\n').trim() + '\n';
 }
 
 export function downloadConversationText(title: string, turns: ExportedTurn[]): void {
@@ -162,7 +185,7 @@ export function downloadConversationText(title: string, turns: ExportedTurn[]): 
 /** The printable document behind "Save as PDF": formatting kept, every control gone. */
 export function conversationAsHtml(title: string, turns: ExportedTurn[]): string {
   const rows = turns
-    .map((t) => `<section class="turn"><p class="who">${escapeHtml(t.speaker)}</p><div class="body">${t.html}</div></section>`)
+    .map((t) => `<section class="turn"><p class="who">${escapeHtml(heading(t))}</p><div class="body">${t.html}</div></section>`)
     .join('');
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>

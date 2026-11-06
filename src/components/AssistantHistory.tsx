@@ -1,5 +1,34 @@
 import { useState, type ReactNode } from 'react';
 import { aiVar } from '../theme';
+import { dayKey, shiftDay } from '../chatTime';
+import { PinIcon } from '../icons';
+import { ThreadRowMenu } from './ThreadRowMenu';
+
+/** A title a person may give a conversation: 1 to 120 characters. */
+const TITLE_MAX = 120;
+
+/**
+ * The groups a list falls into on `zone`'s calendar (1.37.0): Pinned first, then by last activity.
+ * Exported for the test; a thread with no time lands in Older rather than vanishing.
+ */
+export function groupThreads(threads: AssistantThread[], zone: string, now: Date = new Date()): Array<{ label: string; threads: AssistantThread[] }> {
+  const today = dayKey(now.toISOString(), zone) ?? '';
+  const yesterday = shiftDay(today, -1);
+  const weekAgo = shiftDay(today, -7);
+  const groups: Record<string, AssistantThread[]> = { Pinned: [], Today: [], Yesterday: [], 'Previous 7 days': [], Older: [] };
+  for (const thread of threads) {
+    const day = dayKey(thread.updatedAt, zone);
+    const label = thread.pinned
+      ? 'Pinned'
+      : day === today ? 'Today'
+        : day === yesterday ? 'Yesterday'
+          : day !== null && day >= weekAgo ? 'Previous 7 days'
+            : 'Older';
+    groups[label]!.push(thread);
+  }
+
+  return Object.entries(groups).filter(([, list]) => list.length > 0).map(([label, list]) => ({ label, threads: list }));
+}
 
 /**
  * The threads somebody has already had with an assistant.
@@ -29,6 +58,10 @@ export interface AssistantThread {
   title?: string | null;
   /** ISO timestamp of the most recent activity, for the relative label. */
   updatedAt?: string | null;
+  /** Pinned to the top of the list (1.37.0). */
+  pinned?: boolean;
+  /** Where a search found it: a few words around the match (1.37.0). */
+  snippet?: string | null;
 }
 
 export interface AssistantHistoryProps {
@@ -46,6 +79,19 @@ export interface AssistantHistoryProps {
   deleting?: boolean;
   /** The last delete failed: the confirm button offers another go. */
   deleteFailed?: boolean;
+
+  /**
+   * Rename and pin (1.37.0). Either one moves the row's actions (and Delete) behind one kebab.
+   * Omitted, the row keeps its single delete button exactly as before.
+   */
+  onRename?: (id: string, title: string) => void;
+  onPin?: (id: string, pinned: boolean) => void;
+
+  /**
+   * Group the list under Pinned, Today, Yesterday, Previous 7 days and Older, on this zone's calendar
+   * (1.37.0). Omitted, the list is one flat list as before.
+   */
+  groupZone?: string;
 
   /** Rendered in place of the list when there are no threads. */
   empty?: ReactNode;
@@ -106,6 +152,9 @@ export function AssistantHistory({
   onDelete,
   deleting = false,
   deleteFailed = false,
+  onRename,
+  onPin,
+  groupZone,
   empty,
   untitledLabel = 'Untitled conversation',
   currentLabel = 'Current',
@@ -125,14 +174,44 @@ export function AssistantHistory({
   cancelClassName,
 }: AssistantHistoryProps) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const kebab = Boolean(onRename) || Boolean(onPin);
 
   if (threads.length === 0) return <>{empty ?? null}</>;
 
-  return (
-    <ul className={className ?? 'space-y-1 p-2'}>
-      {threads.map((thread) => {
+  const saveRename = (id: string) => {
+    const next = draft.trim().slice(0, TITLE_MAX);
+    setRenamingId(null);
+    if (next !== '' && onRename) onRename(id, next);
+  };
+
+  const renderRow = (thread: AssistantThread) => {
         const title = thread.title ?? untitledLabel;
         const isActive = activeId === thread.id;
+
+        if (renamingId === thread.id && onRename) {
+          return (
+            <li key={thread.id}>
+              <div className={rowClassName ?? 'flex items-center gap-2 px-2 py-1.5'}>
+                <input
+                  // Focus moves here because the person just chose Rename; this box is where they type.
+                  autoFocus
+                  value={draft}
+                  maxLength={TITLE_MAX}
+                  aria-label={`New name for conversation: ${title}`}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') { event.preventDefault(); saveRename(thread.id); }
+                    if (event.key === 'Escape') { event.preventDefault(); setRenamingId(null); }
+                  }}
+                  onBlur={() => saveRename(thread.id)}
+                  className="min-w-0 flex-1 rounded-lg border border-[var(--ai-border)] bg-transparent px-3 py-2 text-sm text-[var(--ai-fg)] outline-none focus:border-[var(--ai-accent)]"
+                />
+              </div>
+            </li>
+          );
+        }
 
         if (confirmingId === thread.id && onDelete) {
           return (
@@ -212,10 +291,20 @@ export function AssistantHistory({
                   >
                     {title}
                   </span>
+                  {thread.snippet ? (
+                    <span className="block line-clamp-2 text-xs" style={{ color: aiVar('--ai-muted') }}>
+                      {thread.snippet}
+                    </span>
+                  ) : null}
                   <span
                     className={metaClassName ?? 'block text-xs'}
                     style={metaClassName ? undefined : { color: aiVar('--ai-muted') }}
                   >
+                    {thread.pinned ? (
+                      <span className="mr-1 inline-flex align-[-2px]" aria-label="Pinned" role="img">
+                        <PinIcon size={11} />
+                      </span>
+                    ) : null}
                     {relativeTime(thread.updatedAt)}
                     {isActive ? (
                       <span
@@ -230,7 +319,15 @@ export function AssistantHistory({
                 </span>
               </button>
 
-              {onDelete ? (
+              {kebab ? (
+                <ThreadRowMenu
+                  title={title}
+                  pinned={thread.pinned === true}
+                  onRename={onRename ? () => { setDraft(thread.title ?? ''); setRenamingId(thread.id); } : undefined}
+                  onPin={onPin ? (pinned) => onPin(thread.id, pinned) : undefined}
+                  onDelete={onDelete ? () => setConfirmingId(thread.id) : undefined}
+                />
+              ) : onDelete ? (
                 <button
                   type="button"
                   onClick={() => setConfirmingId(thread.id)}
@@ -249,7 +346,22 @@ export function AssistantHistory({
             </div>
           </li>
         );
-      })}
-    </ul>
-  );
+  };
+
+  if (groupZone) {
+    return (
+      <div className={className ?? 'space-y-1 p-2'}>
+        {groupThreads(threads, groupZone).map((group) => (
+          <section key={group.label} aria-label={group.label}>
+            <p className="px-3 pb-1 pt-2 text-[11px] font-semibold" style={{ color: aiVar('--ai-muted') }}>
+              {group.label}
+            </p>
+            <ul className="space-y-1">{group.threads.map(renderRow)}</ul>
+          </section>
+        ))}
+      </div>
+    );
+  }
+
+  return <ul className={className ?? 'space-y-1 p-2'}>{threads.map(renderRow)}</ul>;
 }

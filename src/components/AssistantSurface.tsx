@@ -64,7 +64,34 @@ export interface AssistantSurfaceProps {
    * passed here, so a product cannot reach them this way either.
    */
   style?: CSSProperties;
+
+  /**
+   * The large view (1.37.0, owner 2026-11-06): a viewport-bounded card over the page, so a wide table
+   * or a long answer has room. The body still scrolls inside and the composer stays pinned.
+   */
+  expanded?: boolean;
 }
+
+/**
+ * ⚠ INLINE, SO IT BEATS THE PRODUCT'S POSITION CLASSES. A product floats the small card with its own
+ * `fixed bottom-24 right-5`; the large view must take the whole viewport less a margin wherever that
+ * is. Both sides pinned plus a max width plus auto margins centres a fixed box; the wide shadow is the
+ * scrim, so nothing else has to be mounted.
+ */
+const EXPANDED: CSSProperties = {
+  position: 'fixed',
+  top: '1rem',
+  bottom: '1rem',
+  left: '1rem',
+  right: '1rem',
+  margin: '0 auto',
+  width: 'auto',
+  height: 'auto',
+  maxWidth: '72rem',
+  maxHeight: 'none',
+  borderRadius: '1.75rem',
+  boxShadow: '0 0 0 100vmax rgba(15, 23, 42, 0.28), 0 24px 60px rgba(15, 23, 42, 0.25)',
+};
 
 /**
  * ⚠ `data-*` ATTRIBUTES PASS THROUGH, and that is not a convenience. Porter marks its
@@ -93,6 +120,7 @@ export function AssistantSurface({
   subtitleClassName,
   closeClassName,
   style,
+  expanded = false,
   ...rest
 }: AssistantSurfaceProps & AssistantSurfaceAttributes) {
   return (
@@ -111,6 +139,7 @@ export function AssistantSurface({
       style={{
         ...style,
         ...ASSISTANT_PANEL_SIZE,
+        ...(expanded ? EXPANDED : {}),
         background: aiVar('--ai-surface'),
         color: aiVar('--ai-fg'),
       }}

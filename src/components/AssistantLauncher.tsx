@@ -25,6 +25,13 @@ export interface AssistantLauncherProps {
   /** Position only: `fixed bottom-4 right-4 z-50`. */
   className?: string;
   style?: CSSProperties;
+  /**
+   * An answer arrived while the panel was closed (1.37.0, owner 2026-11-06): a small dot on the
+   * button and a label that says so. The PRODUCT decides when, because it owns the open state.
+   */
+  unread?: boolean;
+  /** The label while `unread`. Default: "{openLabel}: a new answer is waiting". */
+  unreadLabel?: string;
 }
 
 export function AssistantLauncher({
@@ -35,18 +42,29 @@ export function AssistantLauncher({
   closeLabel,
   className,
   style,
+  unread = false,
+  unreadLabel,
 }: AssistantLauncherProps) {
+  const label = open ? closeLabel : unread ? (unreadLabel ?? `${openLabel}: a new answer is waiting`) : openLabel;
+
   return (
     <button
       type="button"
       onClick={onToggle}
-      aria-label={open ? closeLabel : openLabel}
+      aria-label={label}
       aria-expanded={open}
-      title={open ? closeLabel : openLabel}
-      className={`flex h-16 w-16 items-center justify-center rounded-full bg-[var(--ai-accent)] text-[var(--ai-accent-fg)] shadow-[0_8px_30px_rgb(0,0,0,0.18)] outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--ai-accent)] focus-visible:ring-offset-2 ${className ?? ''}`}
+      title={label}
+      className={`relative flex h-16 w-16 items-center justify-center rounded-full bg-[var(--ai-accent)] text-[var(--ai-accent-fg)] shadow-[0_8px_30px_rgb(0,0,0,0.18)] outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--ai-accent)] focus-visible:ring-offset-2 ${className ?? ''}`}
       style={{ ...(themeToVars(theme) as CSSProperties), ...style }}
     >
       {open ? <span className="text-2xl leading-none">×</span> : <ChatIcon size={28} />}
+      {unread && !open ? (
+        <span
+          data-ai-unread=""
+          aria-hidden="true"
+          className="absolute right-1 top-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-red-500"
+        />
+      ) : null}
     </button>
   );
 }

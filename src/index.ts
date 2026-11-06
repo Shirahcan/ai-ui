@@ -63,7 +63,9 @@ export type {
 
 export { ASSISTANT_GEOMETRY, ASSISTANT_PANEL_SIZE } from './geometry';
 
-export { AssistantHistory } from './components/AssistantHistory';
+export { AssistantHistory, groupThreads } from './components/AssistantHistory';
+// When a chat message was said (1.37.0): the shared words for it, through calendar-ui.
+export { answerTime, dayKey, dayLabel, elapsed, fullTime, sameDay, shiftDay } from './chatTime';
 export type {
   AssistantHistoryProps,
   AssistantThread,
@@ -156,7 +158,10 @@ export type {
   AssistantRunCheck,
 } from './messages/ActionConfirm';
 
-export { ChatIcon, CheckIcon, CopyIcon, DownloadIcon, PrintIcon, ThumbDownIcon, ThumbUpIcon, TrashIcon } from './icons';
+export {
+  ChatIcon, CheckIcon, CollapseIcon, CopyIcon, DownloadIcon, ExpandIcon, MoreVerticalIcon, PinIcon, PrintIcon, SearchIcon,
+  ThumbDownIcon, ThumbUpIcon, TrashIcon,
+} from './icons';
 
 export { MessageActions } from './components/MessageActions';
 export type { MessageActionsProps } from './components/MessageActions';

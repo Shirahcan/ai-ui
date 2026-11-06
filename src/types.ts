@@ -129,6 +129,17 @@ export interface PanelMessage {
   text: string;
 
   /**
+   * When this message was said: an ISO instant (1.37.0, owner 2026-11-06).
+   *
+   * ⚠ THE SERVICE'S RECORD, COPIED, NEVER A CLIENT CLOCK. ai-service holds when every turn was said
+   * and a product's API hands it back (Portify: `created_at`); `toPanelMessage` copies it here and
+   * nothing re-derives it. The one exception is the person's own question sent from this tab, which
+   * the server does not hand back: `useAssistantConversation` stamps this device's clock on it until
+   * the thread is next read. Absent, no time is drawn.
+   */
+  at?: string | null;
+
+  /**
    * A product's own rendering, instead of the text - a confirm card, a data
    * table, an action launcher. The panel does not inspect it.
    */

@@ -175,3 +175,51 @@ export function RefreshIcon({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+
+/** A row's actions (1.37.0): the vertical three dots, one trigger for rename, pin and delete. */
+export function MoreVerticalIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </svg>
+  );
+}
+
+/** A pinned conversation (1.37.0). */
+export function PinIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M12 17v5 M9 10.76V6h6v4.76a2 2 0 0 0 1.11 1.79l1.78.9A2 2 0 0 1 19 15.24V17H5v-1.76a2 2 0 0 1 1.11-1.79l1.78-.9A2 2 0 0 0 9 10.76z M8 6h8 M10 2h4v4h-4z" />
+    </svg>
+  );
+}
+
+/** Make the panel larger (1.37.0). */
+export function ExpandIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7" />
+    </svg>
+  );
+}
+
+/** Back to the small panel (1.37.0). */
+export function CollapseIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M4 14h6v6 M20 10h-6V4 M14 10l7-7 M3 21l7-7" />
+    </svg>
+  );
+}
+
+/** Search conversations (1.37.0). */
+export function SearchIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </svg>
+  );
+}

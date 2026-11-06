@@ -75,6 +75,11 @@ export interface AssistantPanelProps {
   footer?: ReactNode;
 
   renderBubble?: (message: PanelMessage) => ReactNode;
+  /**
+   * Drawn BEFORE a row, given the row before it (null for the first): a day divider (1.37.0). Return
+   * null for no divider. It sits outside the row's copy source, so Copy and Export never read it.
+   */
+  renderDivider?: (message: PanelMessage, previous: PanelMessage | null) => ReactNode;
   renderComposer?: (props: ComposerSlotProps) => ReactNode;
   renderEmpty?: () => ReactNode;
   renderToolTrail?: (tools: ToolTrailEntry[]) => ReactNode;
@@ -113,6 +118,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
     header,
     footer,
     renderBubble,
+    renderDivider,
     renderComposer,
     renderEmpty,
     renderToolTrail,
@@ -302,13 +308,18 @@ export function AssistantPanel(props: AssistantPanelProps) {
       >
         {rows.length === 0
           ? (renderEmpty?.() ?? null)
-          : rows.map((message) =>
-              renderBubble ? (
-                <div key={message.id}>{renderBubble(message)}</div>
+          : rows.map((message, index) => {
+              const divider = renderDivider?.(message, index > 0 ? (rows[index - 1] ?? null) : null) ?? null;
+
+              return renderBubble ? (
+                <div key={message.id}>{divider}{renderBubble(message)}</div>
               ) : (
-                <MessageBubble key={message.id} message={message} markdownTheme={markdownTheme} />
-              ),
-            )}
+                <div key={message.id}>
+                  {divider}
+                  <MessageBubble message={message} markdownTheme={markdownTheme} />
+                </div>
+              );
+            })}
 
         {tools.length > 0 ? renderToolTrail?.(tools) : null}
       </div>

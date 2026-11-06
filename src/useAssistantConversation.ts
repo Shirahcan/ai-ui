@@ -468,7 +468,8 @@ export function useAssistantConversation(options: AssistantConversationOptions):
 
     pendingRef.current = [...pendingRef.current, text];
     setRows((prev) => [...prev, {
-      id: localId(), role: 'user', text: turn.display ?? text,
+      // This device's clock, until the thread is next read from the server (`PanelMessage.at`).
+      id: localId(), role: 'user', text: turn.display ?? text, at: new Date().toISOString(),
       ...(turn.attachments && turn.attachments.length > 0 ? { attachments: turn.attachments } : {}),
     }]);
 

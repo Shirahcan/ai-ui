@@ -34,4 +34,26 @@ describe('emphasiseFigures', () => {
     expect(container.querySelector('a')?.textContent).toBe('case 12');
     expect(container.querySelector('code')?.textContent).toBe('3 items');
   });
+
+  /** Owner audit, 2026-11-06: Porter quoting a question bolded "the last **7 days**" inside it. */
+  it('never bolds inside quoted words, but still outside them', () => {
+    expect(emphasiseFiguresInText('4:32 PM WAT, Admin User: "Show me questions from the last 7 days" (3 times)')).toBe(
+      '4:32 PM WAT, Admin User: "Show me questions from the last 7 days" (**3** times)',
+    );
+    expect(emphasiseFiguresInText('She wrote “pay 250 CAD by Friday” and paid 250 CAD.')).toBe(
+      'She wrote “pay 250 CAD by Friday” and paid **250 CAD**.',
+    );
+  });
+
+  it('treats an apostrophe as a letter and an unclosed quote as no quote', () => {
+    expect(emphasiseFiguresInText("The client's 3 cases")).toBe("The client's **3** cases");
+    expect(emphasiseFiguresInText('A stray " then 3 cases')).toBe('A stray " then **3** cases');
+  });
+
+  it('leaves a blockquote alone in rendered Markdown', () => {
+    const { container } = render(
+      <ReactMarkdown remarkPlugins={assistantRemarkPlugins}>{'> I need 3 copies\n\nYou have 2 copies.'}</ReactMarkdown>,
+    );
+    expect(Array.from(container.querySelectorAll('strong')).map((s) => s.textContent)).toEqual(['2']);
+  });
 });
