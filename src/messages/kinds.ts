@@ -415,3 +415,24 @@ export function readFollowUps(meta: AssistantMeta): string[] {
     .filter((item): item is string => item !== null)
     .slice(0, 3);
 }
+
+/**
+ * The records an answer was read from (1.34.0): `meta.read_from`, each `{label, href?}`, drawn as chips
+ * under the answer ("Call transcript, 5 Nov"). Not `meta.sources`: those are a research answer's web
+ * sources, drawn in its body. A label with no href is a record the reader cannot open from here.
+ */
+export function readReadFrom(meta: AssistantMeta): Array<{ label: string; href?: string }> {
+  const raw = (meta as { read_from?: unknown }).read_from;
+  if (!Array.isArray(raw)) return [];
+
+  const out: Array<{ label: string; href?: string }> = [];
+  for (const item of raw) {
+    const label = readString((item as { label?: unknown } | null)?.label);
+    if (label === null || out.some((s) => s.label === label)) continue;
+    const href = readString((item as { href?: unknown }).href);
+    // A path on this site only: never `//elsewhere.com`, never `javascript:`.
+    out.push(href !== null && /^\/(?![/\\])/.test(href) ? { label, href } : { label });
+  }
+
+  return out.slice(0, 6);
+}

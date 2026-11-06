@@ -17,9 +17,11 @@ import { HumanCheck } from './HumanCheck';
 import { MessageActions } from './MessageActions';
 import { MessageBubble } from './MessageBubble';
 import { ASSISTANT_GEOMETRY } from '../geometry';
-import { readFollowUps, readKind, readMeta } from '../messages/kinds';
+import { readFollowUps, readKind, readMeta, readReadFrom } from '../messages/kinds';
+import { canReadAloud, speak, stopSpeaking } from '../speech/readAloud';
+import type { ComposerMentionsConfig, ComposerSlashCommand } from './ComposerPicker';
 import { downloadConversationText, printConversation, readRenderedTurns } from '../conversationCopy';
-import { ChatIcon, DownloadIcon, MenuIcon, PlusIcon, PrintIcon, TrashIcon } from '../icons';
+import { ChatIcon, DownloadIcon, MenuIcon, PencilIcon, PlusIcon, PrintIcon, TrashIcon } from '../icons';
 import { themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { AttachmentChip, PanelMessage } from '../types';
@@ -177,6 +179,32 @@ export interface AssistantChatComposer {
   };
 }
 
+/**
+ * The panel's optional extras (1.34.0, owner 2026-11-06). Each is off until a product asks for it, so
+ * a product that upgrades sees no change; Portify turns them on behind its own gate.
+ */
+export interface AssistantChatExtras {
+  /** A speaker on each answer: the browser reads it aloud, on the device. */
+  readAloud?: boolean;
+  /** BCP 47 voice language, e.g. `fr-CA`. Defaults to the page's `lang`. */
+  speechLang?: string;
+  /** Hands-free conversation (needs `composer.dictation`): talk, it sends, the answer is read back. */
+  handsFree?: boolean;
+  /** Edit on the person's latest question: it goes back into the box to change and send. */
+  editLast?: boolean;
+  /** "Ask again" on the latest answer: the same question, sent again as a new turn. */
+  askAgain?: boolean;
+  /** "@" in the box: the product's search (cases, clients, meetings), written into the message. */
+  mentions?: ComposerMentionsConfig;
+  /** "/" at the start of the box: what the assistant can do here. */
+  slashCommands?: ComposerSlashCommand[];
+  /** "Use this" on an answer: where its words can go (the message box, a note, an email). */
+  useThis?: Array<{ key: string; label: string; onUse: (text: string, message: PanelMessage) => void }>;
+  /** Chips naming the records an answer was read from (`meta.read_from`); `onOpenSource` opens one in-app. */
+  sources?: boolean;
+  onOpenSource?: (href: string) => void;
+}
+
 export interface AssistantChatProps {
   /** The product's palette. Hex values; no classes but `card`. */
   theme: AssistantTheme;
@@ -228,6 +256,8 @@ export interface AssistantChatProps {
   feedback?: AssistantChatFeedback;
   /** One line under the composer. */
   footer?: ReactNode;
+  /** Read aloud, hands-free, edit, ask again, "@", "/", "Use this", sources (1.34.0). */
+  extras?: AssistantChatExtras;
   /**
    * The bot check for a panel anybody can reach: pass `conversation.humanCheck` straight through.
    * The panel draws it, pads it only while Cloudflare asks for a click, and says why a question
@@ -305,6 +335,7 @@ export function AssistantChat({
   humanCheck,
   onClientError,
   exportable = true,
+  extras,
   ...attributes
 }: AssistantChatProps & AssistantSurfaceAttributes) {
   /*
@@ -355,6 +386,47 @@ export function AssistantChat({
    * flag here rather than a reason to override the whole slot.
    */
   const [draft, setDraft] = useState('');
+
+  /*
+   * Read aloud and hands-free (1.34.0). One answer speaks at a time; in hands-free the microphone is
+   * held closed while it does, or it would write the assistant's own voice into the box.
+   */
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [handsFreeOn, setHandsFreeOn] = useState(false);
+  const readAloudOn = (extras?.readAloud === true || extras?.handsFree === true) && canReadAloud();
+  const say = (message: PanelMessage) => {
+    if (speakingId === message.id) {
+      stopSpeaking();
+      setSpeakingId(null);
+      return;
+    }
+    const started = speak(message.text, { lang: extras?.speechLang, onEnd: () => setSpeakingId((id) => (id === message.id ? null : id)) });
+    setSpeakingId(started ? message.id : null);
+  };
+  // Hands-free: a finished answer is read back once, then the microphone reopens.
+  const spokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!handsFreeOn || !last || last.role !== 'assistant' || last.streaming === true || last.text.trim() === '') return;
+    if (spokenRef.current === last.id) return;
+    spokenRef.current = last.id;
+    const started = speak(last.text, { lang: extras?.speechLang, onEnd: () => setSpeakingId((id) => (id === last.id ? null : id)) });
+    if (started) setSpeakingId(last.id);
+  }, [handsFreeOn, last, extras?.speechLang]);
+  useEffect(() => () => stopSpeaking(), []);
+  const toggleHandsFree = () => {
+    setHandsFreeOn((on) => {
+      if (on) {
+        stopSpeaking();
+        setSpeakingId(null);
+      } else if (last) {
+        // Turning it on does not read out the answer already on screen.
+        spokenRef.current = last.id;
+      }
+      return !on;
+    });
+  };
+  const lastUserIndex = messages.map((m) => m.role).lastIndexOf('user');
+  const lastUser = lastUserIndex >= 0 ? messages[lastUserIndex] : undefined;
 
   const plain = theme.assistantBubble === 'plain';
 
@@ -487,6 +559,8 @@ export function AssistantChat({
                 </div>
               );
             const rateable = feedback !== undefined && (feedback.canRate ?? defaultCanRate)(message);
+            const isLatestAnswer = message.id === followUpsFor;
+            const finished = message.streaming !== true && message.text.trim() !== '';
 
             return (
               <MessageBubble
@@ -500,7 +574,21 @@ export function AssistantChat({
                 contentClassName="break-words [&_a]:break-words"
                 confidenceClassName={`${ASSISTANT_GEOMETRY.caveat} text-[var(--ai-muted)]`}
                 footer={
-                  message.role === 'assistant' ? (
+                  message.role === 'user' ? (
+                    extras?.editLast && message.id === lastUser?.id && !busy ? (
+                      <div data-ai-no-copy="" className="mt-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setDraft(withoutAttachedLine(message.text))}
+                          aria-label="Edit this question"
+                          title="Edit"
+                          className="inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-full px-2 text-xs text-[var(--ai-muted)] outline-none transition-colors hover:text-[var(--ai-accent)] focus-visible:text-[var(--ai-accent)]"
+                        >
+                          <PencilIcon /> Edit
+                        </button>
+                      </div>
+                    ) : undefined
+                  ) : message.role === 'assistant' ? (
                     <MessageActions
                       canCopy={message.streaming !== true && message.text.trim() !== ''}
                       feedback={
@@ -524,6 +612,12 @@ export function AssistantChat({
                       onFollowUp={send}
                       busy={busy}
                       onCopyError={onClientError}
+                      onSpeak={readAloudOn && finished ? () => say(message) : undefined}
+                      speaking={speakingId === message.id}
+                      onAskAgain={extras?.askAgain && isLatestAnswer && lastUser ? () => send(withoutAttachedLine(lastUser.text)) : undefined}
+                      useThis={finished ? (extras?.useThis ?? []).map((t) => ({ key: t.key, label: t.label, onUse: () => t.onUse(message.text, message) })) : []}
+                      sources={extras?.sources && finished ? readReadFrom(readMeta(message.meta)) : []}
+                      onOpenSource={extras?.onOpenSource}
                     />
                   ) : undefined
                 }
@@ -537,6 +631,9 @@ export function AssistantChat({
               onSend={(files) => send(draft, files)}
               attachments={composer?.attachments}
               dictation={composer?.dictation}
+              handsFree={extras?.handsFree && readAloudOn ? { active: handsFreeOn, suspended: speakingId !== null, onToggle: toggleHandsFree } : undefined}
+              mentions={extras?.mentions}
+              slashCommands={extras?.slashCommands}
               busy={busy}
               onStop={onStop ? stop : undefined}
               sendDisabled={composer?.sendDisabled}

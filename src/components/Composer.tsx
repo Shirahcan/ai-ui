@@ -12,6 +12,14 @@ import { useDictation } from '../dictation/useDictation';
 import { DictationButton, DictationStatus } from '../dictation/DictationButton';
 import { insertPhrase } from '../dictation/text';
 import type { DictationConfig } from '../dictation/session';
+import { useHandsFree, type HandsFreeState } from '../dictation/useHandsFree';
+import { HeadsetIcon } from '../icons';
+import {
+  ComposerPickerList,
+  useComposerPicker,
+  type ComposerMentionsConfig,
+  type ComposerSlashCommand,
+} from './ComposerPicker';
 
 /** Tallest the input grows before it scrolls internally (px) - about 6 lines. */
 const MAX_HEIGHT = 160;
@@ -46,6 +54,18 @@ export interface ComposerProps {
    * product's own route: this package never calls ai-service.
    */
   dictation?: DictationConfig;
+
+  /**
+   * Hands-free conversation (1.34.0), with `dictation`: a headset button; on, the message sends itself
+   * when the person stops talking and the microphone reopens after the answer. See useHandsFree.
+   */
+  handsFree?: HandsFreeState & { onToggle: () => void };
+
+  /** "@" opens the product's search and writes the pick into the message (1.34.0). */
+  mentions?: ComposerMentionsConfig;
+
+  /** "/" at the start of the box lists these; picking one fills the box (1.34.0). */
+  slashCommands?: ComposerSlashCommand[];
 
   /** While true, Send is replaced by Stop and the textarea stays editable. */
   busy?: boolean;
@@ -139,6 +159,9 @@ export function Composer({
   onSend,
   attachments,
   dictation: dictationConfig,
+  handsFree,
+  mentions,
+  slashCommands,
   busy = false,
   onStop,
   id = 'ai-composer',
@@ -227,6 +250,19 @@ export function Composer({
   });
   const showDictationLine = Boolean(dictationConfig) && (dictation.preview !== '' || dictation.message !== null);
 
+  // Where the caret is, for "@" (read on every change, key and click in the box).
+  const [caret, setCaret] = useState(0);
+  const readCaret = () => setCaret(ref.current?.selectionStart ?? value.length);
+  const picker = useComposerPicker(value, caret, (next, at) => {
+    onChange(next);
+    const to = at ?? next.length;
+    setCaret(to);
+    requestAnimationFrame(() => {
+      ref.current?.focus();
+      ref.current?.setSelectionRange(to, to);
+    });
+  }, mentions, slashCommands);
+
   const canSend =
     !disabled && !sendDisabled && (sendWhileBusy || !busy) && !files.uploading
     && (value.trim() !== '' || files.ready.length > 0);
@@ -263,6 +299,10 @@ export function Composer({
     files.clear();
   };
 
+  useHandsFree(handsFree && dictationConfig ? handsFree : undefined, dictation, busy, value, () => {
+    if (canSend) send();
+  });
+
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     if (!attachments) return;
     const pasted = Array.from(event.clipboardData.files);
@@ -290,6 +330,9 @@ export function Composer({
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     const el = event.currentTarget;
+
+    // An open "@" or "/" list takes the arrows, Enter, Tab and Escape.
+    if (picker.onKeyDown(event)) return;
 
     if (event.key === 'Enter' && !event.shiftKey) {
       // Choosing an IME candidate, not sending a message.
@@ -333,7 +376,7 @@ export function Composer({
    * inside the same border, so that is the shape here. Tools sit left, Send right, and the
    * dictation status line takes the space between them.
    */
-  const hasTools = Boolean(attachments) || Boolean(dictationConfig);
+  const hasTools = Boolean(attachments) || Boolean(dictationConfig) || Boolean(handsFree);
 
   return (
     <div
@@ -355,8 +398,13 @@ export function Composer({
           </div>
         ) : null}
 
+        <ComposerPickerList picker={picker} listId={`${id}-picker`} />
+
         <textarea
           onPaste={onPaste}
+          onSelect={readCaret}
+          aria-expanded={picker.open}
+          aria-controls={picker.open ? `${id}-picker` : undefined}
           ref={ref}
           id={id}
           name={name}
@@ -371,6 +419,7 @@ export function Composer({
           onChange={(event) => {
             setRecallIndex(-1);
             onChange(event.target.value);
+            setCaret(event.target.selectionStart ?? event.target.value.length);
           }}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
@@ -389,6 +438,28 @@ export function Composer({
           ) : null}
 
           {dictationConfig ? <DictationButton dictation={dictation} disabled={disabled} /> : null}
+
+          {dictationConfig && handsFree && dictation.supported ? (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                // Opened inside the tap: iOS starts audio only from a gesture.
+                if (!handsFree.active && !dictation.listening) dictation.start();
+                handsFree.onToggle();
+              }}
+              aria-pressed={handsFree.active}
+              aria-label={handsFree.active ? 'Turn hands-free off' : 'Hands-free: talk, and hear the answer'}
+              title={handsFree.active ? 'Hands-free is on' : 'Hands-free'}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full outline-none transition-colors"
+              style={{
+                color: handsFree.active ? aiVar('--ai-accent-fg') : aiVar('--ai-muted'),
+                background: handsFree.active ? aiVar('--ai-accent') : 'transparent',
+              }}
+            >
+              <HeadsetIcon />
+            </button>
+          ) : null}
 
           <div className={`min-w-0 flex-1 ${hasTools ? 'px-1' : ''}`}>
             {showDictationLine ? <DictationStatus dictation={dictation} className="truncate text-xs" /> : null}

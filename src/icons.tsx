@@ -133,3 +133,45 @@ export function PrintIcon({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+
+/** Hands-free conversation (1.34.0). */
+export function HeadsetIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M3 14v-2a9 9 0 0 1 18 0v2" />
+      <path d="M21 15a2 2 0 0 1-2 2h-1v-6h1a2 2 0 0 1 2 2z" />
+      <path d="M3 15a2 2 0 0 0 2 2h1v-6H5a2 2 0 0 0-2 2z" />
+    </svg>
+  );
+}
+
+/** Read an answer aloud (1.34.0). */
+export function SpeakerIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M11 5 6 9H3v6h3l5 4z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+    </svg>
+  );
+}
+
+/** Edit a question (1.34.0). */
+export function PencilIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+    </svg>
+  );
+}
+
+/** Ask the same question again (1.34.0). */
+export function RefreshIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...svg}>
+      <path d="M21 12a9 9 0 1 1-2.6-6.4" />
+      <path d="M21 4v5h-5" />
+    </svg>
+  );
+}

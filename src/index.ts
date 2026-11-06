@@ -118,6 +118,7 @@ export type {
   AssistantChatFeedback,
   AssistantChatIntro,
   AssistantChatProps,
+  AssistantChatExtras,
   AssistantChatThreads,
 } from './components/AssistantChat';
 
@@ -170,7 +171,16 @@ export {
   readRenderedTurns,
 } from './conversationCopy';
 export type { ExportedTurn } from './conversationCopy';
-export { readFollowUps } from './messages/kinds';
+export { readFollowUps, readReadFrom } from './messages/kinds';
+
+// 1.34.0: read aloud, hands-free, "@" / "/" in the box, the keyboard shortcut.
+export { canReadAloud, plainForSpeech, speak, stopSpeaking } from './speech/readAloud';
+export type { SpeakOptions } from './speech/readAloud';
+export { useHandsFree } from './dictation/useHandsFree';
+export type { HandsFreeState } from './dictation/useHandsFree';
+export { useComposerPicker, ComposerPickerList } from './components/ComposerPicker';
+export type { ComposerMention, ComposerMentionsConfig, ComposerSlashCommand } from './components/ComposerPicker';
+export { useAssistantShortcut } from './useAssistantShortcut';
 
 export { DEFERRED_LISTEN_MS, openDeferred, useAssistantConversation } from './useAssistantConversation';
 export type {
