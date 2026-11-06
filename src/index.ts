@@ -182,6 +182,9 @@ export { useComposerPicker, ComposerPickerList } from './components/ComposerPick
 export type { ComposerMention, ComposerMentionsConfig, ComposerSlashCommand } from './components/ComposerPicker';
 export { useAssistantShortcut } from './useAssistantShortcut';
 
+// 1.35.0: Markdown as editor HTML (pure); the TipTap extension is `@shirahcan/ai-ui/editor`.
+export { markdownToEditorHtml, looksLikeMarkdown } from './editor/markdownToEditorHtml';
+
 export { DEFERRED_LISTEN_MS, openDeferred, useAssistantConversation } from './useAssistantConversation';
 export type {
   AssistantConversation,

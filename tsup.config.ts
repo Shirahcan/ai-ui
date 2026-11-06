@@ -1,13 +1,13 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: { index: 'src/index.ts', 'console/index': 'src/console/index.ts' },
+  entry: { index: 'src/index.ts', 'console/index': 'src/console/index.ts', 'editor/index': 'src/editor/index.ts' },
   // CJS too, so a product's jest (CommonJS, node_modules untransformed) can require it.
   format: ['esm', 'cjs'],
   dts: true,
   clean: true,
   sourcemap: true,
-  external: ['react', 'react-dom', 'react-markdown', 'remark-gfm'],
+  external: ['react', 'react-dom', 'react-markdown', 'remark-gfm', /^@tiptap\//],
   // Every export is a client component or a hook: mark the bundle for the
   // Next.js app router, or a product importing it from a server component gets
   // a build error that names this package rather than their own file.
