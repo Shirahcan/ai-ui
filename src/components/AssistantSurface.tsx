@@ -87,7 +87,7 @@ const EXPANDED: CSSProperties = {
   margin: '0 auto',
   width: 'auto',
   height: 'auto',
-  maxWidth: '72rem',
+  maxWidth: '60rem',
   maxHeight: 'none',
   borderRadius: '1.75rem',
   boxShadow: '0 0 0 100vmax rgba(15, 23, 42, 0.28), 0 24px 60px rgba(15, 23, 42, 0.25)',

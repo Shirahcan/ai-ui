@@ -314,6 +314,21 @@ export interface AssistantChatProps {
   onExpandedChange?: (expanded: boolean) => void;
 }
 
+/**
+ * The sidebar's entrance (1.37.2): a drawer slides in from the card's edge and its scrim fades in.
+ *
+ * ⚠ A STYLE ELEMENT, NOT TAILWIND KEYFRAMES. An arbitrary `animate-[...]` class needs keyframes in the
+ * PRODUCT's Tailwind config, which this package cannot add; these few rules travel with the panel.
+ * Motion is skipped for a reader who asked the system for less of it.
+ */
+const SIDEBAR_MOTION = `
+@keyframes aiui-slide-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes aiui-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.aiui-slide-in { animation: aiui-slide-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.aiui-fade-in { animation: aiui-fade-in 180ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .aiui-slide-in, .aiui-fade-in { animation: none; } }
+`;
+
 /** Shown while a question waits on the bot check. It sends itself; nobody presses Send again. */
 const HUMAN_CHECK_NOTICE =
   'Just a moment - checking your browser. If a "Verify you are human" box appears below, tick it and your question will send.';
@@ -633,8 +648,13 @@ export function AssistantChat({
       expanded={isExpanded}
       {...attributes}
     >
-      {/* The large view keeps a readable column: answers do not run 72rem wide. */}
-      <div ref={conversationRef} className={`relative flex min-h-0 flex-1 flex-col ${isExpanded ? 'mx-auto w-full max-w-4xl' : ''}`}>
+      {/*
+        ⚠ THE CONVERSATION FILLS THE CARD IN BOTH SIZES (owner, 2026-11-06). 1.37.0 boxed it into a
+        centred column inside the large view, which left empty strips either side AND anchored the
+        sidebar to the column instead of the card's edge. The large card's own width keeps lines readable.
+      */}
+      <div ref={conversationRef} className="relative flex min-h-0 flex-1 flex-col">
+        <style>{SIDEBAR_MOTION}</style>
         <AssistantPanel
           messages={messages}
           busy={busy}
@@ -844,12 +864,13 @@ export function AssistantChat({
               type="button"
               aria-label="Close the menu"
               onClick={() => setMenuOpen(false)}
-              className="absolute inset-0 z-10 cursor-default bg-black/20 outline-none"
+              className="aiui-fade-in absolute inset-0 z-10 cursor-default bg-black/20 outline-none"
             />
             <nav
               id="assistant-sidebar"
               aria-label="Conversations"
-              className="absolute inset-y-0 left-0 z-20 flex w-[min(22rem,90%)] flex-col border-r border-[var(--ai-border)] shadow-xl"
+              // Slides in from the card's left edge, as a drawer does (owner, 2026-11-06).
+              className="aiui-slide-in absolute inset-y-0 left-0 z-20 flex w-[min(22rem,90%)] flex-col border-r border-[var(--ai-border)] shadow-xl"
               /*
                * ⚠ ALMOST OPAQUE ON PURPOSE (owner, 2026-11-02). A product's surface may be translucent
                * glass (Porter's is), and a sidebar painted with it alone let the conversation show

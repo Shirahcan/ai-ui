@@ -151,7 +151,7 @@ describe('the panel list, search and the large view', () => {
     fireEvent.click(screen.getByLabelText('Expand'));
     expect(onExpandedChange).toHaveBeenLastCalledWith(true);
     expect(screen.getByRole('dialog').style.position).toBe('fixed');
-    expect(screen.getByRole('dialog').style.maxWidth).toBe('72rem');
+    expect(screen.getByRole('dialog').style.maxWidth).toBe('60rem');
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onExpandedChange).toHaveBeenLastCalledWith(false);
@@ -175,5 +175,34 @@ describe('the unread mark', () => {
     rerender(<AssistantLauncher open onToggle={() => {}} theme={THEME} openLabel="Open Porter" closeLabel="Close Porter" unread />);
     expect(document.querySelector('[data-ai-unread]')).toBeNull();
     expect(screen.getByLabelText('Close Porter')).toBeTruthy();
+  });
+});
+
+describe('the large view and the sidebar (1.37.2)', () => {
+  beforeEach(() => {
+    Object.defineProperty(Element.prototype, 'scrollTo', { value: vi.fn(), configurable: true });
+  });
+
+  it('fills the card with the conversation and slides the sidebar in from the card edge', () => {
+    render(
+      <AssistantChat
+        theme={THEME}
+        title="Porter"
+        messages={[]}
+        onSend={() => {}}
+        expandable
+        threads={{ items: threads.slice(1, 2), onSelect: () => {} }}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText('Expand'));
+    expect(document.querySelector('.max-w-4xl')).toBeNull();
+
+    fireEvent.click(screen.getByLabelText('Open the menu: new conversation and history'));
+    const sidebar = document.getElementById('assistant-sidebar')!;
+    expect(sidebar.className).toContain('aiui-slide-in');
+    expect(sidebar.className).toContain('left-0');
+    // The drawer sits on the card itself, not on an inner column.
+    expect(sidebar.parentElement?.className).not.toContain('max-w');
+    expect(document.querySelector('style')?.textContent).toContain('prefers-reduced-motion');
   });
 });
