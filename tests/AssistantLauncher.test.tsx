@@ -33,4 +33,15 @@ describe('AssistantLauncher', () => {
     fireEvent.click(button);
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
+
+  it('puts the product position on a wrapper, so the button\'s own `relative` cannot cancel a `fixed`', () => {
+    const { container } = render(
+      <AssistantLauncher open={false} onToggle={() => {}} theme={theme} openLabel="Ask" closeLabel="Close" className="fixed bottom-4 right-4 z-50" />,
+    );
+
+    const button = screen.getByRole('button', { name: 'Ask' });
+    expect(button.className).not.toContain('fixed');
+    expect((button.parentElement as HTMLElement).className).toBe('fixed bottom-4 right-4 z-50');
+    expect(container.firstElementChild?.tagName).toBe('DIV');
+  });
 });

@@ -134,8 +134,10 @@ describe('the panel list, search and the large view', () => {
   });
 
   it('offers older conversations when there are more', () => {
+    // ⚠ THE PANEL GROUPS BY THE REAL CLOCK, so this row is dated NOW: the shared fixture's "Today thread"
+    // (2026-11-06) became "Yesterday" the day after this test was written and the suite went red.
     const onLoadMore = vi.fn();
-    panel({ hasMore: true, onLoadMore, groupByDay: true });
+    panel({ hasMore: true, onLoadMore, groupByDay: true, items: [{ id: 't', title: 'Today thread', updatedAt: new Date().toISOString() }] });
     fireEvent.click(screen.getByLabelText('Open the menu: new conversation and history'));
     expect(screen.getByLabelText('Today')).toBeTruthy();
     fireEvent.click(screen.getByText('Load older conversations'));

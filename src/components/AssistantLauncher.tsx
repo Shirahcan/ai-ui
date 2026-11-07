@@ -47,15 +47,15 @@ export function AssistantLauncher({
 }: AssistantLauncherProps) {
   const label = open ? closeLabel : unread ? (unreadLabel ?? `${openLabel}: a new answer is waiting`) : openLabel;
 
-  return (
+  const button = (
     <button
       type="button"
       onClick={onToggle}
       aria-label={label}
       aria-expanded={open}
       title={label}
-      className={`relative flex h-16 w-16 items-center justify-center rounded-full bg-[var(--ai-accent)] text-[var(--ai-accent-fg)] shadow-[0_8px_30px_rgb(0,0,0,0.18)] outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--ai-accent)] focus-visible:ring-offset-2 ${className ?? ''}`}
-      style={{ ...(themeToVars(theme) as CSSProperties), ...style }}
+      className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[var(--ai-accent)] text-[var(--ai-accent-fg)] shadow-[0_8px_30px_rgb(0,0,0,0.18)] outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--ai-accent)] focus-visible:ring-offset-2"
+      style={themeToVars(theme) as CSSProperties}
     >
       {open ? <span className="text-2xl leading-none">×</span> : <ChatIcon size={28} />}
       {unread && !open ? (
@@ -67,4 +67,12 @@ export function AssistantLauncher({
       ) : null}
     </button>
   );
+
+  /*
+   * ⚠ THE POSITION GOES ON A WRAPPER, NEVER ON THE BUTTON (1.38.1). The button is `relative` so the unread
+   * dot can sit on its corner, and a product's `fixed bottom-4 right-4` on the SAME element lost to it in
+   * the generated CSS: the button dropped into the page flow below the footer, off screen on a short
+   * window (found in MployNow 2026-11-07; Finance's Reeve passes the same className).
+   */
+  return className || style ? <div className={className} style={style}>{button}</div> : button;
 }
