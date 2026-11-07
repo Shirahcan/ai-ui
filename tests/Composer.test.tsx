@@ -243,5 +243,23 @@ describe('Composer', () => {
     rects.mockRestore();
     scroll.mockRestore();
   });
+
+  describe('tools slot (1.38.0)', () => {
+    it('renders a surface control in the tools row, before Send', () => {
+      render(<Harness value="make it warmer" tools={<button type="button">Plan first</button>} />);
+
+      const plan = screen.getByRole('button', { name: 'Plan first' });
+      const send = screen.getByRole('button', { name: 'Send' });
+
+      expect(plan.closest('[data-ai-composer-tools]')).not.toBeNull();
+      expect(plan.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('leaves the row as it was without one', () => {
+      render(<Harness value="hello" />);
+
+      expect(screen.getAllByRole('button')).toHaveLength(1);
+    });
+  });
 });
 

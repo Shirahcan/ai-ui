@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { StopButton } from './StopButton';
 import {
   AttachButton,
@@ -65,6 +65,17 @@ export interface ComposerProps {
    * when the person stops talking and the microphone reopens after the answer. See useHandsFree.
    */
   handsFree?: HandsFreeState & { onToggle: () => void };
+
+  /**
+   * A surface's own controls in the tools row (1.38.0), after the microphone and hands-free and
+   * before Send: a switch such as a page builder's "Plan first", or a chip naming what the message is
+   * about. Keep it small (an icon or a short pill): the row also holds the dictation status line.
+   *
+   * ⚠ A SLOT, NOT A FORK. A product that needs one more control here adds it through this prop; a
+   * copy of the composer inside a product loses every fix made to this one (IME Enter, the recall
+   * ring, dictation order), and the estate has paid for each of those once already.
+   */
+  tools?: ReactNode;
 
   /** "@" opens the product's search and writes the pick into the message (1.34.0). */
   mentions?: ComposerMentionsConfig;
@@ -165,6 +176,7 @@ export function Composer({
   attachments,
   dictation: dictationConfig,
   handsFree,
+  tools,
   mentions,
   slashCommands,
   busy = false,
@@ -389,7 +401,7 @@ export function Composer({
    * inside the same border, so that is the shape here. Tools sit left, Send right, and the
    * dictation status line takes the space between them.
    */
-  const hasTools = Boolean(attachments) || Boolean(dictationConfig) || Boolean(handsFree);
+  const hasTools = Boolean(attachments) || Boolean(dictationConfig) || Boolean(handsFree) || Boolean(tools);
 
   return (
     <div
@@ -473,6 +485,8 @@ export function Composer({
               <HeadsetIcon />
             </button>
           ) : null}
+
+          {tools}
 
           <div className={`min-w-0 flex-1 ${hasTools ? 'px-1' : ''}`}>
             {showDictationLine ? <DictationStatus dictation={dictation} className="truncate text-xs" /> : null}
