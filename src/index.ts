@@ -202,6 +202,8 @@ export type {
   AssistantInputKind,
 } from './useAssistantConversation';
 export { useComposerHistory } from './useComposerHistory';
+export { useAssistantThreads } from './useAssistantThreads';
+export type { AssistantThreadRow, AssistantThreadsApi, AssistantThreadsOptions } from './useAssistantThreads';
 export type { ComposerHistory, ComposerHistoryOptions } from './useComposerHistory';
 export { HumanCheck } from './components/HumanCheck';
 export type { HumanCheckProps } from './components/HumanCheck';
