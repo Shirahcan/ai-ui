@@ -72,6 +72,9 @@ export type {
 } from './components/AssistantHistory';
 
 export { AssistantLauncher } from './components/AssistantLauncher';
+export { AssistantThreadSkeleton } from './components/AssistantThreadSkeleton';
+export { AssistantDock } from './components/AssistantDock';
+export type { AssistantCorner, AssistantDockProps } from './components/AssistantDock';
 export type { AssistantLauncherProps } from './components/AssistantLauncher';
 
 export { AssistantIntro } from './components/AssistantIntro';
@@ -198,6 +201,8 @@ export type {
   AssistantTurnOptions,
   AssistantInputKind,
 } from './useAssistantConversation';
+export { useComposerHistory } from './useComposerHistory';
+export type { ComposerHistory, ComposerHistoryOptions } from './useComposerHistory';
 export { HumanCheck } from './components/HumanCheck';
 export type { HumanCheckProps } from './components/HumanCheck';
 

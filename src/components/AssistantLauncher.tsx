@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, PointerEvent } from 'react';
 import { ChatIcon } from '../icons';
 import { themeToVars, type AssistantTheme } from '../theme';
 
@@ -32,6 +32,16 @@ export interface AssistantLauncherProps {
   unread?: boolean;
   /** The label while `unread`. Default: "{openLabel}: a new answer is waiting". */
   unreadLabel?: string;
+  /**
+   * Pointer handlers for a dock that lets the button be dragged to a corner (`AssistantDock`, 1.39.0).
+   * Present, the button shows the grab cursor and stops the page scrolling under a touch drag.
+   */
+  drag?: {
+    dragging: boolean;
+    onPointerDown: (e: PointerEvent<HTMLButtonElement>) => void;
+    onPointerMove: (e: PointerEvent<HTMLButtonElement>) => void;
+    onPointerUp: (e: PointerEvent<HTMLButtonElement>) => void;
+  };
 }
 
 export function AssistantLauncher({
@@ -44,6 +54,7 @@ export function AssistantLauncher({
   style,
   unread = false,
   unreadLabel,
+  drag,
 }: AssistantLauncherProps) {
   const label = open ? closeLabel : unread ? (unreadLabel ?? `${openLabel}: a new answer is waiting`) : openLabel;
 
@@ -54,7 +65,11 @@ export function AssistantLauncher({
       aria-label={label}
       aria-expanded={open}
       title={label}
-      className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[var(--ai-accent)] text-[var(--ai-accent-fg)] shadow-[0_8px_30px_rgb(0,0,0,0.18)] outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--ai-accent)] focus-visible:ring-offset-2"
+      onPointerDown={drag?.onPointerDown}
+      onPointerMove={drag?.onPointerMove}
+      onPointerUp={drag?.onPointerUp}
+      onPointerCancel={drag?.onPointerUp}
+      className={`relative flex h-16 w-16 items-center justify-center rounded-full bg-[var(--ai-accent)] text-[var(--ai-accent-fg)] shadow-[0_8px_30px_rgb(0,0,0,0.18)] outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--ai-accent)] focus-visible:ring-offset-2${drag ? ` touch-none select-none ${drag.dragging ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
       style={themeToVars(theme) as CSSProperties}
     >
       {open ? <span className="text-2xl leading-none">×</span> : <ChatIcon size={28} />}
