@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AssistantChat } from '../src/components/AssistantChat';
 import { Composer } from '../src/components/Composer';
 import { MessageBubble } from '../src/components/MessageBubble';
-import { withoutAttachedLine, type ComposerAttachmentsConfig } from '../src/components/ComposerAttachments';
+import { acceptsFile, withoutAttachedLine, type ComposerAttachmentsConfig } from '../src/components/ComposerAttachments';
 import type { AssistantTheme } from '../src/theme';
 import type { AttachmentChip } from '../src/types';
 
@@ -169,5 +169,38 @@ describe('the person\'s bubble', () => {
     expect(withoutAttachedLine('Hello')).toBe('Hello');
     render(<MessageBubble message={{ id: 'u2', role: 'user', text: 'Plain [attached: x] in the middle' }} />);
     expect(screen.getByText('Plain [attached: x] in the middle')).toBeTruthy();
+  });
+});
+
+/**
+ * 1.41.0: an extension in `accept` matches by the file's name. A browser reports `.md` (and on some
+ * systems `.docx`) with an empty type, so a type-only check refused a Markdown or Word reference
+ * before the product ever saw it.
+ */
+describe('acceptsFile', () => {
+  it('accepts by type, as before', () => {
+    expect(acceptsFile(['application/pdf'], { name: 'letter.pdf', type: 'application/pdf' })).toBe(true);
+    expect(acceptsFile(['application/pdf'], { name: 'photo.png', type: 'image/png' })).toBe(false);
+  });
+
+  it('accepts by extension when the browser gives no type', () => {
+    expect(acceptsFile(['.md', '.docx'], { name: 'notes.md', type: '' })).toBe(true);
+    expect(acceptsFile(['.md', '.docx'], { name: 'GUIDE.DOCX', type: '' })).toBe(true);
+    expect(acceptsFile(['.md'], { name: 'notes.exe', type: '' })).toBe(false);
+  });
+
+  it('never treats an empty type or a dotfile as a match', () => {
+    expect(acceptsFile(['', 'application/pdf'], { name: 'mystery', type: '' })).toBe(false);
+    expect(acceptsFile(['.env'], { name: '.env', type: '' })).toBe(false);
+  });
+
+  it('refuses a typeless file on the composer when only types are listed', async () => {
+    const refused = vi.fn();
+    render(<Composer value="" onChange={() => {}} onSend={() => {}} attachments={config({ onRefused: refused })} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(input, { target: { files: [new File(['# x'], 'notes.md', { type: '' })] } });
+
+    await waitFor(() => expect(refused).toHaveBeenCalledWith('notes.md is not a file type that can be read here.'));
   });
 });

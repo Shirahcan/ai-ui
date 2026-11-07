@@ -11,7 +11,12 @@ import { aiVar } from '../theme';
  * the PRODUCT owns the request, which is why `onUpload` returns its chip or throws its reason.
  */
 export interface ComposerAttachmentsConfig {
-  /** MIME types the product accepts, e.g. `['application/pdf', 'image/png']`. */
+  /**
+   * What the product accepts, in the HTML `accept` grammar: MIME types (`'application/pdf'`) and, from
+   * 1.41.0, file extensions (`'.md'`, `'.docx'`). An extension matches by the file's NAME, because a
+   * browser reports `.md` (and on some systems `.docx`) with an empty type, and a type-only check
+   * refused them before the product could see them.
+   */
   accept: string[];
   /** Largest single file, in bytes: refused here, before any upload. */
   maxBytes: number;
@@ -52,6 +57,19 @@ export function formatBytes(bytes: number): string {
   return megabytes(bytes);
 }
 
+/**
+ * Whether a file is one the product accepts: by its type, or by its extension when `accept` lists one
+ * (1.41.0). Case-insensitive on the extension: `GUIDE.DOCX` is a Word document too.
+ */
+export function acceptsFile(accept: string[], file: { name: string; type: string }): boolean {
+  if (file.type !== '' && accept.includes(file.type)) return true;
+
+  const dot = file.name.lastIndexOf('.');
+  const extension = dot > 0 ? file.name.slice(dot).toLowerCase() : '';
+
+  return extension !== '' && accept.some((entry) => entry.startsWith('.') && entry.toLowerCase() === extension);
+}
+
 /** The pending files and what can be done with them. */
 export function useComposerAttachments(config: ComposerAttachmentsConfig | undefined) {
   const [items, setItems] = useState<PendingAttachment[]>([]);
@@ -68,7 +86,7 @@ export function useComposerAttachments(config: ComposerAttachmentsConfig | undef
       }
 
       for (const file of files.slice(0, room)) {
-        if (!config.accept.includes(file.type)) {
+        if (!acceptsFile(config.accept, file)) {
           config.onRefused?.(`${file.name} is not a file type that can be read here.`);
           continue;
         }

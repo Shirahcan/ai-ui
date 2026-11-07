@@ -100,6 +100,7 @@ export type { AiUiCssVariable } from './theme';
 
 export { DEFAULT_EVENT_NAMES } from './types';
 export {
+  acceptsFile,
   formatBytes,
   MessageAttachmentChips,
   withoutAttachedLine,
