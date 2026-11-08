@@ -23,6 +23,7 @@ export { AiUsageOverview } from './AiUsageOverview';
 export { AiRecentCalls } from './AiRecentCalls';
 export { AiPromptTemplates } from './AiPromptTemplates';
 export { AiVoiceEditor } from './AiVoiceEditor';
+export { AiAssistantView } from './AiAssistantView';
 export { AiKnowledgeBrowser } from './AiKnowledgeBrowser';
 export { AiFeedbackInbox } from './AiFeedbackInbox';
 export { AiGapInbox, type AssistantGap } from './AiGapInbox';

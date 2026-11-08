@@ -237,3 +237,10 @@ export type {
   Phrase,
   Insertion,
 } from './dictation';
+
+// The base assistant on any screen (1.42.0, owner 2026-11-08): ONE shell for every assistant and surface;
+// the assistant's name, avatar and greeting are data from its ai-service record, colours the product's theme.
+export { AssistantBox, AssistantNotice } from './components/AssistantBox';
+export type { AssistantBoxProps } from './components/AssistantBox';
+export { useAssistantIdentity, identityFromRecord, greetingFor, resetAssistantIdentityCache } from './surface/useAssistantIdentity';
+export type { AssistantIdentity, AssistantIdentityFallback, AssistantSurfaceInfo } from './surface/useAssistantIdentity';
