@@ -206,6 +206,18 @@ export { useComposerHistory } from './useComposerHistory';
 export { useAssistantThreads } from './useAssistantThreads';
 export type { AssistantThreadRow, AssistantThreadsApi, AssistantThreadsOptions } from './useAssistantThreads';
 export type { ComposerHistory, ComposerHistoryOptions } from './useComposerHistory';
+// Assistant spaces (1.43): the panel's data through the person's space, the kit's AssistantRoutes.
+export { createAssistantSpaceClient } from './space/client';
+export { AssistantMemoryPanel, defaultMemoryCategories } from './components/AssistantMemoryPanel';
+export type { AssistantMemoryPanelProps } from './components/AssistantMemoryPanel';
+export type {
+  AssistantSpaceClient,
+  AssistantSpaceClientOptions,
+  AssistantSpaceFetcher,
+  AssistantMemoryFact,
+  AssistantVote,
+  SpaceMethod,
+} from './space/client';
 export { HumanCheck } from './components/HumanCheck';
 export type { HumanCheckProps } from './components/HumanCheck';
 
