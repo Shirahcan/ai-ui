@@ -33,6 +33,11 @@ export interface ComposerSlashCommand {
   detail?: string;
   /** The draft it puts in the box. */
   prompt: string;
+  /**
+   * Picked, it RUNS at once and empties the box instead of filling it (1.44.0): a console command with
+   * nothing to add (`/help`, `/clear`) should not need a second Enter, which is how Claude Code's work.
+   */
+  run?: () => void;
 }
 
 type Mode = { kind: 'mention'; query: string; from: number } | { kind: 'slash'; query: string } | null;
@@ -112,7 +117,17 @@ export function useComposerPicker(
     options = slash
       .filter((c) => mode.query === '' || c.label.toLowerCase().includes(mode.query) || c.key.toLowerCase().includes(mode.query))
       .slice(0, 8)
-      .map((c) => ({ key: c.key, label: c.label, detail: c.detail, apply: () => onChange(c.prompt, c.prompt.length) }));
+      .map((c) => ({
+        key: c.key,
+        label: c.label,
+        detail: c.detail,
+        apply: c.run
+          ? () => {
+              onChange('', 0);
+              c.run?.();
+            }
+          : () => onChange(c.prompt, c.prompt.length),
+      }));
   } else if (mode?.kind === 'mention' && found && found.query === mode.query) {
     options = found.items.map((m) => ({
       key: m.id,

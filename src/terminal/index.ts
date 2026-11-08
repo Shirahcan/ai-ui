@@ -1,0 +1,25 @@
+/**
+ * `@shirahcan/ai-ui/terminal`: a console for a studio surface (1.44.0, Porter console 2026-11-08). A
+ * Claude Code style session on one subject: asks, steps, thinking, replies and outcomes line by line,
+ * `/clear` `/compact` `/context` `/resume` `/rewind` `/brief`, history and keys.
+ *
+ * Backend: `TerminalRoutes::mount('...')` + a `TerminalSubject` binding from `shirahcan/ai-client` >= 1.58,
+ * inside the product's authenticated group and its own gate. The ask itself is the product's route.
+ */
+export { AssistantTerminal } from './AssistantTerminal';
+export type { AssistantTerminalProps } from './AssistantTerminal';
+export { TerminalInput } from './TerminalInput';
+export type { TerminalComposerOptions, TerminalInputProps, TerminalMentions } from './TerminalInput';
+export { TerminalLines } from './TerminalLines';
+export { TerminalRewind, rewindableAsks } from './TerminalRewind';
+export type { TerminalRewindChoice } from './TerminalRewind';
+export { TerminalStatus } from './TerminalStatus';
+export { TERMINAL_COMMANDS, TERMINAL_KEYS, parseCommand, slashCommands } from './commands';
+export type { TerminalCommand, TerminalCommandName, TerminalKey } from './commands';
+export { DEFAULT_TERMINAL_THEME, TERMINAL_THEMES, contrastRatio, terminalTheme, themeToTerminalVars } from './terminalThemes';
+export type { TerminalTheme } from './terminalThemes';
+export { outcomeLine, toLines, toMarkdown } from './transcript';
+export type { ToLinesOptions } from './transcript';
+export { TERMINAL_DEFAULT_WIDTH, TERMINAL_MIN_WIDTH, clampTerminalWidth, useTerminalDock } from './useTerminalDock';
+export { useTerminalKeys } from './useTerminalKeys';
+export type * from './types';

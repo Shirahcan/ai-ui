@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: { index: 'src/index.ts', 'console/index': 'src/console/index.ts', 'editor/index': 'src/editor/index.ts' },
+  entry: { index: 'src/index.ts', 'console/index': 'src/console/index.ts', 'editor/index': 'src/editor/index.ts', 'terminal/index': 'src/terminal/index.ts' },
   // CJS too, so a product's jest (CommonJS, node_modules untransformed) can require it.
   format: ['esm', 'cjs'],
   dts: true,
