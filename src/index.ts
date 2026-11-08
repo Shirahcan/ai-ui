@@ -210,6 +210,8 @@ export type { ComposerHistory, ComposerHistoryOptions } from './useComposerHisto
 export { createAssistantSpaceClient } from './space/client';
 export { AssistantMemoryPanel, defaultMemoryCategories } from './components/AssistantMemoryPanel';
 export { AssistantSpacePanel } from './components/AssistantSpacePanel';
+export { defaultHandlers, defaultIntro, defaultToPanelMessage } from './space/defaults';
+export type { DefaultHandlerDeps, SpaceCardState } from './space/defaults';
 export type { AssistantSpaceAdapter, AssistantSpacePanelProps, SpacePanelControls } from './components/AssistantSpacePanel';
 export type { AssistantMemoryPanelProps } from './components/AssistantMemoryPanel';
 export type {

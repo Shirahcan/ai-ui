@@ -61,6 +61,8 @@ export interface AssistantSpaceClient {
   restore: () => Promise<string | null>;
   /** The up-arrow ring: the person's own questions, newest first, once each. */
   inputHistory: () => Promise<string[]>;
+  /** Suggested questions for the screen at `route`, from the product's knowledge for the person's role. */
+  prompts: (route?: string) => Promise<string[]>;
   memory: {
     list: () => Promise<AssistantMemoryFact[]>;
     correct: (key: string, value: string, label?: string) => Promise<AssistantMemoryFact>;
@@ -118,6 +120,7 @@ export function createAssistantSpaceClient({ base, fetcher, headers }: Assistant
     },
     restore,
     inputHistory: async () => (await call<{ history: string[] }>('GET', 'input-history')).history ?? [],
+    prompts: async (route) => (await call<{ prompts?: string[] }>('GET', 'prompts', { query: route ? { route } : undefined })).prompts ?? [],
     memory: {
       list: async () => (await call<{ memory: AssistantMemoryFact[] }>('GET', 'memory')).memory ?? [],
       correct: async (key, value, label) =>

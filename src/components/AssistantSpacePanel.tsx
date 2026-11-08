@@ -14,6 +14,7 @@ import {
 } from './AssistantChat';
 import type { AssistantMessageHandlers } from './AssistantMessageBody';
 import { AssistantMemoryPanel, type AssistantMemoryPanelProps } from './AssistantMemoryPanel';
+import { defaultHandlers, defaultIntro, defaultToPanelMessage, type SpaceCardState } from '../space/defaults';
 import { AssistantThreadSkeleton } from './AssistantThreadSkeleton';
 
 /**
@@ -41,22 +42,41 @@ export interface SpacePanelControls {
   /** The thread has restored and the loading window has passed: a queued ask may go now. */
   ready: boolean;
   busy: boolean;
+  /** A card's outcome as the space holds it (read from each message's `card_state`). */
+  cardState: (messageId: string) => SpaceCardState | undefined;
+  /** Record a card's outcome on its turn, so a reload or another device shows it settled. */
+  keepCardState: (messageId: string, state: SpaceCardState) => void;
 }
 
+/**
+ * The product's TRUE specifics. Every key is optional except `onError`: a product with nothing special
+ * gets the default message format, the default card buttons, a welcome named by the assistant and
+ * questions drawn from its own knowledge for the person's role and screen.
+ */
 export interface AssistantSpaceAdapter {
-  /** The product's message as the panel draws it (Porter: cards, provenance, file chips). */
-  toPanelMessage: (raw: unknown) => PanelMessage;
+  /** The product's message as the panel draws it. Default `defaultToPanelMessage` (reads Porter's shape too). */
+  toPanelMessage?: (raw: unknown) => PanelMessage;
   /** Tidy a reloaded thread before it is drawn (Porter drops a result repeated under its card). */
   prepareMessages?: (messages: unknown[]) => unknown[];
   /** Merged into every turn: the page the person is on, their timezone. */
   turnBody?: () => Record<string, unknown>;
   /** Enter mid-answer folds the correction into the running question. Default true. */
   supersede?: boolean;
-  intro: AssistantChatIntro;
+  /**
+   * The welcome. Default: "Hi, I'm {assistant}." Leave `prompts` out and they come from the product's
+   * knowledge for the person's role, the screen they are on first; pass them to choose your own.
+   */
+  intro?: Partial<AssistantChatIntro>;
+  /** In-app navigation for cards and links (the product's router). Default: a full page load. */
+  navigate?: (url: string) => void;
   composer?: Omit<AssistantChatComposer, 'history' | 'sendDisabled' | 'sendWhileBusy'>;
   extras?: AssistantChatExtras;
   expandable?: boolean;
-  /** What a card's buttons DO in this product. Built per render with the panel's controls. */
+  /**
+   * What a card's buttons DO in this product, laid over the defaults key by key (links navigate, an
+   * intake starts in the chat, Cancel is kept, settled cards stay settled). Built per render with the
+   * panel's controls.
+   */
   handlers?: (panel: SpacePanelControls) => AssistantMessageHandlers;
   /** Extra menu items beyond "What {assistant} knows about you". */
   actions?: AssistantChatAction[];
@@ -85,6 +105,8 @@ export interface AssistantSpacePanelProps {
   closeLabel?: string;
   /** Attributes on the panel's root (Porter's `data-porter-ui`, which its screen snapshot excludes). */
   rootAttributes?: Record<`data-${string}`, string>;
+  /** The screen the person is on, so suggested questions follow it. Default: the browser's path at mount. */
+  route?: string;
 }
 
 /** The panel opens in a loading state and may reveal the welcome view only after this (a settling session). */
@@ -94,7 +116,7 @@ export function AssistantSpacePanel(props: AssistantSpacePanelProps) {
   return <SpacePanel key={props.accountKey} {...props} />;
 }
 
-function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose, closeLabel, rootAttributes }: AssistantSpacePanelProps) {
+function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose, closeLabel, rootAttributes, route }: AssistantSpacePanelProps) {
   const adapterRef = useRef(adapter);
   adapterRef.current = adapter;
 
@@ -104,17 +126,21 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
   const [hasMemory, setHasMemory] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteFailed, setDeleteFailed] = useState(false);
+  const [, setCardTick] = useState(0);
 
   /*
    * ⚠ A VOTE NAMES THE SERVICE'S TURN. A product's message may carry its own id (Porter's feedback and
-   * action modules key on it) beside `ai_turn_id`; the space routes take the service id.
+   * action modules key on it) beside `ai_turn_id`; the space routes take the service id. A card's
+   * settled outcome (`card_state`) is read on the way in, so a reload shows the card as it was left.
    */
   const turnIds = useRef(new Map<string, string>());
+  const cardStates = useRef(new Map<string, SpaceCardState>());
   const toPanelMessage = useCallback((raw: unknown): PanelMessage => {
-    const message = adapterRef.current.toPanelMessage(raw);
-    const r = raw as { ai_turn_id?: unknown; id?: unknown } | null;
+    const message = (adapterRef.current.toPanelMessage ?? defaultToPanelMessage)(raw);
+    const r = raw as { ai_turn_id?: unknown; id?: unknown; card_state?: unknown } | null;
     const serviceId = typeof r?.ai_turn_id === 'string' ? r.ai_turn_id : typeof r?.id === 'string' ? r.id : null;
     if (serviceId) turnIds.current.set(message.id, serviceId);
+    if (r?.card_state && typeof r.card_state === 'object') cardStates.current.set(message.id, r.card_state as SpaceCardState);
     return message;
   }, []);
 
@@ -181,10 +207,60 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
     [history, conversation],
   );
 
-  const controls: SpacePanelControls = useMemo(
-    () => ({ conversationId: conversation.conversationId, ask, open: conversation.open, ready, busy: conversation.busy }),
-    [conversation.conversationId, ask, conversation.open, ready, conversation.busy],
+  const conversationId = conversation.conversationId;
+  const cardState = useCallback((messageId: string) => cardStates.current.get(messageId), []);
+  const keepCardState = useCallback(
+    (messageId: string, state: SpaceCardState) => {
+      cardStates.current.set(messageId, state);
+      setCardTick((n) => n + 1);
+      const turnId = turnIds.current.get(messageId);
+      if (!conversationId || !turnId) return;
+      // Never on the card's path: a failed record leaves the card settled here and reaches the product.
+      clientRef.current
+        .cardState(conversationId, turnId, state as Record<string, unknown>)
+        .catch((error: unknown) => adapterRef.current.onError(error));
+    },
+    [conversationId],
   );
+
+  const controls: SpacePanelControls = useMemo(
+    () => ({ conversationId, ask, open: conversation.open, ready, busy: conversation.busy, cardState, keepCardState }),
+    [conversationId, ask, conversation.open, ready, conversation.busy, cardState, keepCardState],
+  );
+
+  /*
+   * Suggested questions: the product's own when it passes them, else the space's, drawn from the
+   * product's knowledge for this person's role with the screen they are on first. A failure is no list.
+   */
+  const promptRoute = route ?? (typeof window !== 'undefined' ? window.location.pathname : undefined);
+  const ownPrompts = adapter.intro?.prompts;
+  const [fetchedPrompts, setFetchedPrompts] = useState<{ route: string | undefined; prompts: string[] } | null>(null);
+  useEffect(() => {
+    if (ownPrompts !== undefined) return undefined;
+    let live = true;
+    clientRef.current
+      .prompts(promptRoute)
+      .then((prompts) => live && setFetchedPrompts({ route: promptRoute, prompts }))
+      .catch(() => live && setFetchedPrompts({ route: promptRoute, prompts: [] }));
+    return () => {
+      live = false;
+    };
+  }, [promptRoute, ownPrompts]);
+  const intro: AssistantChatIntro = {
+    ...defaultIntro(assistantName),
+    ...(adapter.intro ?? {}),
+    prompts: ownPrompts ?? (fetchedPrompts !== null && fetchedPrompts.route === promptRoute ? fetchedPrompts.prompts : []),
+  };
+
+  const handlers: AssistantMessageHandlers = {
+    ...defaultHandlers({
+      navigate: (url) => (adapterRef.current.navigate ? adapterRef.current.navigate(url) : window.location.assign(url)),
+      ask: (text) => ask(text),
+      cardState,
+      keepCardState,
+    }),
+    ...(adapter.handlers?.(controls) ?? {}),
+  };
 
   useEffect(() => {
     adapterRef.current.onReady?.(controls);
@@ -234,7 +310,7 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
         onStop={conversation.stop}
         onRetry={conversation.retry}
         onPrompt={(prompt: string) => ask(prompt, { input: 'suggestion' })}
-        intro={adapter.intro}
+        intro={intro}
         renderEmpty={
           !ready
             ? () => <AssistantThreadSkeleton label={conversation.ready ? 'Getting your assistant ready...' : 'Restoring your last conversation...'} />
@@ -269,7 +345,7 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
           loadingMore: threads.loadingMore,
         }}
         expandable={adapter.expandable ?? true}
-        handlers={adapter.handlers?.(controls)}
+        handlers={handlers}
         extras={adapter.extras ? { ...adapter.extras, timeline: true } : { timeline: true }}
         feedback={{
           onSubmit: async ({ messageId, sentiment, reasonCode, reasonText }) => {
