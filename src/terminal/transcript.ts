@@ -98,7 +98,10 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
 
       lines.push(...stepLines(s.steps ?? [], turn.id, expanded, muted, null));
 
-      if (turn.body && turn.body.trim() !== '') lines.push({ key: `${turn.id}:reply`, kind: 'reply', text: turn.body.trim(), muted });
+      // A plan's own summary is its reply: drawn once, in the plan.
+      if (turn.body && turn.body.trim() !== '' && turn.body.trim() !== s.plan?.summary?.trim()) {
+        lines.push({ key: `${turn.id}:reply`, kind: 'reply', text: turn.body.trim(), muted });
+      }
 
       if (s.plan) {
         // A plan waits for a yes only while it is the last thing said and nothing is running.
@@ -113,6 +116,11 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
     }
 
     if (folded.has(turn.id)) lastFoldedAt = lines.length;
+
+    // A note made right after this turn (a saved brief, a rewind) stays where it happened.
+    for (const note of notes) {
+      if (note.after === turn.id) lines.push({ key: `note:${note.key}`, kind: 'system', tone: note.tone ?? 'system', text: note.text });
+    }
   });
 
   if (session?.summary && lastFoldedAt >= 0) {
@@ -121,7 +129,11 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
     lines.splice(lastFoldedAt, 0, { key: `summary:${session.summary.at ?? ''}`, kind: 'system', tone: 'system', text: `Session summarised (${plural(n, 'turn', 'turns')} folded into the summary ${assistantName} reads)` });
   }
 
-  for (const note of notes) lines.push({ key: `note:${note.key}`, kind: 'system', tone: note.tone ?? 'system', text: note.text });
+  const placed = new Set(turns.map((t) => t.id));
+
+  for (const note of notes) {
+    if (!note.after || !placed.has(note.after)) lines.push({ key: `note:${note.key}`, kind: 'system', tone: note.tone ?? 'system', text: note.text });
+  }
 
   if (live) {
     const prefix = `live:${live.startedAt}`;

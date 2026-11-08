@@ -25,7 +25,11 @@ export function clampTerminalWidth(width: number, max = maxWidth()): number {
  * over the canvas (owner D1, revised 2026-11-08), so the width never moves the page behind it.
  */
 export function useTerminalDock(initial: number | null | undefined, onWidthChange?: (width: number) => void) {
-  const [width, setWidth] = useState(() => clampTerminalWidth(initial ?? TERMINAL_DEFAULT_WIDTH));
+  // What the person chose, kept apart from what the window allows now: a narrow window shrinks the
+  // panel, and widening it again gives their width back (it used to stay shrunk).
+  const [preferred, setPreferred] = useState(() => Math.max(TERMINAL_MIN_WIDTH, Math.round(initial ?? TERMINAL_DEFAULT_WIDTH)));
+  const [max, setMax] = useState(maxWidth);
+  const width = clampTerminalWidth(preferred, max);
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
   const latest = useRef(width);
 
@@ -34,12 +38,14 @@ export function useTerminalDock(initial: number | null | undefined, onWidthChang
   }, [width]);
 
   useEffect(() => {
-    const fit = () => setWidth((current) => clampTerminalWidth(current));
+    const fit = () => setMax(maxWidth());
 
     window.addEventListener('resize', fit);
 
     return () => window.removeEventListener('resize', fit);
   }, []);
+
+  const setWidth = useCallback((next: number) => setPreferred(clampTerminalWidth(next)), []);
 
   const commit = useCallback(() => onWidthChange?.(latest.current), [onWidthChange]);
 
@@ -82,7 +88,7 @@ export function useTerminalDock(initial: number | null | undefined, onWidthChang
       role: 'separator' as const,
       'aria-orientation': 'vertical' as const,
       'aria-valuemin': TERMINAL_MIN_WIDTH,
-      'aria-valuemax': maxWidth(),
+      'aria-valuemax': max,
       'aria-valuenow': width,
       tabIndex: 0,
       onPointerDown,

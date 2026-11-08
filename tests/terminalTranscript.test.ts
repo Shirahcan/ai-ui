@@ -80,3 +80,16 @@ describe('toMarkdown', () => {
     expect(md).toBe('# Home page\n\n> Make it dark\n\n● Reading the page (1s)\n● Writing the hero (4s)\n◆ Done.\n✓ Changed 1 element\n');
   });
 });
+
+describe('placement', () => {
+  it('draws a plan once and keeps a note after the turn it followed', () => {
+    const plan = { summary: 'Add a FAQ', steps: ['Insert it'] };
+    const lines = toLines(
+      [ask('a1', 'One'), answer('b1', { outcome: { changed: true } }), ask('a2', 'Plan a FAQ', { mode: 'plan' }), answer('b2', { plan }, 'Add a FAQ')],
+      { notes: [{ key: 'n', text: 'Brief saved', after: 'b1' }, { key: 'm', text: 'Later' }] },
+    );
+
+    expect(lines.map((l) => l.kind)).toEqual(['ask', 'reply', 'outcome', 'system', 'ask', 'plan', 'system']);
+    expect(lines.filter((l) => l.kind === 'reply')).toHaveLength(1);
+  });
+});

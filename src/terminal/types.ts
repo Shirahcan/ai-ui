@@ -112,6 +112,8 @@ export interface TerminalNote {
   key: string;
   tone?: 'system' | 'fail' | 'ok';
   text: string;
+  /** The turn it came after, so it stays where it happened; absent or unknown: after everything. */
+  after?: string | null;
 }
 
 type Muted = { muted?: 'rewound' | 'folded' };
