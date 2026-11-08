@@ -312,6 +312,14 @@ export interface AssistantChatProps {
   expandable?: boolean;
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
+
+  /**
+   * A view drawn OVER the conversation, under the header (1.43): the memory view ("What Porter knows
+   * about you") lives here, inside the panel, rather than in a page dialog a product has to supply.
+   * It fills the body, so the composer and list are hidden while it is open; its own Back control
+   * clears it. Painted like the sidebar, so a translucent theme does not show the chat through it.
+   */
+  overlay?: ReactNode;
 }
 
 /**
@@ -395,6 +403,7 @@ export function AssistantChat({
   expandable = false,
   expanded: expandedProp,
   onExpandedChange,
+  overlay,
   ...attributes
 }: AssistantChatProps & AssistantSurfaceAttributes) {
   /*
@@ -938,6 +947,20 @@ export function AssistantChat({
               ) : null}
             </nav>
           </>
+        ) : null}
+
+        {overlay ? (
+          <div
+            className="aiui-fade-in absolute inset-0 z-30 flex min-h-0 flex-col"
+            style={{
+              backgroundColor: 'color-mix(in srgb, Canvas 94%, transparent)',
+              backgroundImage: 'linear-gradient(var(--ai-surface), var(--ai-surface))',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+            }}
+          >
+            {overlay}
+          </div>
         ) : null}
       </div>
 

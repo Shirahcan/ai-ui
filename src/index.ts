@@ -209,6 +209,8 @@ export type { ComposerHistory, ComposerHistoryOptions } from './useComposerHisto
 // Assistant spaces (1.43): the panel's data through the person's space, the kit's AssistantRoutes.
 export { createAssistantSpaceClient } from './space/client';
 export { AssistantMemoryPanel, defaultMemoryCategories } from './components/AssistantMemoryPanel';
+export { AssistantSpacePanel } from './components/AssistantSpacePanel';
+export type { AssistantSpaceAdapter, AssistantSpacePanelProps, SpacePanelControls } from './components/AssistantSpacePanel';
 export type { AssistantMemoryPanelProps } from './components/AssistantMemoryPanel';
 export type {
   AssistantSpaceClient,

@@ -97,8 +97,19 @@ export function createAssistantSpaceClient({ base, fetcher, headers }: Assistant
 
   return {
     threads: {
-      list: (before) => call('GET', 'threads', { query: before ? { before } : undefined }),
-      search: (q) => call('GET', 'threads/search', { query: { q } }),
+      // ⚠ Always arrays: an empty or partial answer must read as "no threads", never crash the list.
+      list: async (before) => {
+        const page = await call<{ items?: AssistantThreadRow[]; next_before?: string | null; pinned?: AssistantThreadRow[] }>(
+          'GET',
+          'threads',
+          { query: before ? { before } : undefined },
+        );
+        return { items: page.items ?? [], next_before: page.next_before ?? null, pinned: page.pinned ?? [] };
+      },
+      search: async (q) => {
+        const found = await call<{ results?: AssistantThreadRow[]; capped?: boolean }>('GET', 'threads/search', { query: { q } });
+        return { results: found.results ?? [], capped: found.capped ?? false };
+      },
       update: (threadId, changes) => call('PATCH', `threads/${id(threadId)}`, { body: changes }),
     },
     loadConversation,
