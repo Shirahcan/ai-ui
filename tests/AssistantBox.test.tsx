@@ -84,3 +84,24 @@ describe('useAssistantIdentity', () => {
     expect(screen.getByText('Porter')).toBeTruthy();
   });
 });
+
+describe('AiAssistantView', () => {
+  it('shows a table empty message only when that table has no rows', async () => {
+    const { AiConsoleProvider } = await import('../src/console/ConsoleContext');
+    const { AiAssistantView } = await import('../src/console/AiAssistantView');
+    const record = { key: 'porter', product_name: 'Portify', display_name: 'Porter', voice_persona_key: 'porter', status: 'active',
+      surfaces: [{ key: 'site_builder', mode: 'grounded', label: 'the website builder', description: 'Pages.' }],
+      identity: [{ audience: null, text: 'You are Porter.', version: 2, updated_at: null }] };
+    const json = (body: unknown) => Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const fetcher = vi.fn((url: string) => {
+      const path = url.replace('/console/', '').split('?')[0];
+      if (path === 'capabilities') return json({ product: 'portify', is_admin: false, can: {} });
+      if (path === 'assistants') return json({ assistants: [record] });
+      return json({});
+    });
+    render(<AiConsoleProvider baseUrl="/console" theme={THEME} fetcher={fetcher}><AiAssistantView /></AiConsoleProvider>);
+    await waitFor(() => expect(screen.getByText('the website builder')).toBeTruthy());
+    expect(screen.queryByText(/No identity published/)).toBeNull();
+    expect(screen.queryByText(/No surfaces registered/)).toBeNull();
+  });
+});

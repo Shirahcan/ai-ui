@@ -54,7 +54,7 @@ export function AiAssistantView() {
           </div>
 
           <h3 className="mb-2 text-sm font-semibold">Who it is, per audience</h3>
-          <Table head={['Audience', 'Version', 'Identity']} empty={<Empty>No identity published: every surface says only its product's name. Add rows with key "identity" in Voice.</Empty>}>
+          <Table head={['Audience', 'Version', 'Identity']} empty={a.identity.length === 0 ? <Empty>No identity published: every surface says only its product's name. Add rows with key "identity" in Voice.</Empty> : null}>
             {a.identity.map((row) => (
               <tr key={`${row.audience ?? '*'}-${row.version}`}>
                 <Td>{row.audience ?? 'Everyone'}</Td>
@@ -65,7 +65,7 @@ export function AiAssistantView() {
           </Table>
 
           <h3 className="mb-2 mt-6 text-sm font-semibold">Where it works</h3>
-          <Table head={['Surface', 'Mode', 'What it does here']} empty={<Empty>No surfaces registered yet.</Empty>}>
+          <Table head={['Surface', 'Mode', 'What it does here']} empty={a.surfaces.length === 0 ? <Empty>No surfaces registered yet.</Empty> : null}>
             {a.surfaces.map((s) => (
               <tr key={s.key}>
                 <Td>
