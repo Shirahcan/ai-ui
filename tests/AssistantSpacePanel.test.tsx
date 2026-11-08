@@ -93,6 +93,26 @@ describe('AssistantSpacePanel', () => {
     expect(minimal.filter((l) => l !== 'Get help')).toEqual(full.filter((l) => l !== 'Get help'));
   });
 
+  it("draws a product's conversation-dependent menu item and its notice", async () => {
+    const seen: Array<string | null> = [];
+    mount(
+      fakeFetcher(),
+      adapter({
+        actions: (panel) => {
+          seen.push(panel.conversationId);
+          return panel.conversationId ? [{ key: 'help', label: 'Get help', onClick: () => {} }] : [];
+        },
+        notice: 'A support ticket was created.',
+      }),
+    );
+    await screen.findByText('Book the appointment soon.');
+
+    expect(screen.getByText('A support ticket was created.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Open the menu/ }));
+    expect(await screen.findByText('Get help')).toBeTruthy();
+    expect(seen).toContain('c-1');
+  });
+
   it('opens "What Mira knows about you" inside the panel and Back returns to the chat', async () => {
     mount(fakeFetcher(), adapter());
     await screen.findByText('Book the appointment soon.');

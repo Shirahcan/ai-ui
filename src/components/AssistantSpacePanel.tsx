@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AssistantTheme } from '../theme';
+import type { MarkdownTheme } from '../markdown';
 import type { PanelMessage } from '../types';
 import type { AssistantSpaceClient } from '../space/client';
 import { useAssistantConversation, type AssistantTurnOptions } from '../useAssistantConversation';
@@ -78,8 +79,15 @@ export interface AssistantSpaceAdapter {
    * panel's controls.
    */
   handlers?: (panel: SpacePanelControls) => AssistantMessageHandlers;
-  /** Extra menu items beyond "What {assistant} knows about you". */
-  actions?: AssistantChatAction[];
+  /**
+   * Extra menu items beyond "What {assistant} knows about you". A function when an item depends on the
+   * conversation on screen (Mira's "Get help" exists only once there is one).
+   */
+  actions?: AssistantChatAction[] | ((panel: SpacePanelControls) => AssistantChatAction[]);
+  /** The product's Markdown look for answers (Mira's), when it differs from the default. */
+  markdownTheme?: MarkdownTheme;
+  /** A product notice above the composer ("A support ticket was created"); the panel's own notices win. */
+  notice?: string | null;
   /** "What {assistant} knows about you". Default on; it shows only when memory answers. */
   memory?: boolean;
   memoryCategories?: AssistantMemoryPanelProps['categories'];
@@ -298,7 +306,7 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
     ...(memoryOn && hasMemory
       ? [{ key: 'memory', label: `What ${assistantName} knows about you`, title: `What ${assistantName} remembers about you`, onClick: () => setShowMemory(true) }]
       : []),
-    ...(adapter.actions ?? []),
+    ...(typeof adapter.actions === 'function' ? adapter.actions(controls) : (adapter.actions ?? [])),
   ];
 
   return (
@@ -315,7 +323,8 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
         busy={conversation.busy}
         stage={conversation.stage}
         error={conversation.error}
-        notice={notice ?? (conversation.queued ? 'Sending as soon as your conversation finishes loading...' : null)}
+        notice={notice ?? (conversation.queued ? 'Sending as soon as your conversation finishes loading...' : (adapter.notice ?? null))}
+        markdownTheme={adapter.markdownTheme}
         onSend={ask}
         onStop={conversation.stop}
         onRetry={conversation.retry}
