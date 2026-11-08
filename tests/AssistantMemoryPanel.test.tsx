@@ -35,6 +35,23 @@ describe('AssistantMemoryPanel', () => {
     expect(screen.getAllByText('Mira guessed')).toHaveLength(2);
   });
 
+  it('files a plural key under its category, and work under its own heading', async () => {
+    render(
+      <AssistantMemoryPanel
+        memory={memory([
+          { key: 'preferences.answer_style', label: 'Answer style', value: 'Short', source: 'explicit', updated_at: null },
+          { key: 'work.working_hours', label: 'Working hours', value: '9 to 5', source: 'explicit', updated_at: null },
+        ])}
+        assistantName="Porter"
+        onClose={() => {}}
+      />,
+    );
+    await screen.findByText('Short');
+    expect(screen.getByText('Your preferences')).toBeTruthy();
+    expect(screen.getByText('Your work')).toBeTruthy();
+    expect(screen.queryByText('Other')).toBeNull();
+  });
+
   it('corrects a fact, and refuses a blank one inline without calling the server', async () => {
     const m = memory(FACTS);
     const notice = vi.fn();

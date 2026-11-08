@@ -146,6 +146,7 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
 
   const history = useComposerHistory({ load: client.inputHistory, accountKey });
   const reloadThreads = useRef<() => void>(() => {});
+  const named = useRef(new Set<string>());
 
   const conversation = useAssistantConversation({
     ...client.conversation,
@@ -161,6 +162,15 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
     onRestoreFailed: () => setNotice("Couldn't reopen your last conversation, so this is a fresh one."),
     onAnswer: (raw, answeredIn) => {
       reloadThreads.current();
+      /*
+       * ai-service names a NEW thread from its first question on its queue, a second or two after the
+       * answer. Look once more shortly after each thread's first answer, so the name appears in the
+       * header and the list without a reload.
+       */
+      if (answeredIn && !named.current.has(answeredIn)) {
+        named.current.add(answeredIn);
+        window.setTimeout(() => reloadThreads.current(), 5000);
+      }
       history.reload();
       adapterRef.current.onAnswer?.(raw, answeredIn);
     },

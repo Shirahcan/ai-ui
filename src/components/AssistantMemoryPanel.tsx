@@ -32,8 +32,20 @@ export function defaultMemoryCategories(assistantName: string): Array<{ key: str
     { key: 'situation', label: 'Your situation' },
     { key: 'family', label: 'Your family' },
     { key: 'preference', label: 'Your preferences' },
+    { key: 'work', label: 'Your work' },
+    { key: 'business', label: 'Your business' },
     { key: 'commitment', label: `What ${assistantName} has done` },
   ];
+}
+
+/**
+ * The heading a fact's key prefix belongs under. The model writes keys itself, and a plural
+ * ("preferences.answer_style") is the same category as its singular; anything else is "Other".
+ */
+function sectionFor(prefix: string, sections: Array<{ key: string }>): string {
+  const p = prefix.toLowerCase();
+  const singular = p.endsWith('s') ? p.slice(0, -1) : p;
+  return sections.find((s) => s.key === p || s.key === singular)?.key ?? 'general';
 }
 
 const BUTTON = 'whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors';
@@ -111,8 +123,7 @@ export function AssistantMemoryPanel({ memory, assistantName, onClose, onError, 
 
   const grouped = new Map<string, AssistantMemoryFact[]>();
   for (const fact of facts ?? []) {
-    const prefix = fact.key.split('.', 1)[0] ?? '';
-    const section = sections.some((s) => s.key === prefix) ? prefix : 'general';
+    const section = sectionFor(fact.key.split('.', 1)[0] ?? '', sections);
     grouped.set(section, [...(grouped.get(section) ?? []), fact]);
   }
   const ordered = [...sections, { key: 'general', label: 'Other' }].filter((s) => grouped.has(s.key));
