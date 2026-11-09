@@ -302,6 +302,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
         ref={scrollRef}
         onScroll={onScroll}
         className={listClassName ?? 'flex-1 min-h-0 overflow-y-auto px-2 py-3'}
+        /*
+         * ⚠ THE PANEL DRAWS ITS OWN SCROLLBAR (1.49.0): thin, in the accent. Porter's thin bar came from
+         * Portify's global stylesheet, so Mira got the browser's thick grey one with arrows.
+         */
+        style={{ scrollbarWidth: 'thin', scrollbarColor: 'color-mix(in srgb, var(--ai-accent) 55%, transparent) transparent' }}
         role="log"
         aria-label={label}
         aria-busy={busy}

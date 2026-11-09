@@ -15,6 +15,8 @@ import type { PanelMessage } from '../src/types';
  * screenshot somebody has to notice.
  */
 const PORTER: AssistantTheme = {
+  // Porter's named look (1.49.0): on glass the surface-coloured bubble shows, on solid it is tinted.
+  panel: 'glass',
   surface: 'rgba(255,255,255,0.7)',
   fg: '#1e293b',
   muted: '#64748b',

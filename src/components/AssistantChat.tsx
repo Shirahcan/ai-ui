@@ -25,7 +25,7 @@ import { canReadAloud, speak, stopSpeaking } from '../speech/readAloud';
 import type { ComposerMentionsConfig, ComposerSlashCommand } from './ComposerPicker';
 import { downloadConversationText, printConversation, readRenderedTurns } from '../conversationCopy';
 import { CollapseIcon, DownloadIcon, ExpandIcon, MenuIcon, PencilIcon, PlusIcon, PrintIcon } from '../icons';
-import { themeToVars, type AssistantTheme } from '../theme';
+import { panelLookStyle, themeToVars, type AssistantTheme } from '../theme';
 import type { MarkdownTheme } from '../markdown';
 import type { AttachmentChip, PanelMessage } from '../types';
 import type { AssistantInputKind, AssistantTurnOptions } from '../useAssistantConversation';
@@ -53,8 +53,8 @@ import type { AssistantHumanCheck } from '../useAssistantConversation';
  * remember to concatenate, and no layout decision left outside this file. The
  * theme is hex values (`AssistantTheme`), which cannot change the shape of
  * anything; the only classes a product may supply are `theme.card`, for the
- * POSITION, shadow and blur that genuinely differ (Porter floats above a stack
- * of two buttons behind glass; Mira floats above one on a flat card).
+ * POSITION (where its dock floats the card). Its look is a named choice,
+ * `theme.panel` (`glass` for Porter, `solid` for Mira), drawn here (1.49.0).
  *
  * ⚠ AND THE MESSAGE BODY IS NOT A SLOT EITHER. The first cut of this file
  * kept a `renderMessageBody` hatch "for Porter's action modules and CTA cards",
@@ -612,7 +612,8 @@ export function AssistantChat({
       onClose={onClose}
       closeLabel={closeLabel}
       className={theme.card}
-      style={themeToVars(theme)}
+      // The card's look comes from the theme's named `panel`, never from `card` (1.49.0).
+      style={{ ...themeToVars(theme), ...panelLookStyle(theme) }}
       leading={
         hasMenu ? (
           <button

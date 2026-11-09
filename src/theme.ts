@@ -41,6 +41,7 @@ export const AI_UI_CSS_VARIABLES = [
   '--ai-bubble-assistant-bg',
   '--ai-bubble-assistant-border',
   '--ai-bubble-assistant-fg',
+  '--ai-card-border',
 ] as const;
 
 export type AiUiCssVariable = (typeof AI_UI_CSS_VARIABLES)[number];
@@ -61,6 +62,7 @@ const FALLBACK: Record<AiUiCssVariable, string> = {
   '--ai-bubble-assistant-bg': 'transparent',
   '--ai-bubble-assistant-border': 'transparent',
   '--ai-bubble-assistant-fg': '#0f172a',
+  '--ai-card-border': '#e2e8f0',
 };
 
 /**
@@ -86,11 +88,12 @@ export function aiVar(name: AiUiCssVariable): string {
  * nothing in the type system, the tests or the lint had an opinion about it.
  * A hex value cannot change the shape of anything. That is the point.
  *
- * ⚠ ONLY `card` TAKES CLASSES, and only for POSITION, shadow and blur - the
- * three things that are genuinely the product's (Porter floats above a stack of
- * two buttons and carries a glass treatment; Mira floats above one and is a flat
- * white card). The size, radius, padding and type scale are not reachable from
- * here at all.
+ * ⚠ ONLY `card` TAKES CLASSES, and only for POSITION (where the dock floats it).
+ * The look is a NAMED choice, `panel: 'glass' | 'solid'` (1.49.0): shadow, blur,
+ * hairline and the answer card are drawn from it by the panel. Until 1.49 the
+ * shadow and blur rode in `card` too, and that is how Mira's flat card came to draw
+ * her answers as loose prose beside Porter's carded ones. The size, radius,
+ * padding and type scale are not reachable from here at all.
  */
 export interface AssistantTheme {
   /** The card's own background and its default text colour. */
@@ -140,7 +143,21 @@ export interface AssistantTheme {
   /** Its hairline. Defaults to the fill, which is what makes it invisible. */
   assistantBubbleBorder?: string;
 
-  /** Position, shadow, blur. NOT size, radius, padding or type. */
+  /**
+   * The panel's own look, by NAME (1.49.0). `solid` (the default) is an opaque card; `glass` is a
+   * translucent one with a blur behind it (Portify's design system). Set `surface` to match: a
+   * translucent colour for `glass`, an opaque one for `solid`.
+   *
+   * ⚠ OWNER 2026-11-09: "the shared panel should support proper customizations" AND it must not
+   * differ. The shadow, the blur, the card's hairline and a VISIBLE answer card used to arrive as a
+   * free class string in `card`, so Mira's flat card drew her answers as loose prose while Porter's
+   * sat in cards. The look is now chosen here and drawn by the panel; `card` is placement only.
+   */
+  panel?: 'solid' | 'glass';
+  /** The card's outer hairline. Defaults to white on `glass` (it catches the light) and `border` on `solid`. */
+  cardBorder?: string;
+
+  /** WHERE the card floats (position, z-index, the dock's corner). NOT its look, size, radius, padding or type. */
   card?: string;
 
   /*
@@ -172,12 +189,22 @@ export interface AssistantTheme {
 export function themeToVars(theme: AssistantTheme): Record<string, string> {
   const accentSoft = theme.accentSoft ?? theme.accentFg;
   const variant = theme.assistantBubble ?? 'surface';
+  const glass = theme.panel === 'glass';
+  /*
+   * ⚠ ON A SOLID CARD THE DEFAULT ANSWER CARD IS A FAINT TINT OF THE TEXT COLOUR, NOT THE SURFACE
+   * (1.49.0). On glass a bubble in the surface colour shows, because two translucent layers are
+   * whiter than one. On an opaque card the same rule painted white on white: Mira's answers had no
+   * card at all, which is the difference the owner saw between her panel and Porter's.
+   */
+  const surfaceBubble = glass ? theme.surface : `color-mix(in srgb, ${theme.fg} 4%, ${theme.surface})`;
   const assistantBg =
     variant === 'plain'
       ? 'transparent'
       : variant === 'filled'
         ? (theme.assistantBubbleBg ?? theme.accentSoft ?? '#f1f5f9')
-        : (theme.assistantBubbleBg ?? theme.surface);
+        : (theme.assistantBubbleBg ?? surfaceBubble);
+  const assistantBorder =
+    theme.assistantBubbleBorder ?? (variant === 'surface' && !glass && theme.assistantBubbleBg === undefined ? theme.border : assistantBg);
 
   return {
     '--ai-surface': theme.surface,
@@ -202,13 +229,30 @@ export function themeToVars(theme: AssistantTheme): Record<string, string> {
      * bubble is `border border-white` on a white card: present, measurable, and
      * invisible. A product that wants the bubble to show sets this.
      */
-    '--ai-bubble-assistant-border': theme.assistantBubbleBorder ?? assistantBg,
+    '--ai-bubble-assistant-border': assistantBorder,
     '--ai-bubble-assistant-fg': theme.assistantBubbleFg ?? theme.fg,
+    '--ai-card-border': theme.cardBorder ?? (glass ? '#ffffff' : theme.border),
     // Only what the product chose: an unset value keeps the CSS fallback in the component.
     ...(theme.dialogSurface ? { '--ai-dialog-bg': theme.dialogSurface } : {}),
     ...(theme.dialogBorder ? { '--ai-dialog-border': theme.dialogBorder } : {}),
     ...(theme.overlay ? { '--ai-overlay': theme.overlay } : {}),
     ...(theme.dialogRadius ? { '--ai-dialog-radius': theme.dialogRadius } : {}),
     ...(theme.radius ? { '--ai-radius': theme.radius } : {}),
+  };
+}
+
+/** The one shadow every assistant card floats on, whichever look it chose. */
+export const ASSISTANT_CARD_SHADOW = '0 12px 40px rgba(0, 0, 0, 0.16)';
+
+/**
+ * The card's LOOK as a style, from the theme's named `panel` (1.49.0): its hairline, the shared
+ * shadow and, on `glass`, the blur. Drawn by the panel, never by a class a product supplies, so two
+ * products differ only in the values they chose and the look they named.
+ */
+export function panelLookStyle(theme: AssistantTheme): Record<string, string> {
+  return {
+    border: `1px solid ${aiVar('--ai-card-border')}`,
+    boxShadow: ASSISTANT_CARD_SHADOW,
+    ...(theme.panel === 'glass' ? { backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' } : {}),
   };
 }

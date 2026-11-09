@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AssistantTheme } from '../theme';
-import type { MarkdownTheme } from '../markdown';
 import type { PanelMessage } from '../types';
 import type { AssistantSpaceClient } from '../space/client';
 import { useAssistantConversation, type AssistantTurnOptions } from '../useAssistantConversation';
@@ -84,8 +83,11 @@ export interface AssistantSpaceAdapter {
    * conversation on screen (Mira's "Get help" exists only once there is one).
    */
   actions?: AssistantChatAction[] | ((panel: SpacePanelControls) => AssistantChatAction[]);
-  /** The product's Markdown look for answers (Mira's), when it differs from the default. */
-  markdownTheme?: MarkdownTheme;
+  /*
+   * ⚠ NO `markdownTheme` (removed 1.49.0, owner 2026-11-09: the panel "still differs"). Mira's own class
+   * map drew lists, spacing and links differently from Porter's; every answer now has one format, and a
+   * product's colours reach it through the theme.
+   */
   /** A product notice above the composer ("A support ticket was created"); the panel's own notices win. */
   notice?: string | null;
   /** "What {assistant} knows about you". Default on; it shows only when memory answers. */
@@ -324,7 +326,6 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
         stage={conversation.stage}
         error={conversation.error}
         notice={notice ?? (conversation.queued ? 'Sending as soon as your conversation finishes loading...' : (adapter.notice ?? null))}
-        markdownTheme={adapter.markdownTheme}
         onSend={ask}
         onStop={conversation.stop}
         onRetry={conversation.retry}

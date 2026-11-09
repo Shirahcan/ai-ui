@@ -140,7 +140,7 @@ export type {
 } from './components/AssistantMessageBody';
 export { OperationConfirm } from './messages/OperationConfirm';
 
-export { themeToVars } from './theme';
+export { themeToVars, panelLookStyle, ASSISTANT_CARD_SHADOW } from './theme';
 export type { AssistantTheme } from './theme';
 
 export type {
