@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import type { TerminalAnswer, TerminalOption, TerminalQuestion as Question } from './types';
 
@@ -51,6 +51,10 @@ export function TerminalQuestionBlock({
   const [other, setOther] = useState<string[]>(() => questions.map(() => ''));
   // Several questions are tabs; the last tab (index = questions.length) is the summary.
   const [tab, setTab] = useState(0);
+  // The person moved between tabs (not the first draw): focus follows into the new tab, so the keys
+  // keep working after a pick moves on (the picked button is gone with its tab).
+  const moved = useRef(false);
+  const panel = useRef<HTMLDivElement | null>(null);
   const live = answerable && onAnswer !== undefined;
   const tabbed = questions.length > 1;
   const summary = tabbed && tab === questions.length;
@@ -62,7 +66,16 @@ export function TerminalQuestionBlock({
   };
   const ready = questions.every((_, i) => answerFor(i) !== '');
 
-  const go = (next: number) => setTab(Math.max(0, Math.min(questions.length, next)));
+  const go = (next: number) => {
+    moved.current = true;
+    setTab(Math.max(0, Math.min(questions.length, next)));
+  };
+
+  useEffect(() => {
+    if (!moved.current) return;
+    moved.current = false;
+    (panel.current?.querySelector<HTMLElement>('[role="radio"], [role="checkbox"], input') ?? panel.current)?.focus();
+  }, [tab]);
 
   const toggle = (qi: number, label: string) => {
     const multi = questions[qi]?.multi ?? false;
@@ -230,7 +243,8 @@ export function TerminalQuestionBlock({
               onClick={() => go(qi)}
               className={`${TAB} ${tab === qi ? 'bg-[var(--term-accent)] font-semibold text-[var(--term-on-accent)]' : 'text-[var(--term-text)] hover:bg-[var(--term-selection)]'}`}
             >
-              <span aria-hidden="true">{done ? '☒' : '☐'} </span>
+              {/* ✓ and ○, not ☒ and ☐: at the console's size a crossed box reads as an empty one. */}
+              <span aria-hidden="true">{done ? '✓' : '○'} </span>
               {tabName(q, qi)}
             </button>
           );
@@ -248,7 +262,7 @@ export function TerminalQuestionBlock({
       </div>
 
       {summary ? (
-        <div role="tabpanel" aria-label="Review your answers" onKeyDown={onKey(null)} tabIndex={-1} className="outline-none">
+        <div ref={panel} role="tabpanel" aria-label="Review your answers" onKeyDown={onKey(null)} tabIndex={-1} className="outline-none">
           <p className="font-semibold text-[var(--term-text)]">Review your answers</p>
           <ul className="mt-1 space-y-1">
             {questions.map((q, qi) => {
@@ -285,7 +299,7 @@ export function TerminalQuestionBlock({
           </div>
         </div>
       ) : (
-        <div role="tabpanel" aria-label={tabName(questions[tab] as Question, tab)}>
+        <div ref={panel} role="tabpanel" aria-label={tabName(questions[tab] as Question, tab)}>
           {questionBody(questions[tab] as Question, tab)}
           <p className="ml-6 mt-2 text-[11px] text-[var(--term-dim)]">1-9 pick · ← → tabs</p>
         </div>

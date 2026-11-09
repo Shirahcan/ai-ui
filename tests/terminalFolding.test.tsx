@@ -78,6 +78,8 @@ describe('findings, questions and ideas', () => {
 
     expect(lines[0]).toMatchObject({ chips: ['brainstorm'] });
     expect(lines.at(-1)).toMatchObject({ kind: 'ideas', open: true, recommendation: 'Three tiers with a comparison table.' });
+    const atPro = toLines([ask('a1', 'x', { mode: 'brainstorm' }), answer('b1', { mode: 'brainstorm', level: 'pro', served_level: 'pro', ideas: [{ title: 'One' }] })]);
+    expect(atPro.at(-1)).toMatchObject({ kind: 'ideas', level: 'by Pro' });
     expect(lines.some((l) => l.kind === 'outcome')).toBe(false);
   });
 });
@@ -191,13 +193,15 @@ describe('AssistantTerminal 1.45', () => {
 
     render(<Harness turns={turns} onAnswer={onAnswer} />);
 
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['☐ Tone', '☐ Audience', '· Submit']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['○ Tone', '○ Audience', '· Submit']);
     fireEvent.click(screen.getByRole('radio', { name: /warm/i }));
     // A pick moves on to the next tab.
     expect(screen.getByRole('tab', { name: /audience/i }).getAttribute('aria-selected')).toBe('true');
-    fireEvent.click(screen.getByRole('radio', { name: /employers/i }));
+    // Focus follows into the new tab, so the keys keep working: 1 picks the first choice there.
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: /employers/i }));
+    fireEvent.keyDown(document.activeElement as Element, { key: '1' });
     expect(screen.getByText('Review your answers')).toBeTruthy();
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['☒ Tone', '☒ Audience', '✔ Submit']);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['✓ Tone', '✓ Audience', '✔ Submit']);
 
     fireEvent.click(screen.getByRole('button', { name: 'Send answers' }));
     expect(onAnswer).toHaveBeenCalledWith('b1', [{ question: 'Which tone?', answer: 'Warm' }, { question: 'Who reads it?', answer: 'Employers' }]);

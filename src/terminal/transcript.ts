@@ -183,7 +183,7 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
       });
 
       if (s.ideas?.length || s.recommendation) {
-        out.push({ key: `${turn.id}:ideas`, kind: 'ideas', ideas: s.ideas ?? [], recommendation: s.recommendation ?? null, open: last, muted });
+        out.push({ key: `${turn.id}:ideas`, kind: 'ideas', ideas: s.ideas ?? [], recommendation: s.recommendation ?? null, open: last, level: levelPhrase(asked, s.served_level), muted });
       }
 
       const questions = s.questions ?? [];
@@ -196,7 +196,7 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
 
       if (s.plan) {
         // A plan waits for a yes only while it is the last thing said and nothing is running.
-        out.push({ key: `${turn.id}:plan`, kind: 'plan', summary: s.plan.summary, steps: s.plan.steps ?? [], turnId: askId, open: last, muted });
+        out.push({ key: `${turn.id}:plan`, kind: 'plan', summary: s.plan.summary, steps: s.plan.steps ?? [], turnId: askId, open: last, level: levelPhrase(asked, s.served_level), muted });
       } else if (questions.length === 0 && !(s.ideas?.length || s.recommendation)) {
         const outcome = outcomeLine(s.outcome);
         const retry = outcome.tone === 'fail' && last ? nextLevel(asked) : null;

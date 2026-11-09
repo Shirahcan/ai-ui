@@ -265,6 +265,7 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
                     </div>
                   </div>
                 ) : null}
+                {line.level ? <p className="mt-1 text-right text-[11px] text-[var(--term-dim)]">{line.level}</p> : null}
               </div>
             );
 
@@ -298,6 +299,7 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
                 <p className="flex gap-2">
                   <span aria-hidden="true" className={`${MARK} text-[var(--term-accent)]`}>▸</span>
                   <span className="min-w-0 flex-1 font-semibold text-[var(--term-text)]">{line.summary}</span>
+                  {line.level ? <span className="shrink-0 text-[11px] text-[var(--term-dim)]">{line.level}</span> : null}
                 </p>
                 <ol className="ml-6 mt-1 list-decimal space-y-0.5 pl-4 text-[var(--term-dim)]">
                   {line.steps.map((step, i) => (
