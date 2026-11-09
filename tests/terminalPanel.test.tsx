@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { AssistantTerminal, type AssistantTerminalProps } from '../src/terminal/AssistantTerminal';
 import { parseCommand } from '../src/terminal/commands';
 import { TERMINAL_THEMES, contrastRatio } from '../src/terminal/terminalThemes';
-import type { TerminalTurn } from '../src/terminal/types';
+import type { TerminalMode, TerminalTurn } from '../src/terminal/types';
 import { clampTerminalWidth } from '../src/terminal/useTerminalDock';
 
 /**
@@ -22,7 +22,7 @@ const turns: TerminalTurn[] = [
 
 function Harness(overrides: Partial<AssistantTerminalProps> = {}) {
   const [value, setValue] = useState('');
-  const [mode, setMode] = useState<'build' | 'plan'>('build');
+  const [mode, setMode] = useState<TerminalMode>('build');
 
   return (
     <AssistantTerminal
@@ -61,6 +61,9 @@ describe('AssistantTerminal', () => {
     render(<Harness />);
 
     expect(screen.getByText('Make the hero darker')).toBeTruthy();
+    // Folded once something follows it (owner 2026-11-09): opened with a click.
+    expect(screen.queryByText('They want contrast; I will darken the band only.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /thought it through/i }));
     expect(screen.getByText('They want contrast; I will darken the band only.')).toBeTruthy();
     expect(screen.getByText('Writing the hero')).toBeTruthy();
     expect(screen.getByText('Changed 1 element')).toBeTruthy();

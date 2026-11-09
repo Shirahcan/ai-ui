@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AttachmentChip } from '../types';
 import type { AssistantInputKind } from '../useAssistantConversation';
@@ -8,14 +8,17 @@ import { TerminalInput, type TerminalComposerOptions, type TerminalMentions } fr
 import { TerminalLines } from './TerminalLines';
 import { TerminalRewind, type TerminalRewindChoice } from './TerminalRewind';
 import { TerminalStatus } from './TerminalStatus';
-import { BriefView, ContextView, HelpView, ResumeView, ThemeView } from './TerminalViews';
+import { BriefView, ContextView, HelpView, ResumeView, ThemeView, TuningView } from './TerminalViews';
 import { TERMINAL_THEMES, terminalTheme, themeToTerminalVars, type TerminalTheme } from './terminalThemes';
-import { toLines, toMarkdown } from './transcript';
-import type { TerminalBrief, TerminalLive, TerminalNote, TerminalSessionRow, TerminalSize, TerminalTurn } from './types';
+import { recapLines, toLines, toMarkdown } from './transcript';
+import type { TerminalAnswer, TerminalBrief, TerminalEffort, TerminalLevel, TerminalLive, TerminalMode, TerminalNote, TerminalSessionRow, TerminalSize, TerminalTurn } from './types';
 import { useTerminalDock } from './useTerminalDock';
 import { useTerminalKeys } from './useTerminalKeys';
 
-type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind';
+type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind' | 'tuning';
+
+const ALL_LEVELS: TerminalLevel[] = ['normal', 'pro', 'expert'];
+const ALL_EFFORTS: TerminalEffort[] = ['low', 'medium', 'high'];
 
 /** The commands the panel runs itself; the rest go to the host. */
 const PANEL_VIEWS: Partial<Record<TerminalCommandName, View>> = { help: 'help', context: 'context', resume: 'resume', rewind: 'rewind', theme: 'theme', brief: 'brief' };
@@ -43,8 +46,29 @@ export interface AssistantTerminalProps {
   /** Loading the console, or its history could not be read: a line says so. */
   loading?: boolean;
 
-  mode: 'build' | 'plan';
-  onModeChange: (mode: 'build' | 'plan') => void;
+  mode: TerminalMode;
+  onModeChange: (mode: TerminalMode) => void;
+  /** The modes Alt+M cycles through (1.45.0). Default Build and Plan first; add `brainstorm` to offer it. */
+  modes?: TerminalMode[];
+  /** How capable a model answers, and how hard it thinks (1.45.0): host-owned; omit to offer neither. */
+  level?: TerminalLevel;
+  levels?: TerminalLevel[];
+  onLevelChange?: (level: TerminalLevel) => void;
+  effort?: TerminalEffort;
+  efforts?: TerminalEffort[];
+  onEffortChange?: (effort: TerminalEffort) => void;
+  /** "Try again at Pro" on a failed answer: the ask's turn id and the level to try it at. */
+  onRetry?: (turnId: string, level: TerminalLevel) => void;
+  /** The person's answers to the assistant's questions (the multiple-choice tool). */
+  onAnswer?: (turnId: string, answers: TerminalAnswer[]) => void;
+  /** "Do this" on a suggestion, "Build this" on a recommendation: the host runs it as the next ask. */
+  onSuggestion?: (text: string) => void;
+  /** Minutes away before a recap is shown on return (1.45.0); null turns it off. Default 30. */
+  recapAfterMinutes?: number | null;
+  /** `/recap off` and `/recap <minutes>`: the host keeps the choice. */
+  onRecapChange?: (minutes: number | null) => void;
+  /** Mark the tab title when an ask finishes while the tab is hidden. Default true. */
+  notifyWhenDone?: boolean;
   target?: { label: string; onClear: () => void } | null;
 
   value: string;
@@ -88,8 +112,10 @@ export interface AssistantTerminalProps {
 export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Element {
   const {
     open, onClose, assistantName, subjectLabel, subjectNoun = 'page', title, session, turns, live = null, notes = [], size = null, brief = null,
-    history = [], loading = false, mode, onModeChange, target = null, value, onChange, onAsk, composer, mentions, onStop, onCommand, onRewind,
+    history = [], loading = false, mode, onModeChange, modes = ['build', 'plan'], target = null, value, onChange, onAsk, composer, mentions, onStop, onCommand, onRewind,
     onBuildPlan, onDismissPlan, sessions, onSaveBrief, onClearDraft, theme, themes = TERMINAL_THEMES, onThemeChange, width, onWidthChange, onError, className = '',
+    level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion,
+    recapAfterMinutes = 30, onRecapChange, notifyWhenDone = true,
   } = props;
   const [view, setView] = useState<View | null>(null);
   const [rewindFrom, setRewindFrom] = useState<string | null>(null);
@@ -97,14 +123,97 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
   const [clearedThrough, setClearedThrough] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // What the person opened (thinking, a long reply, a rewound turn), by line key: folded, never cut.
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
+  const [recap, setRecap] = useState<{ key: string; lines: string[] } | null>(null);
   const dock = useTerminalDock(width, onWidthChange);
   const words = useMemo(() => ({ assistant: assistantName, subject: subjectNoun }), [assistantName, subjectNoun]);
   const active = terminalTheme(theme, themes);
   const working = live !== null;
   const lines = useMemo(
-    () => toLines(turns, { session, live, expanded, notes, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName }),
-    [turns, session, live, expanded, notes, clearedThrough, assistantName],
+    () => toLines(turns, { session, live, expanded, opened, notes, recap, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName }),
+    [turns, session, live, expanded, opened, notes, recap, clearedThrough, assistantName],
   );
+  const hidden = useMemo(() => {
+    const out: TerminalCommandName[] = [];
+
+    if (!onLevelChange) out.push('level');
+    if (!onEffortChange) out.push('effort');
+    if (!modes.includes('brainstorm')) out.push('brainstorm');
+
+    return out;
+  }, [onLevelChange, onEffortChange, modes]);
+  const nextMode = () => modes[(modes.indexOf(mode) + 1) % modes.length] ?? 'build';
+  const toggleOpen = useCallback((key: string) => {
+    setOpened((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+
+      return next;
+    });
+  }, []);
+
+  // A recap after a break (owner 2026-11-09): the last moment the person was here, and on their return
+  // (the tab shown again, the window or the console focused) where the session stands. No AI call.
+  const lastHere = useRef(Date.now());
+  const recapLatest = useRef({ turns, words, recapAfterMinutes, working });
+
+  useEffect(() => {
+    recapLatest.current = { turns, words, recapAfterMinutes, working };
+  });
+
+  const returned = useCallback(() => {
+    const { turns: all, words: w, recapAfterMinutes: minutes, working: busy } = recapLatest.current;
+    const away = Date.now() - lastHere.current;
+
+    lastHere.current = Date.now();
+    if (minutes === null || busy || away < minutes * 60_000) return;
+
+    const text = recapLines(all, w);
+
+    if (text.length > 0) setRecap({ key: `recap:${Date.now()}`, lines: text });
+  }, []);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') returned();
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', returned);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', returned);
+    };
+  }, [returned]);
+
+  // An ask that finishes while the tab is hidden marks the tab title until the person looks.
+  const wasWorking = useRef(working);
+
+  useEffect(() => {
+    const finished = wasWorking.current && !working;
+
+    wasWorking.current = working;
+    if (!finished || !notifyWhenDone || typeof document === 'undefined' || document.visibilityState === 'visible') return;
+
+    const original = document.title;
+    const mark = `✓ ${assistantName} finished · `;
+
+    document.title = mark + original;
+
+    const restore = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (document.title.startsWith(mark)) document.title = document.title.slice(mark.length);
+      document.removeEventListener('visibilitychange', restore);
+    };
+
+    document.addEventListener('visibilitychange', restore);
+
+    return () => document.removeEventListener('visibilitychange', restore);
+  }, [working, notifyWhenDone, assistantName]);
   const scroll = useAutoscroll<HTMLDivElement>({ watch: lines });
   const panelTitle = title ?? `${assistantName} console`;
   const inputWrap = useRef<HTMLDivElement | null>(null);
@@ -149,6 +258,25 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
 
     if (name === 'brief' && arg !== '') return onSaveBrief(arg);
     if (name === 'plan') return onModeChange(mode === 'plan' ? 'build' : 'plan');
+    if (name === 'brainstorm') return onModeChange(mode === 'brainstorm' ? 'build' : 'brainstorm');
+    if (name === 'level' || name === 'effort') {
+      const pick = arg.toLowerCase();
+
+      if (name === 'level' && (levels as string[]).includes(pick)) return onLevelChange?.(pick as TerminalLevel);
+      if (name === 'effort' && (efforts as string[]).includes(pick)) return onEffortChange?.(pick as TerminalEffort);
+
+      return openView('tuning');
+    }
+    if (name === 'recap') {
+      const minutes = Number(arg);
+
+      if (arg === 'off') return onRecapChange?.(null);
+      if (arg !== '' && Number.isFinite(minutes) && minutes > 0) return onRecapChange?.(Math.round(minutes));
+
+      const text = recapLines(turns, words);
+
+      return setRecap({ key: `recap:${Date.now()}`, lines: text.length > 0 ? text : [`Nothing asked in this session yet.`] });
+    }
     if (name === 'export') return void exportTranscript();
     if (name === 'clear') setClearedThrough(null);
 
@@ -170,7 +298,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
       onClearDraft?.(value);
       onChange('');
     },
-    onToggleMode: () => onModeChange(mode === 'plan' ? 'build' : 'plan'),
+    onToggleMode: () => onModeChange(nextMode()),
     onToggleDetails: () => setExpanded((e) => !e),
     onClearScreen: () => setClearedThrough(turns.at(-1)?.id ?? null),
     onHelp: () => openView('help'),
@@ -193,7 +321,9 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
       case 'resume':
         return <ResumeView sessions={sessions?.list ?? null} currentId={session?.id ?? null} subject={subjectNoun} onBack={closeView} onOpen={(id) => { closeView(); sessions?.onOpen(id); }} />;
       case 'help':
-        return <HelpView words={words} onBack={closeView} />;
+        return <HelpView words={words} hidden={hidden} onBack={closeView} />;
+      case 'tuning':
+        return <TuningView assistant={assistantName} levels={levels} level={level} onLevel={onLevelChange} efforts={efforts} effort={effort} onEffort={onEffortChange} onBack={closeView} />;
       case 'theme':
         return <ThemeView themes={themes} current={active.key} onPick={onThemeChange} onBack={closeView} />;
       case 'brief':
@@ -212,6 +342,10 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
       aria-hidden={!open}
       inert={!open}
       onKeyDown={onKeyDown}
+      onFocus={returned}
+      onPointerDown={() => {
+        lastHere.current = Date.now();
+      }}
       className={`flex flex-col overflow-hidden rounded-xl border border-[var(--term-border)] bg-[var(--term-bg)] text-[13px] leading-6 text-[var(--term-text)] shadow-[0_24px_64px_rgba(2,6,23,0.45)] motion-safe:transition-transform motion-safe:duration-200 ${open ? 'translate-x-0' : 'pointer-events-none -translate-x-[calc(100%+2rem)]'} ${className}`}
       style={{ ...themeToTerminalVars(active), width: dock.width, fontFamily: MONO } as React.CSSProperties}
     >
@@ -248,11 +382,20 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             {!loading && lines.length === 0 ? (
               <div className="text-[var(--term-dim)]">
                 <p className="text-[var(--term-text)]">Describe what you want on this {subjectNoun}, and {assistantName} will build it.</p>
-                <p className="mt-2">/ commands · @ aim at an element · ↑ earlier asks · ? shortcuts · alt+m plan first</p>
+                <p className="mt-2">/ commands · @ aim at an element · ↑ earlier asks · ? shortcuts · alt+m {modes.includes('brainstorm') ? 'plan first or brainstorm' : 'plan first'}</p>
                 {brief ? <p className="mt-2">Brief: <span className="text-[var(--term-text)]">{brief.text}</span></p> : null}
               </div>
             ) : null}
-            <TerminalLines lines={lines} onRewind={(turnId) => { setRewindFrom(turnId); openView('rewind'); }} onBuildPlan={onBuildPlan} onDismissPlan={onDismissPlan} />
+            <TerminalLines
+              lines={lines}
+              onRewind={(turnId) => { setRewindFrom(turnId); openView('rewind'); }}
+              onBuildPlan={onBuildPlan}
+              onDismissPlan={onDismissPlan}
+              onToggle={toggleOpen}
+              onRetry={onRetry}
+              onAnswer={onAnswer ? (turnId, answers) => { setRecap(null); onAnswer(turnId, answers); } : undefined}
+              onSuggestion={onSuggestion ? (text) => { setRecap(null); onSuggestion(text); } : undefined}
+            />
           </div>
           {!scroll.isPinned ? (
             <button type="button" onClick={scroll.scrollToBottom} className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[var(--term-border)] bg-[var(--term-bar)] px-3 py-0.5 text-[11px] text-[var(--term-text)] shadow outline-none focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">
@@ -268,20 +411,26 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
         startedAt={live?.startedAt ?? null}
         stopping={live?.stopping}
         mode={mode}
-        onToggleMode={() => onModeChange(mode === 'plan' ? 'build' : 'plan')}
+        onToggleMode={() => onModeChange(nextMode())}
         target={target}
         size={size}
         onContext={() => openView('context')}
+        tuning={onLevelChange || onEffortChange ? { level: onLevelChange ? level : null, effort: onEffortChange ? effort : null, onOpen: () => openView('tuning') } : null}
       />
 
       <div ref={inputWrap} className="shrink-0 bg-[var(--term-bar)] px-2 pb-2">
         <TerminalInput
           value={value}
           onChange={onChange}
-          onAsk={onAsk}
+          onAsk={(text, files, input) => {
+            setRecap(null);
+            lastHere.current = Date.now();
+            onAsk(text, files, input);
+          }}
           onCommand={command}
           history={history}
           words={words}
+          hiddenCommands={hidden}
           mentions={mentions}
           composer={composer}
           searching={searching}

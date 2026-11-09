@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-import { TERMINAL_COMMANDS, TERMINAL_KEYS, fillWords } from './commands';
+import { TERMINAL_COMMANDS, TERMINAL_KEYS, fillWords, type TerminalCommandName } from './commands';
 import type { TerminalTheme } from './terminalThemes';
-import type { TerminalBrief, TerminalSessionRow, TerminalSize } from './types';
+import { LEVEL_LABELS } from './transcript';
+import type { TerminalBrief, TerminalEffort, TerminalLevel, TerminalSessionRow, TerminalSize } from './types';
 
 /**
  * The views a command opens OVER the transcript (inside the panel, never a page modal): context,
@@ -115,13 +116,13 @@ export function ResumeView({ sessions, currentId, subject, onOpen, onBack }: { s
   );
 }
 
-export function HelpView({ words, onBack }: { words: { assistant: string; subject: string }; onBack: () => void }): React.JSX.Element {
+export function HelpView({ words, hidden = [], onBack }: { words: { assistant: string; subject: string }; hidden?: readonly TerminalCommandName[]; onBack: () => void }): React.JSX.Element {
   return (
     <TerminalView title="Commands and shortcuts" onBack={onBack}>
       <table className="w-full text-[12px]">
         <caption className="mb-1 text-left font-semibold text-[var(--term-text)]">Commands (type / at the start)</caption>
         <tbody>
-          {TERMINAL_COMMANDS.map((c) => (
+          {TERMINAL_COMMANDS.filter((c) => !hidden.includes(c.name)).map((c) => (
             <tr key={c.name} className="align-top">
               <th scope="row" className="whitespace-nowrap py-0.5 pr-3 text-left font-normal text-[var(--term-accent)]">/{c.name}{c.args ? ` ${c.args}` : ''}</th>
               <td className="py-0.5 text-[var(--term-dim)]">{fillWords(c.description, words)}</td>
@@ -140,6 +141,94 @@ export function HelpView({ words, onBack }: { words: { assistant: string; subjec
           ))}
         </tbody>
       </table>
+    </TerminalView>
+  );
+}
+
+const LEVEL_NOTES: Record<TerminalLevel, string> = {
+  normal: 'The everyday models: fast, and enough for most asks.',
+  pro: 'A stronger model for harder asks. Falls back to Normal when it is unavailable.',
+  expert: 'The strongest model, for the hardest asks. Slower, and costs the most. Falls back to Pro, then Normal.',
+};
+
+const EFFORT_NOTES: Record<TerminalEffort, string> = {
+  low: 'Answers quickly. Right for most asks.',
+  medium: 'Thinks longer before it answers.',
+  high: 'Thinks the longest. Slower, for asks that need care.',
+};
+
+function Choices<T extends string>({ label, values, current, labels, notes, onPick }: { label: string; values: T[]; current: T; labels: Record<T, string>; notes: Record<T, string>; onPick: (value: T) => void }): React.JSX.Element {
+  const move = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const at = values.indexOf(current);
+    const next = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? at + 1 : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? at - 1 : null;
+
+    if (next === null) return;
+    event.preventDefault();
+    const value = values[(next + values.length) % values.length] ?? current;
+
+    onPick(value);
+    (event.currentTarget.querySelector(`[data-value="${value}"]`) as HTMLElement | null)?.focus();
+  };
+
+  return (
+    <div role="radiogroup" aria-label={label} onKeyDown={move} className="grid gap-2">
+      {values.map((value) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          data-value={value}
+          aria-checked={value === current}
+          tabIndex={value === current ? 0 : -1}
+          onClick={() => onPick(value)}
+          className={`rounded-md border px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--term-accent)] ${value === current ? 'border-[var(--term-accent)]' : 'border-[var(--term-border)]'}`}
+        >
+          <span className="block text-[12px] font-semibold text-[var(--term-text)]">{labels[value]}{value === current ? ' (on)' : ''}</span>
+          <span className="block text-[12px] text-[var(--term-dim)]">{notes[value]}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Level and effort (1.45.0, owner 2026-11-09): how capable a model the assistant works on, and how hard
+ * it thinks. Named by level, never by model; both kept by the host.
+ */
+export function TuningView({
+  assistant,
+  levels,
+  level,
+  onLevel,
+  efforts,
+  effort,
+  onEffort,
+  onBack,
+}: {
+  assistant: string;
+  levels: TerminalLevel[];
+  level: TerminalLevel;
+  onLevel?: (level: TerminalLevel) => void;
+  efforts: TerminalEffort[];
+  effort: TerminalEffort;
+  onEffort?: (effort: TerminalEffort) => void;
+  onBack: () => void;
+}): React.JSX.Element {
+  return (
+    <TerminalView title="Level and effort" onBack={onBack}>
+      {onLevel ? (
+        <>
+          <p className="mb-2 font-semibold text-[var(--term-text)]">Level</p>
+          <Choices label="Level" values={levels} current={level} labels={LEVEL_LABELS} notes={LEVEL_NOTES} onPick={onLevel} />
+        </>
+      ) : null}
+      {onEffort ? (
+        <>
+          <p className="mb-2 mt-4 font-semibold text-[var(--term-text)]">Effort</p>
+          <Choices label="Effort" values={efforts} current={effort} labels={{ low: 'Low', medium: 'Medium', high: 'High' }} notes={EFFORT_NOTES} onPick={onEffort} />
+        </>
+      ) : null}
+      <p className="mt-4 text-[12px] text-[var(--term-dim)]">Applies to your next ask. Each answer says which level gave it, so you can see when {assistant} fell back.</p>
     </TerminalView>
   );
 }

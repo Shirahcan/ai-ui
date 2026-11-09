@@ -23,6 +23,8 @@ export interface TerminalInputProps {
   onCommand: (name: TerminalCommandName, arg: string) => void;
   history: string[];
   words: { assistant: string; subject: string };
+  /** Commands this host does not offer (1.45.0): left out of the "/" picker. */
+  hiddenCommands?: readonly TerminalCommandName[];
   mentions?: TerminalMentions;
   composer?: TerminalComposerOptions;
   /** Ctrl+R: the reverse search row is open. */
@@ -34,12 +36,12 @@ export interface TerminalInputProps {
  * The console's input: the ONE shared `Composer` (never a copy: its docblock says why), with the up-arrow
  * history, the "/" commands run here instead of sent, "@" aiming at an element, and Ctrl+R search.
  */
-export function TerminalInput({ value, onChange, onAsk, onCommand, history, words, mentions, composer, searching, onSearchClose }: TerminalInputProps): React.JSX.Element {
+export function TerminalInput({ value, onChange, onAsk, onCommand, history, words, hiddenCommands, mentions, composer, searching, onSearchClose }: TerminalInputProps): React.JSX.Element {
   const picked = useRef(new Map<string, string>());
   // A command with nothing to add runs the moment it is picked; one that takes words fills the box.
   const commands = useMemo(
-    () => slashCommands(words).map((c) => (c.prompt.endsWith(' ') ? c : { ...c, run: () => onCommand(c.key as TerminalCommandName, '') })),
-    [words, onCommand],
+    () => slashCommands(words, hiddenCommands).map((c) => (c.prompt.endsWith(' ') ? c : { ...c, run: () => onCommand(c.key as TerminalCommandName, '') })),
+    [words, hiddenCommands, onCommand],
   );
 
   const mentionConfig = useMemo(

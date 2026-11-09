@@ -51,8 +51,11 @@ describe('toLines', () => {
     expect(lines[0]).toMatchObject({ kind: 'ask', muted: 'folded' });
     const marker = lines.findIndex((l) => l.kind === 'system');
     expect(lines[marker]).toMatchObject({ text: 'Session summarised (2 turns folded into the summary Porter reads)' });
-    expect(lines[marker + 1]).toMatchObject({ kind: 'ask', text: 'Two', muted: 'rewound' });
-    expect(lines.at(-1)).toMatchObject({ kind: 'outcome', canRewind: false, muted: 'rewound' });
+    // Rewind folds the whole block into its ask (owner 2026-11-09); opening it draws it again, dimmed.
+    expect(lines[marker + 1]).toMatchObject({ kind: 'ask', text: 'Two', muted: 'rewound', folded: 2, foldKey: 'a2:fold' });
+    expect(lines.at(-1)).toMatchObject({ kind: 'ask', text: 'Two' });
+    const open = toLines([ask('a2', 'Two', null, true), answer('b2', { outcome: { changed: true } }, 'x', true)], { opened: new Set(['a2:fold']) });
+    expect(open.at(-1)).toMatchObject({ kind: 'outcome', canRewind: false, muted: 'rewound' });
   });
 
   it('keeps a plan open only while it is the last thing said', () => {

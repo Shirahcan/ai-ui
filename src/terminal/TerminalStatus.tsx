@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
-import type { TerminalSize } from './types';
+import { LEVEL_LABELS } from './transcript';
+import type { TerminalEffort, TerminalLevel, TerminalMode, TerminalSize } from './types';
 
 /**
  * The line under the transcript, Claude Code's status line: while the assistant works, what it is doing
@@ -19,16 +20,19 @@ export function TerminalStatus({
   target,
   size,
   onContext,
+  tuning = null,
 }: {
   working: boolean;
   verb: string | null;
   startedAt: number | null;
   stopping?: boolean;
-  mode: 'build' | 'plan';
+  mode: TerminalMode;
   onToggleMode: () => void;
   target: { label: string; onClear: () => void } | null;
   size: TerminalSize | null;
   onContext: () => void;
+  /** The level and effort (1.45.0), when the host offers them: a chip that opens their picker. */
+  tuning?: { level: TerminalLevel | null; effort: TerminalEffort | null; onOpen: () => void } | null;
 }): React.JSX.Element {
   const [now, setNow] = useState(() => Date.now());
 
@@ -54,7 +58,9 @@ export function TerminalStatus({
       ) : (
         <button type="button" onClick={onToggleMode} className="min-w-0 flex-1 truncate text-left text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:text-[var(--term-text)]">
           {mode === 'plan' ? (
-            <><span className="text-[var(--term-warn)]">⏸ plan first</span> on (alt+m to build directly)</>
+            <><span className="text-[var(--term-warn)]">⏸ plan first</span> on (alt+m to switch)</>
+          ) : mode === 'brainstorm' ? (
+            <><span className="text-[var(--term-ok)]">◇ brainstorm</span> on, nothing is changed (alt+m to switch)</>
           ) : (
             <><span className="text-[var(--term-accent)]">⏵⏵ build</span> (alt+m to plan first)</>
           )}
@@ -63,6 +69,11 @@ export function TerminalStatus({
       {target ? (
         <button type="button" onClick={target.onClear} title="Stop aiming at this element" className="max-w-[10rem] shrink-0 truncate rounded border border-[var(--term-border)] px-1.5 text-[var(--term-accent)] outline-none hover:border-[var(--term-accent)] focus-visible:border-[var(--term-accent)]">
           @{target.label} ×
+        </button>
+      ) : null}
+      {tuning ? (
+        <button type="button" onClick={tuning.onOpen} title="Level and effort (/level, /effort)" className="shrink-0 rounded border border-[var(--term-border)] px-1.5 text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:border-[var(--term-accent)]">
+          {[tuning.level ? LEVEL_LABELS[tuning.level] : null, tuning.effort ? `${tuning.effort} effort` : null].filter(Boolean).join(' · ')}
         </button>
       ) : null}
       <button type="button" onClick={onContext} title="What fills the context (/context)" className={`shrink-0 tabular-nums outline-none hover:underline focus-visible:underline ${meterTone}`}>

@@ -28,16 +28,66 @@ export interface TerminalPlan {
   steps: string[];
 }
 
+/** How capable a model answers (1.45.0): the ordinary waterfall, or Pro and Expert, each falling back. */
+export type TerminalLevel = 'normal' | 'pro' | 'expert';
+
+/** How hard the model thinks (1.45.0). */
+export type TerminalEffort = 'low' | 'medium' | 'high';
+
+/** Build directly, plan first, or think it through together without changing anything (1.45.0). */
+export type TerminalMode = 'build' | 'plan' | 'brainstorm';
+
+/** Something the assistant noticed, listed under its reply as Claude Code's summary does (1.45.0). */
+export interface TerminalFinding {
+  kind: 'issue' | 'error' | 'gap' | 'suggestion' | string;
+  text: string;
+}
+
+/** One choice of a question (the multiple-choice tool). */
+export interface TerminalOption {
+  label: string;
+  description?: string | null;
+}
+
+/** A question the assistant asks before it goes on (1.45.0), with choices or none (the person types). */
+export interface TerminalQuestion {
+  text: string;
+  options: TerminalOption[];
+  multi?: boolean;
+}
+
+/** An answer the person gave, as they read it. */
+export interface TerminalAnswer {
+  question: string;
+  answer: string;
+}
+
+/** A brainstorm's idea. */
+export interface TerminalIdea {
+  title: string;
+  why?: string | null;
+}
+
 export interface TerminalTurnStructured {
   /** The element the ask was aimed at, as the person names it. */
   target?: string | null;
   files?: string[];
-  mode?: 'build' | 'plan' | string;
+  mode?: TerminalMode | string;
   steps?: TerminalStep[];
   outcome?: TerminalOutcome;
   checkpoint_id?: string | null;
   run_id?: string | null;
   plan?: TerminalPlan | null;
+  /** The level asked for and the level that answered (1.45.0). */
+  level?: TerminalLevel | null;
+  served_level?: TerminalLevel | null;
+  effort?: TerminalEffort | null;
+  findings?: TerminalFinding[];
+  questions?: TerminalQuestion[];
+  ideas?: TerminalIdea[];
+  recommendation?: string | null;
+  /** On an ask: the answers it gives to the questions before it. */
+  answers?: TerminalAnswer[];
 }
 
 export interface TerminalTurn {
@@ -118,12 +168,24 @@ export interface TerminalNote {
 
 type Muted = { muted?: 'rewound' | 'folded' };
 
+/**
+ * One line of the transcript. ⚠ FOLDED, NEVER CUT (1.45.0, owner 2026-11-09): a line that may be long
+ * carries `open` (the person opened it, or Ctrl+O opened everything); the panel draws a long one folded
+ * with "+N lines" until it is open. A rewound turn folds whole into its ask line (`folded` = the lines
+ * it holds, `foldKey` opens it).
+ */
 export type TerminalLine =
-  | ({ key: string; kind: 'ask'; text: string; chips: string[]; turnId: string | null } & Muted)
+  | ({ key: string; kind: 'ask'; text: string; chips: string[]; turnId: string | null; answers?: TerminalAnswer[]; folded?: number; foldKey?: string } & Muted)
   | ({ key: string; kind: 'step'; text: string; ms: number | null; live: boolean; stepKind: string } & Muted)
-  | ({ key: string; kind: 'detail'; text: string; stepKind: string } & Muted)
-  | ({ key: string; kind: 'reply'; text: string } & Muted)
-  | ({ key: string; kind: 'outcome'; tone: 'ok' | 'none' | 'fail'; text: string; turnId: string | null; canRewind: boolean } & Muted)
+  /** The assistant's thinking: open while it streams, folded to "Thought for 12s" once anything follows. */
+  | ({ key: string; kind: 'thinking'; text: string; ms: number | null; live: boolean; open: boolean } & Muted)
+  | ({ key: string; kind: 'detail'; text: string; stepKind: string; open: boolean } & Muted)
+  | ({ key: string; kind: 'reply'; text: string; open: boolean } & Muted)
+  | ({ key: string; kind: 'finding'; findingKind: string; text: string; actionable: boolean } & Muted)
+  | ({ key: string; kind: 'question'; turnId: string; questions: TerminalQuestion[]; answerable: boolean; answers: TerminalAnswer[] } & Muted)
+  | ({ key: string; kind: 'ideas'; ideas: TerminalIdea[]; recommendation: string | null; open: boolean } & Muted)
+  | ({ key: string; kind: 'outcome'; tone: 'ok' | 'none' | 'fail'; text: string; turnId: string | null; canRewind: boolean; level?: string | null; retry?: TerminalLevel | null } & Muted)
   | ({ key: string; kind: 'plan'; summary: string; steps: string[]; turnId: string | null; open: boolean } & Muted)
   | { key: string; kind: 'system'; text: string; tone: 'system' | 'fail' | 'ok' }
+  | { key: string; kind: 'recap'; lines: string[] }
   | { key: string; kind: 'queued'; text: string };
