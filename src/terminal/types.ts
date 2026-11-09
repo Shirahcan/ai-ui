@@ -200,5 +200,6 @@ export type TerminalLine =
   | ({ key: string; kind: 'outcome'; tone: 'ok' | 'none' | 'fail'; text: string; turnId: string | null; canRewind: boolean; level?: string | null; retry?: TerminalLevel | null } & Muted)
   | ({ key: string; kind: 'plan'; summary: string; steps: string[]; turnId: string | null; open: boolean; level?: string | null } & Muted)
   | { key: string; kind: 'system'; text: string; tone: 'system' | 'fail' | 'ok' }
-  | { key: string; kind: 'recap'; lines: string[] }
+  /** `pending` (1.51.0): the assistant is writing its own recap; these lines stand until it arrives. */
+  | { key: string; kind: 'recap'; lines: string[]; pending?: boolean }
   | { key: string; kind: 'queued'; text: string };

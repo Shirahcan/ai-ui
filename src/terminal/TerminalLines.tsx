@@ -340,8 +340,13 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
               <div key={line.key} role="note" aria-label="Recap" className="my-3 rounded-md border border-dashed border-[var(--term-border)] px-3 py-2">
                 <p className="text-[11px] font-semibold text-[var(--term-accent)]">Recap</p>
                 {line.lines.map((text) => (
-                  <p key={text} className="break-words text-[var(--term-text)]">{text}</p>
+                  <p key={text} className={`break-words ${line.pending ? 'text-[var(--term-dim)]' : 'text-[var(--term-text)]'}`}>{text}</p>
                 ))}
+                {line.pending ? (
+                  <p role="status" className="mt-1 text-[11px] text-[var(--term-dim)]">
+                    <span aria-hidden="true" className="motion-safe:animate-pulse">✻ </span>Writing the recap…
+                  </p>
+                ) : null}
               </div>
             );
 

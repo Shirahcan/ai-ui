@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -237,5 +237,74 @@ describe('the recap on opening a session', () => {
     expect(screen.queryByRole('note', { name: 'Recap' })).toBeNull();
     rerender(<Harness turns={turnsAt(120)} />);
     expect(screen.getByRole('note', { name: 'Recap' })).toBeTruthy();
+  });
+});
+
+describe('the recap the assistant writes (1.51.0)', () => {
+  const askRecap = () => {
+    fireEvent.change(input(), { target: { value: '/recap' } });
+    fireEvent.keyDown(input(), { key: 'Enter' });
+  };
+
+  it("shows the lines from the turns at once, then the assistant's own", async () => {
+    let resolve: (lines: string[] | null) => void = () => {};
+    const onRecap = vi.fn(() => new Promise<string[] | null>((r) => { resolve = r; }));
+
+    render(<Harness onRecap={onRecap} />);
+    askRecap();
+
+    const note = () => screen.getByRole('note', { name: 'Recap' }).textContent ?? '';
+
+    expect(onRecap).toHaveBeenCalledWith(null);
+    expect(note()).toContain('1 ask in this session');
+    expect(note()).toContain('Writing the recap…');
+
+    await act(async () => resolve(['You are reworking the hero; I made it darker.', 'Next, you could warm up the headline.']));
+
+    expect(note()).toContain('You are reworking the hero; I made it darker.');
+    expect(note()).not.toContain('1 ask in this session');
+    expect(note()).not.toContain('Writing the recap…');
+  });
+
+  it("keeps the lines from the turns, without an error, when the assistant's cannot be written", async () => {
+    render(<Harness onRecap={() => Promise.resolve(null)} />);
+    askRecap();
+    await act(async () => {});
+
+    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('1 ask in this session');
+    expect(screen.getByRole('note', { name: 'Recap' }).textContent).not.toContain('Writing the recap…');
+  });
+
+  it('keeps the lines from the turns when the host call fails outright', async () => {
+    render(<Harness onRecap={() => Promise.reject(new Error('down'))} />);
+    askRecap();
+    await act(async () => {});
+
+    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('1 ask in this session');
+    expect(screen.getByRole('note', { name: 'Recap' }).textContent).not.toContain('Writing the recap…');
+  });
+
+  it('tells the host how long the person was away when a session opens after a break', async () => {
+    const onRecap = vi.fn(() => Promise.resolve(['I made the hero darker two hours ago.']));
+
+    render(<Harness turns={turnsAt(120)} onRecap={onRecap} />);
+    await act(async () => {});
+
+    expect(onRecap).toHaveBeenCalledTimes(1);
+    const minutes = (onRecap.mock.calls[0] as unknown as [number])[0];
+
+    expect(minutes).toBeGreaterThanOrEqual(119);
+    expect(minutes).toBeLessThanOrEqual(121);
+    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('I made the hero darker two hours ago.');
+  });
+
+  it('does not ask the assistant about a session with nothing in it', () => {
+    const onRecap = vi.fn(() => Promise.resolve(['x']));
+
+    render(<Harness turns={[]} onRecap={onRecap} />);
+    askRecap();
+
+    expect(onRecap).not.toHaveBeenCalled();
+    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('Nothing asked in this session yet.');
   });
 });

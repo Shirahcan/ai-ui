@@ -81,6 +81,12 @@ export interface AssistantTerminalProps {
    * (1.48.0): a command wants a line saying what changed, a setting already shows its new value.
    */
   onRecapChange?: (minutes: number | null, from?: 'command' | 'settings') => void;
+  /**
+   * The assistant's own recap (1.51.0, owner 2026-11-09: "Recap should use AI"): called when a recap is
+   * due (back after the set time, a session opened after a break, `/recap`) with the minutes away (null
+   * when asked for). Resolve the lines, or null to keep the recap drawn from the turns. Omit: turns only.
+   */
+  onRecap?: (awayMinutes: number | null) => Promise<string[] | null>;
   /** Mark the tab title when an ask finishes while the tab is hidden. Default true. */
   notifyWhenDone?: boolean;
   /** The Settings view's "Mark the tab when done" (1.48.0): the host keeps the choice; omit to leave it out. */
@@ -131,7 +137,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     history = [], loading = false, mode, onModeChange, modes = ['build', 'plan'], target = null, value, onChange, onAsk, composer, mentions, onStop, onCommand, onRewind,
     onBuildPlan, onDismissPlan, sessions, onSaveBrief, onClearDraft, theme, themes = TERMINAL_THEMES, onThemeChange, width, onWidthChange, onError, className = '',
     level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion,
-    recapAfterMinutes = 30, onRecapChange, notifyWhenDone = true, onNotifyWhenDoneChange,
+    recapAfterMinutes = 30, onRecapChange, onRecap, notifyWhenDone = true, onNotifyWhenDoneChange,
   } = props;
   const [view, setView] = useState<View | null>(null);
   const [rewindFrom, setRewindFrom] = useState<string | null>(null);
@@ -147,7 +153,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
   const working = live !== null;
   // A recap describes the session as it stood: once the turns move on (a new answer, a rewind) it is no
   // longer drawn, so it never states something stale.
-  const recaps = useTerminalRecap({ turns, words, afterMinutes: recapAfterMinutes, working, loading, sessionId: session?.id ?? null });
+  const recaps = useTerminalRecap({ turns, words, afterMinutes: recapAfterMinutes, working, loading, sessionId: session?.id ?? null, fetchRecap: onRecap });
   const recap = recaps.recap;
   const lines = useMemo(
     () => toLines(turns, { session, live, expanded, opened, notes, recap, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName }),

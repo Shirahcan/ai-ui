@@ -111,7 +111,7 @@ export interface ToLinesOptions {
   /** The assistant's name, for the summary marker ("Porter"). */
   assistantName?: string;
   /** Where the session stands, after an idle time (`/recap`): drawn after the last turn. */
-  recap?: { key: string; lines: string[] } | null;
+  recap?: { key: string; lines: string[]; pending?: boolean } | null;
 }
 
 /**
@@ -258,7 +258,7 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
     if (!note.after || !placed.has(note.after)) lines.push({ key: `note:${note.key}`, kind: 'system', tone: note.tone ?? 'system', text: note.text });
   }
 
-  if (recap && recap.lines.length > 0 && live === null) lines.push({ key: recap.key, kind: 'recap', lines: recap.lines });
+  if (recap && recap.lines.length > 0 && live === null) lines.push({ key: recap.key, kind: 'recap', lines: recap.lines, ...(recap.pending ? { pending: true } : {}) });
 
   if (live) {
     const prefix = `live:${live.startedAt}`;
