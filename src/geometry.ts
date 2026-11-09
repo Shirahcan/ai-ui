@@ -80,6 +80,9 @@ export const ASSISTANT_GEOMETRY = {
   composer: 'p-3',
   composerInput: 'w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-sm leading-6',
   composerButton: 'shrink-0 rounded-full px-5 py-2 text-sm font-semibold whitespace-nowrap',
+  /** Stop as an icon beside Send, on a panel that takes a correction mid-answer (1.50.0). */
+  composerStopIcon:
+    'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--ai-border)] bg-[var(--ai-surface)] text-[var(--ai-fg)] outline-none transition-colors hover:bg-[var(--ai-accent-soft)] focus-visible:ring-2 focus-visible:ring-[var(--ai-accent)]',
 
   /** The header: the panel's name, its actions, and the way out. */
   header: 'flex items-center justify-between gap-3 px-5 py-3.5',

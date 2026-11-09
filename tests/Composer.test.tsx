@@ -222,6 +222,19 @@ describe('Composer', () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps Send and puts Stop beside it as an icon when the panel takes a correction mid-answer', () => {
+    // Owner 2026-11-09: "The 'send' button shouldn't be replaced by the 'stop'!"
+    const onStop = vi.fn();
+    render(<Harness busy sendWhileBusy onStop={onStop} />);
+
+    expect(screen.getByRole('button', { name: 'Send' })).toBeTruthy();
+    const stop = screen.getByRole('button', { name: 'Stop' });
+    expect(stop.querySelector('svg')).not.toBeNull();
+
+    fireEvent.click(stop);
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
   it('does not lock its height while it is not rendered (a hidden panel)', () => {
     // jsdom renders nothing, which is exactly the hidden-panel case: no client rects.
     render(<Harness placeholder="What is year to date revenue?" />);

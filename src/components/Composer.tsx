@@ -14,7 +14,8 @@ import { insertPhrase } from '../dictation/text';
 import type { DictationConfig } from '../dictation/session';
 import { useHandsFree, type HandsFreeState } from '../dictation/useHandsFree';
 import type { AssistantInputKind } from '../useAssistantConversation';
-import { HeadsetIcon } from '../icons';
+import { HeadsetIcon, StopSquareIcon } from '../icons';
+import { ASSISTANT_GEOMETRY } from '../geometry';
 import {
   ComposerPickerList,
   useComposerPicker,
@@ -135,8 +136,8 @@ export interface ComposerProps {
    * real defect for a panel with no supersede path - so the product that HAS one
    * says so.
    *
-   * Enter is the way in. The button is Stop while busy, deliberately: two live
-   * buttons during a turn invite exactly the double-send this guards against.
+   * While busy, Send stays and Stop sits beside it as an icon (1.50.0, owner 2026-11-09), so the
+   * correction this exists for can be sent with the button as well as Enter.
    */
   sendWhileBusy?: boolean;
 
@@ -492,7 +493,18 @@ export function Composer({
             {showDictationLine ? <DictationStatus dictation={dictation} className="truncate text-xs" /> : null}
           </div>
 
-          {busy && onStop ? (
+          {/*
+           * ⚠ ON A PANEL THAT TAKES A CORRECTION MID-ANSWER, STOP SITS BESIDE SEND AS AN ICON (1.50.0;
+           * owner 2026-11-09: "The 'send' button shouldn't be replaced by the 'stop'! the infra supports
+           * interruptions/clarifications"). Swapping them hid the one way to send the correction the
+           * panel supports. A panel with no supersede path keeps the swap below, for the double-send reason.
+           */}
+          {busy && onStop && sendWhileBusy ? (
+            <StopButton onStop={onStop} label={stopLabel} className={ASSISTANT_GEOMETRY.composerStopIcon}>
+              <StopSquareIcon />
+            </StopButton>
+          ) : null}
+          {busy && onStop && !sendWhileBusy ? (
             <StopButton
               onStop={onStop}
               label={stopLabel}

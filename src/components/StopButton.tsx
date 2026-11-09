@@ -9,10 +9,11 @@ import type { ReactNode } from 'react';
  * with no visible way to abandon the turn reloads the page instead - losing the
  * conversation, and leaving the provider generating and billing anyway.
  *
- * ⚠ AND IT REPLACES SEND, it does not sit beside it. Two live buttons during
- * a turn invite a second question into a panel that is still answering the
- * first, which is how two streams end up painting one message list.
- * `AssistantPanel` swaps them for that reason.
+ * ⚠ BESIDE SEND, AS AN ICON, ON A PANEL THAT TAKES A CORRECTION MID-ANSWER
+ * (`sendWhileBusy`, the shared space panel's default; 1.50.0, owner 2026-11-09).
+ * Elsewhere it REPLACES Send: two live buttons during a turn invite a second
+ * question into a panel that cannot supersede the first, which is how two
+ * streams end up painting one message list.
  */
 export interface StopButtonProps {
   onStop: () => void;
