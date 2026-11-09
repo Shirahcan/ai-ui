@@ -6,7 +6,7 @@ import { useAutoscroll } from '../useAutoscroll';
 import type { TerminalCommandName } from './commands';
 import { TerminalInput, type TerminalComposerOptions, type TerminalMentions } from './TerminalInput';
 import { TerminalLines } from './TerminalLines';
-import { TerminalQuestionBlock } from './TerminalQuestion';
+import { TerminalQuestionBlock, type TerminalQuestionDraft } from './TerminalQuestion';
 import { TerminalRewind, type TerminalRewindChoice } from './TerminalRewind';
 import { TerminalStatus } from './TerminalStatus';
 import { BriefView, ContextView, HelpView, ResumeView, ThemeView, TuningView } from './TerminalViews';
@@ -141,6 +141,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
   // The assistant's last word asked questions and nothing has run since: they take the composer's place
   // (Claude Code), unless the person chose "Chat about this" for them (`aside`, by their line key).
   const [aside, setAside] = useState<string | null>(null);
+  // Where the person had got with them (picks, typed answers, tab), kept while they are set aside.
+  const [questionDraft, setQuestionDraft] = useState<{ key: string; draft: TerminalQuestionDraft } | null>(null);
   const lastTurn = turns.at(-1);
   const openQuestions =
     onAnswer && !working && lastTurn && lastTurn.role === 'assistant' && !lastTurn.rewound && (lastTurn.structured?.questions?.length ?? 0) > 0
@@ -440,7 +442,10 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
           <TerminalQuestionBlock
             key={asking.key}
             questions={asking.questions}
+            draft={questionDraft?.key === asking.key ? questionDraft.draft : undefined}
+            onDraft={(draft) => setQuestionDraft({ key: asking.key, draft })}
             onAnswer={(answers) => {
+              setQuestionDraft(null);
               setRecap(null);
               lastHere.current = Date.now();
               onAnswer(asking.turnId, answers);

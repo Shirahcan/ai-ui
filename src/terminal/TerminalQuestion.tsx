@@ -51,20 +51,43 @@ function focusIsHere(panel: HTMLElement): boolean {
   return Boolean((panel.closest('[data-ai-terminal]') ?? panel).contains(active));
 }
 
+/**
+ * Where the person had got with the questions: the choices picked, what they typed, the tab on show. The
+ * console keeps it while the questions are set aside (Chat about this, a view opened over them), so
+ * coming back to them finds the answers as they were left (1.47.0).
+ */
+export interface TerminalQuestionDraft {
+  picked: string[][];
+  other: string[];
+  tab: number;
+}
+
+/** A kept draft, only when it still fits these questions (one entry per question). */
+function fits(draft: TerminalQuestionDraft | undefined, count: number): draft is TerminalQuestionDraft {
+  return draft !== undefined && draft.picked.length === count && draft.other.length === count;
+}
+
 export function TerminalQuestionBlock({
   questions,
   onAnswer,
   onChat,
+  draft,
+  onDraft,
 }: {
   questions: Question[];
   onAnswer: (answers: TerminalAnswer[]) => void;
   /** "Chat about this", and Esc: the questions step aside and the composer comes back. */
   onChat: () => void;
+  /** Where the person had got with these questions before they were set aside: picked up again. */
+  draft?: TerminalQuestionDraft;
+  /** Every change to the answers so far, for the console to keep while the questions are set aside. */
+  onDraft?: (draft: TerminalQuestionDraft) => void;
 }): React.JSX.Element {
-  const [picked, setPicked] = useState<string[][]>(() => questions.map(() => []));
-  const [other, setOther] = useState<string[]>(() => questions.map(() => ''));
+  const kept = fits(draft, questions.length) ? draft : undefined;
+  const [picked, setPicked] = useState<string[][]>(() => kept?.picked ?? questions.map(() => []));
+  const [other, setOther] = useState<string[]>(() => kept?.other ?? questions.map(() => ''));
   // Several questions are tabs; the last tab (index = questions.length) is the summary.
-  const [tab, setTab] = useState(0);
+  const [tab, setTab] = useState(() => Math.max(0, Math.min(questions.length, kept?.tab ?? 0)));
   const panel = useRef<HTMLDivElement | null>(null);
   const firstDraw = useRef(true);
   const tabbed = questions.length > 1;
@@ -91,7 +114,17 @@ export function TerminalQuestionBlock({
     (here.querySelector<HTMLElement>('[data-row]') ?? here).focus();
   }, [tab]);
 
-  const go = (next: number) => setTab(Math.max(0, Math.min(questions.length, next)));
+  // Every change goes through here, so the console always holds where the person has got.
+  const save = (picks: string[][], typed: string[], at: number) => {
+    const next = Math.max(0, Math.min(questions.length, at));
+
+    setPicked(picks);
+    setOther(typed);
+    setTab(next);
+    onDraft?.({ picked: picks, other: typed, tab: next });
+  };
+
+  const go = (next: number) => save(picked, other, next);
 
   const send = (picks: string[][] = picked, typed: string[] = other) => {
     if (!questions.every((_, i) => answerFor(i, picks, typed) !== '')) return;
@@ -110,12 +143,9 @@ export function TerminalQuestionBlock({
     });
     const typed = multi ? other : other.map((t, i) => (i === qi ? '' : t));
 
-    setPicked(picks);
-    setOther(typed);
-    if (multi) return;
     // One question: picking is answering (Claude Code). Several: on to the next tab.
-    if (tabbed) go(qi + 1);
-    else send(picks, typed);
+    save(picks, typed, !multi && tabbed ? qi + 1 : tab);
+    if (!multi && !tabbed) send(picks, typed);
   };
 
   const typedDone = (qi: number) => {
@@ -255,9 +285,11 @@ export function TerminalQuestionBlock({
                   aria-label={count > 0 ? 'Type something else' : 'Your answer'}
                   onChange={(e) => {
                     const text = e.target.value;
+                    const typed = other.map((t, i) => (i === qi ? text : t));
+                    // Typing an answer of one's own replaces a single pick (it stays beside several).
+                    const picks = !question.multi && text.trim() !== '' ? picked.map((list, i) => (i === qi ? [] : list)) : picked;
 
-                    setOther((all) => all.map((t, i) => (i === qi ? text : t)));
-                    if (!question.multi && text.trim() !== '') setPicked((all) => all.map((list, i) => (i === qi ? [] : list)));
+                    save(picks, typed, tab);
                   }}
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter') return;

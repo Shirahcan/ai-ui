@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AssistantTerminal, type AssistantTerminalProps } from '../src/terminal/AssistantTerminal';
 import { foldText } from '../src/terminal/TerminalLines';
+import { rewindableAsks } from '../src/terminal/TerminalRewind';
 import { levelPhrase, nextLevel, recapLines, toLines } from '../src/terminal/transcript';
 import type { TerminalLevel, TerminalMode, TerminalTurn } from '../src/terminal/types';
 
@@ -54,6 +55,40 @@ describe('levels', () => {
     expect(toLines(failed('expert')).at(-1)).toMatchObject({ retry: null });
     expect(toLines([...failed(null), ask('a2', 'Something else'), answer('b2', { outcome: { changed: true } })]).find((l) => l.kind === 'outcome')).toMatchObject({ retry: null });
     expect(nextLevel('expert')).toBeNull();
+  });
+});
+
+describe('answers are drawn once (1.47.0)', () => {
+  const q = answer('b1', { questions: [{ text: 'Which tone?', options: [{ label: 'Warm' }, { label: 'Formal' }] }] }, 'One question first.');
+  const answers = [{ question: 'Which tone?', answer: 'Warm' }];
+
+  it('draws an ask that answers the questions above as one short line; the answers sit under the questions', () => {
+    const lines = toLines([ask('a1', 'Write the about page'), q, ask('a2', 'Write the about page', { answers })], { assistantName: 'Porter' });
+    const asks = lines.filter((l) => l.kind === 'ask');
+
+    expect(asks[1]).toMatchObject({ text: "Answered Porter's questions", answering: true, answers: [] });
+    expect(lines.find((l) => l.kind === 'question')).toMatchObject({ answers });
+  });
+
+  it('shows the answers under the questions the moment they are sent, before the run records them', () => {
+    const live = { startedAt: 1, ask: { text: 'Write the about page', answers }, steps: [], verb: 'Thinking', queued: null };
+    const lines = toLines([ask('a1', 'Write the about page'), q], { live, assistantName: 'Porter' });
+
+    expect(lines.find((l) => l.kind === 'question')).toMatchObject({ answers });
+    expect(lines.filter((l) => l.kind === 'ask').at(-1)).toMatchObject({ text: "Answered Porter's questions", answering: true });
+  });
+
+  it('keeps the ask whole when the questions are not on screen (cleared)', () => {
+    const lines = toLines([ask('a1', 'Write the about page'), q, ask('a2', 'Write the about page', { answers })], { clearedThrough: 'b1' });
+
+    expect(lines[0]).toMatchObject({ kind: 'ask', text: 'Write the about page', answers });
+    expect(lines[0]).not.toHaveProperty('answering');
+  });
+
+  it('names an answering ask in the rewind list by its answers, not the ask it repeats', () => {
+    const list = rewindableAsks([ask('a1', 'Write the about page'), q, ask('a2', 'Write the about page', { answers: [...answers, { question: 'Who?', answer: 'Employers' }] })]);
+
+    expect(list[0]?.text).toBe('Your answers: Warm · Employers');
   });
 });
 
@@ -308,6 +343,28 @@ describe('AssistantTerminal 1.45', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Send answers' }));
     expect(onAnswer).toHaveBeenCalledWith('b1', [{ question: 'Which tone?', answer: 'Warm' }, { question: 'Who reads it?', answer: 'Employers' }]);
+  });
+
+  it('keeps where the person had got when the questions are set aside and brought back', () => {
+    const turns = [
+      ask('a1', 'Write the about page'),
+      answer('b1', {
+        questions: [
+          { text: 'Which tone?', header: 'Tone', options: [{ label: 'Warm' }, { label: 'Formal' }] },
+          { text: 'Who reads it?', header: 'Audience', options: [{ label: 'Employers' }, { label: 'Clients' }] },
+        ],
+      }, 'Two questions first.'),
+    ];
+
+    render(<Harness turns={turns} onAnswer={vi.fn()} />);
+    fireEvent.click(screen.getByRole('radio', { name: /warm/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Type something else' }), { target: { value: 'Both, really' } });
+    fireEvent.click(screen.getByRole('button', { name: /chat about this/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Answer them now' }));
+
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['✓ Tone', '✓ Audience', '✔ Submit']);
+    expect(screen.getByRole('tab', { name: /audience/i }).getAttribute('aria-selected')).toBe('true');
+    expect((screen.getByRole('textbox', { name: 'Type something else' }) as HTMLInputElement).value).toBe('Both, really');
   });
 
   it('keeps Send on the summary tab until every question has an answer', () => {

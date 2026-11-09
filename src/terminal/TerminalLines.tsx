@@ -125,7 +125,7 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
               <div key={line.key} className={`${index === 0 ? '' : 'mt-4'} flex gap-2 rounded-md border-l-2 border-[var(--term-accent)] bg-[var(--term-bar)] py-1.5 pl-2 pr-3 ${muted}`}>
                 <span aria-hidden="true" className={`${MARK} font-bold text-[var(--term-accent)]`}>❯</span>
                 <div className="min-w-0 flex-1">
-                  <p className="whitespace-pre-wrap break-words text-[var(--term-text)]">{line.text}</p>
+                  <p className={`whitespace-pre-wrap break-words ${line.answering ? 'text-[var(--term-dim)]' : 'text-[var(--term-text)]'}`}>{line.text}</p>
                   {(line.answers ?? []).map((a) => (
                     <p key={a.question} className="mt-0.5 break-words text-[12px] text-[var(--term-dim)]">⎿ {a.question} <span className="text-[var(--term-text)]">{a.answer}</span></p>
                   ))}

@@ -15,6 +15,7 @@ export { TerminalInput } from './TerminalInput';
 export type { TerminalComposerOptions, TerminalInputProps, TerminalMentions } from './TerminalInput';
 export { TerminalLines, foldText } from './TerminalLines';
 export { TerminalQuestionBlock, TerminalQuestionLog } from './TerminalQuestion';
+export type { TerminalQuestionDraft } from './TerminalQuestion';
 export { TerminalRewind, rewindableAsks } from './TerminalRewind';
 export type { TerminalRewindChoice } from './TerminalRewind';
 export { TerminalStatus } from './TerminalStatus';

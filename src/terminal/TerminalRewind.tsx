@@ -25,7 +25,11 @@ export function rewindableAsks(turns: TerminalTurn[]): Ask[] {
     const answer = turns[i + 1]?.role === 'assistant' ? turns[i + 1] : null;
     const outcome = answer?.structured?.plan ? { tone: 'none' as const, text: 'Plan only, nothing changed' } : outcomeLine(answer?.structured?.outcome);
 
-    asks.push({ id: turn.id, text: (turn.body ?? '').trim(), at: turn.at, changed: Boolean(answer?.structured?.outcome?.changed), outcome: answer ? outcome.text : 'No answer recorded' });
+    // An ask that answered questions repeats the ask it answered: it is named by its answers instead.
+    const given = turn.structured?.answers ?? [];
+    const text = given.length > 0 ? `Your answers: ${given.map((a) => a.answer).join(' · ')}` : (turn.body ?? '').trim();
+
+    asks.push({ id: turn.id, text, at: turn.at, changed: Boolean(answer?.structured?.outcome?.changed), outcome: answer ? outcome.text : 'No answer recorded' });
   });
 
   return asks.reverse();

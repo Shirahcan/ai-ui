@@ -130,6 +130,10 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
   // A rewound turn the person has not opened: its lines are counted into its ask line, not drawn.
   let collapsed: Extract<TerminalLine, { kind: 'ask' }> | null = null;
   const lastIndex = turns.length - 1;
+  // The assistant turn whose questions are on screen (not cleared, not folded): an ask answering them
+  // right after is drawn as one short line, its answers already sit under the questions (1.47.0).
+  let questionsShown: string | null = null;
+  const answeredLabel = `Answered ${assistantName}'s questions`;
 
   turns.forEach((turn, index) => {
     if (!visible) {
@@ -146,13 +150,17 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
       collapsed = null;
 
       const foldKey = `${turn.id}:fold`;
+      const answers = turn.structured?.answers ?? [];
+      // Claude Code shows answers once, under the questions; the ask that carries them repeats nothing.
+      const answering = answers.length > 0 && questionsShown !== null && questionsShown === turns[index - 1]?.id;
       const ask: Extract<TerminalLine, { kind: 'ask' }> = {
         key: `${turn.id}:ask`,
         kind: 'ask',
-        text: (turn.body ?? '').trim(),
+        text: answering ? answeredLabel : (turn.body ?? '').trim(),
         chips: chipsFor(turn.structured),
         turnId: turn.id,
-        answers: turn.structured?.answers ?? [],
+        answers: answering ? [] : answers,
+        ...(answering ? { answering: true } : {}),
         muted,
       };
 
@@ -188,7 +196,10 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
 
       const questions = s.questions ?? [];
       const after = turns[index + 1];
-      const answeredBy = after?.role === 'user' ? (after.structured?.answers ?? []) : [];
+      // Given in the ask after it; or, while that ask is still running, in the ask under way.
+      const answeredBy = after?.role === 'user'
+        ? (after.structured?.answers ?? [])
+        : index === lastIndex && !turn.rewound ? (live?.ask?.answers ?? []) : [];
 
       if (questions.length > 0) {
         // `latest`: still the last thing said, even while a run is going (the answers may be on their way).
@@ -217,8 +228,10 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
 
       if (collapsed !== null) {
         collapsed.folded = (collapsed.folded ?? 0) + out.length;
+        questionsShown = null;
       } else {
         lines.push(...out);
+        questionsShown = out.some((l) => l.kind === 'question') ? turn.id : null;
       }
     }
 
@@ -247,7 +260,11 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
   if (live) {
     const prefix = `live:${live.startedAt}`;
 
-    if (live.ask) lines.push({ key: `${prefix}:ask`, kind: 'ask', text: live.ask.text, chips: chipsFor(live.ask), turnId: null });
+    if (live.ask) {
+      const answering = (live.ask.answers?.length ?? 0) > 0 && questionsShown !== null && questionsShown === turns.at(-1)?.id;
+
+      lines.push({ key: `${prefix}:ask`, kind: 'ask', text: answering ? answeredLabel : live.ask.text, chips: chipsFor(live.ask), turnId: null, ...(answering ? { answering: true } : {}) });
+    }
     lines.push(...stepLines(live.steps, prefix, expanded, isOpen, undefined, live.steps.length - 1));
     if (live.queued) lines.push({ key: `${prefix}:queued`, kind: 'queued', text: live.queued });
   }
@@ -340,7 +357,11 @@ export function toMarkdown(title: string, lines: TerminalLine[]): string {
         out.push(`${MARK.finding} ${line.findingKind}: ${line.text}`);
         break;
       case 'question':
-        for (const q of line.questions) out.push(`? ${q.text}`, ...q.options.map((o, i) => `   ${i + 1}. ${o.label}${o.recommended ? ' (Recommended)' : ''}${o.description ? `: ${o.description}` : ''}`));
+        for (const q of line.questions) {
+          const given = line.answers.find((a) => a.question === q.text)?.answer;
+
+          out.push(`? ${q.text}`, ...q.options.map((o, i) => `   ${i + 1}. ${o.label}${o.recommended ? ' (Recommended)' : ''}${o.description ? `: ${o.description}` : ''}`), ...(given ? [`   -> ${given}`] : []));
+        }
         break;
       case 'ideas':
         out.push(...line.ideas.map((idea) => `- ${idea.title}${idea.why ? `: ${idea.why}` : ''}`), ...(line.recommendation ? [`Recommended: ${line.recommendation}`] : []));

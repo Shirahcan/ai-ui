@@ -151,7 +151,11 @@ export interface TerminalConsoleData {
 export interface TerminalLive {
   /** Its start, which also keys its lines, so the next ask starts fresh. */
   startedAt: number;
-  ask: { text: string; target?: string | null; files?: string[]; mode?: string } | null;
+  /**
+   * `answers`: the ask answers the assistant's questions (1.47.0): the question log shows them at once,
+   * and the ask is drawn as one short line instead of repeating the ask it answers.
+   */
+  ask: { text: string; target?: string | null; files?: string[]; mode?: string; answers?: TerminalAnswer[] } | null;
   /** The steps so far, in order; the last one is the one running now. */
   steps: TerminalStep[];
   /** What the assistant is doing right now, when it is not a step yet ("Getting ready"). */
@@ -179,7 +183,7 @@ type Muted = { muted?: 'rewound' | 'folded' };
  * it holds, `foldKey` opens it).
  */
 export type TerminalLine =
-  | ({ key: string; kind: 'ask'; text: string; chips: string[]; turnId: string | null; answers?: TerminalAnswer[]; folded?: number; foldKey?: string } & Muted)
+  | ({ key: string; kind: 'ask'; text: string; chips: string[]; turnId: string | null; answers?: TerminalAnswer[]; folded?: number; foldKey?: string; answering?: boolean } & Muted)
   | ({ key: string; kind: 'step'; text: string; ms: number | null; live: boolean; stepKind: string } & Muted)
   /** The assistant's thinking: open while it streams, folded to "Thought for 12s" once anything follows. */
   | ({ key: string; kind: 'thinking'; text: string; ms: number | null; live: boolean; open: boolean } & Muted)
