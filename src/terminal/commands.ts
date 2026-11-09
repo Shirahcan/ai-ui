@@ -19,7 +19,8 @@ export type TerminalCommandName =
   | 'level'
   | 'effort'
   | 'brainstorm'
-  | 'recap';
+  | 'recap'
+  | 'config';
 
 export interface TerminalCommand {
   name: TerminalCommandName;
@@ -47,6 +48,7 @@ export const TERMINAL_COMMANDS: TerminalCommand[] = [
   { name: 'effort', args: '[low|medium|high]', bare: true, description: 'How hard {assistant} thinks before it answers' },
   { name: 'brainstorm', description: 'Think it through with {assistant}: ideas, questions and a recommendation, nothing changed' },
   { name: 'recap', args: '[off|minutes]', bare: true, description: 'Where the session stands; or when to show it after a break' },
+  { name: 'config', description: 'Settings: level, effort, recap, tab mark and theme' },
 ];
 
 /** Commands a host may not offer (no level, no brainstorm): left out of the picker and the help. */

@@ -6,23 +6,33 @@ import { useAutoscroll } from '../useAutoscroll';
 import type { TerminalCommandName } from './commands';
 import { TerminalInput, type TerminalComposerOptions, type TerminalMentions } from './TerminalInput';
 import { TerminalLines } from './TerminalLines';
+import { TerminalMenu, type TerminalMenuItem } from './TerminalMenu';
 import { TerminalQuestionBlock, type TerminalQuestionDraft } from './TerminalQuestion';
 import { TerminalRewind, type TerminalRewindChoice } from './TerminalRewind';
+import { SettingsView } from './TerminalSettings';
 import { TerminalStatus } from './TerminalStatus';
 import { BriefView, ContextView, HelpView, ResumeView, ThemeView, TuningView } from './TerminalViews';
 import { TERMINAL_THEMES, terminalTheme, themeToTerminalVars, type TerminalTheme } from './terminalThemes';
-import { recapLines, toLines, toMarkdown } from './transcript';
+import { toLines, toMarkdown } from './transcript';
 import type { TerminalAnswer, TerminalBrief, TerminalEffort, TerminalLevel, TerminalLive, TerminalMode, TerminalNote, TerminalSessionRow, TerminalSize, TerminalTurn } from './types';
+import { useDoneMark } from './useDoneMark';
 import { useTerminalDock } from './useTerminalDock';
 import { useTerminalKeys } from './useTerminalKeys';
+import { useTerminalRecap } from './useTerminalRecap';
 
-type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind' | 'tuning';
+type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind' | 'tuning' | 'settings';
 
 const ALL_LEVELS: TerminalLevel[] = ['normal', 'pro', 'expert'];
 const ALL_EFFORTS: TerminalEffort[] = ['low', 'medium', 'high'];
 
 /** The commands the panel runs itself; the rest go to the host. */
-const PANEL_VIEWS: Partial<Record<TerminalCommandName, View>> = { help: 'help', context: 'context', resume: 'resume', rewind: 'rewind', theme: 'theme', brief: 'brief' };
+const PANEL_VIEWS: Partial<Record<TerminalCommandName, View>> = { help: 'help', context: 'context', resume: 'resume', rewind: 'rewind', theme: 'theme', brief: 'brief', config: 'settings' };
+
+/**
+ * What a click in the transcript leaves alone (1.48.0): anything the person can use there. Every other
+ * click puts the cursor back in the composer, as a click anywhere in Claude Code's terminal does.
+ */
+const OWN_CLICK = 'button, a, input, textarea, select, summary, label, [role="button"], [role="menuitem"], [role="radio"], [contenteditable="true"], [data-ai-question]';
 
 const MONO = 'ui-monospace, "JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, Consolas, monospace';
 
@@ -66,10 +76,15 @@ export interface AssistantTerminalProps {
   onSuggestion?: (text: string) => void;
   /** Minutes away before a recap is shown on return (1.45.0); null turns it off. Default 30. */
   recapAfterMinutes?: number | null;
-  /** `/recap off` and `/recap <minutes>`: the host keeps the choice. */
-  onRecapChange?: (minutes: number | null) => void;
+  /**
+   * `/recap off`, `/recap <minutes>` and the Settings view: the host keeps the choice. `from` says which
+   * (1.48.0): a command wants a line saying what changed, a setting already shows its new value.
+   */
+  onRecapChange?: (minutes: number | null, from?: 'command' | 'settings') => void;
   /** Mark the tab title when an ask finishes while the tab is hidden. Default true. */
   notifyWhenDone?: boolean;
+  /** The Settings view's "Mark the tab when done" (1.48.0): the host keeps the choice; omit to leave it out. */
+  onNotifyWhenDoneChange?: (on: boolean) => void;
   target?: { label: string; onClear: () => void } | null;
 
   value: string;
@@ -116,7 +131,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     history = [], loading = false, mode, onModeChange, modes = ['build', 'plan'], target = null, value, onChange, onAsk, composer, mentions, onStop, onCommand, onRewind,
     onBuildPlan, onDismissPlan, sessions, onSaveBrief, onClearDraft, theme, themes = TERMINAL_THEMES, onThemeChange, width, onWidthChange, onError, className = '',
     level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion,
-    recapAfterMinutes = 30, onRecapChange, notifyWhenDone = true,
+    recapAfterMinutes = 30, onRecapChange, notifyWhenDone = true, onNotifyWhenDoneChange,
   } = props;
   const [view, setView] = useState<View | null>(null);
   const [rewindFrom, setRewindFrom] = useState<string | null>(null);
@@ -126,17 +141,17 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
   const [menuOpen, setMenuOpen] = useState(false);
   // What the person opened (thinking, a long reply, a rewound turn), by line key: folded, never cut.
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
-  // A recap describes the session as it stood: `at` is that session's shape, and once the turns move on
-  // (a new answer, a rewind) the recap is no longer drawn, so it never states something stale.
-  const [recap, setRecap] = useState<{ key: string; lines: string[]; at: string } | null>(null);
-  const shape = turns.map((t) => `${t.id}${t.rewound ? '~' : ''}`).join(',');
   const dock = useTerminalDock(width, onWidthChange);
   const words = useMemo(() => ({ assistant: assistantName, subject: subjectNoun }), [assistantName, subjectNoun]);
   const active = terminalTheme(theme, themes);
   const working = live !== null;
+  // A recap describes the session as it stood: once the turns move on (a new answer, a rewind) it is no
+  // longer drawn, so it never states something stale.
+  const recaps = useTerminalRecap({ turns, words, afterMinutes: recapAfterMinutes, working, loading, sessionId: session?.id ?? null });
+  const recap = recaps.recap;
   const lines = useMemo(
-    () => toLines(turns, { session, live, expanded, opened, notes, recap: recap && recap.at === shape ? recap : null, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName }),
-    [turns, session, live, expanded, opened, notes, recap, shape, clearedThrough, assistantName],
+    () => toLines(turns, { session, live, expanded, opened, notes, recap, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName }),
+    [turns, session, live, expanded, opened, notes, recap, clearedThrough, assistantName],
   );
   // The assistant's last word asked questions and nothing has run since: they take the composer's place
   // (Claude Code), unless the person chose "Chat about this" for them (`aside`, by their line key).
@@ -170,65 +185,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     });
   }, []);
 
-  // A recap after a break (owner 2026-11-09): the last moment the person was here, and on their return
-  // (the tab shown again, the window or the console focused) where the session stands. No AI call.
-  const lastHere = useRef(Date.now());
-  const recapLatest = useRef({ turns, words, recapAfterMinutes, working });
-
-  useEffect(() => {
-    recapLatest.current = { turns, words, recapAfterMinutes, working };
-  });
-
-  const returned = useCallback(() => {
-    const { turns: all, words: w, recapAfterMinutes: minutes, working: busy } = recapLatest.current;
-    const away = Date.now() - lastHere.current;
-
-    lastHere.current = Date.now();
-    if (minutes === null || busy || away < minutes * 60_000) return;
-
-    const text = recapLines(all, w);
-
-    if (text.length > 0) setRecap({ key: `recap:${Date.now()}`, lines: text, at: all.map((t) => `${t.id}${t.rewound ? '~' : ''}`).join(',') });
-  }, []);
-
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') returned();
-    };
-
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('focus', returned);
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', returned);
-    };
-  }, [returned]);
-
-  // An ask that finishes while the tab is hidden marks the tab title until the person looks.
-  const wasWorking = useRef(working);
-
-  useEffect(() => {
-    const finished = wasWorking.current && !working;
-
-    wasWorking.current = working;
-    if (!finished || !notifyWhenDone || typeof document === 'undefined' || document.visibilityState === 'visible') return;
-
-    const original = document.title;
-    const mark = `✓ ${assistantName} finished · `;
-
-    document.title = mark + original;
-
-    const restore = () => {
-      if (document.visibilityState !== 'visible') return;
-      if (document.title.startsWith(mark)) document.title = document.title.slice(mark.length);
-      document.removeEventListener('visibilitychange', restore);
-    };
-
-    document.addEventListener('visibilitychange', restore);
-
-    return () => document.removeEventListener('visibilitychange', restore);
-  }, [working, notifyWhenDone, assistantName]);
+  useDoneMark(working, notifyWhenDone, assistantName);
   const scroll = useAutoscroll<HTMLDivElement>({ watch: lines });
   const panelTitle = title ?? `${assistantName} console`;
   const inputWrap = useRef<HTMLDivElement | null>(null);
@@ -310,12 +267,10 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     if (name === 'recap') {
       const minutes = Number(arg);
 
-      if (arg === 'off') return onRecapChange?.(null);
-      if (arg !== '' && Number.isFinite(minutes) && minutes > 0) return onRecapChange?.(Math.round(minutes));
+      if (arg === 'off') return onRecapChange?.(null, 'command');
+      if (arg !== '' && Number.isFinite(minutes) && minutes > 0) return onRecapChange?.(Math.round(minutes), 'command');
 
-      const text = recapLines(turns, words);
-
-      return setRecap({ key: `recap:${Date.now()}`, lines: text.length > 0 ? text : [`Nothing asked in this session yet.`], at: shape });
+      return recaps.show();
     }
     if (name === 'export') return void exportTranscript();
     if (name === 'clear') setClearedThrough(null);
@@ -345,14 +300,28 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     onSearch: () => setSearching(true),
   });
 
-  const menu: [string, () => void][] = [
-    ['New session', () => command('clear', '')],
-    ['Summarise the session', () => command('compact', '')],
-    ['Context', () => openView('context')],
-    ['Brief', () => openView('brief')],
-    ['Export transcript', () => command('export', '')],
-    ['Commands and shortcuts', () => openView('help')],
+  // Every view and command a person may look for without knowing its slash name (1.48.0, owner
+  // 2026-11-09: "level and effort should be added as an option/entry on the kebab menu").
+  const menu: TerminalMenuItem[] = [
+    { label: 'New session', run: () => command('clear', '') },
+    { label: 'Summarise the session', run: () => command('compact', '') },
+    { label: 'Context', run: () => openView('context') },
+    { label: 'Brief', run: () => openView('brief') },
+    ...(onLevelChange || onEffortChange ? [{ label: 'Level and effort', run: () => openView('tuning') }] : []),
+    { label: 'Recap: where the session stands', run: () => command('recap', '') },
+    { label: 'Export transcript', run: () => command('export', '') },
+    { label: 'Settings', run: () => openView('settings') },
+    { label: 'Commands and shortcuts', run: () => openView('help') },
   ];
+
+  // A click in the transcript that is not on something usable (a fold, a button, a link, selected
+  // text) puts the cursor in the composer (1.48.0, owner 2026-11-09: "mirroring Claude Code").
+  const clickToCompose = (event: React.MouseEvent<HTMLElement>) => {
+    if (event.detail > 1 || event.button !== 0) return;
+    if ((event.target as HTMLElement).closest(OWN_CLICK)) return;
+    if ((window.getSelection()?.toString() ?? '') !== '') return;
+    focusComposer();
+  };
 
   const body = (() => {
     switch (view) {
@@ -364,6 +333,27 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
         return <HelpView words={words} hidden={hidden} onBack={closeView} />;
       case 'tuning':
         return <TuningView assistant={assistantName} levels={levels} level={level} onLevel={onLevelChange} efforts={efforts} effort={effort} onEffort={onEffortChange} onBack={closeView} />;
+      case 'settings':
+        return (
+          <SettingsView
+            assistant={assistantName}
+            levels={levels}
+            level={level}
+            onLevel={onLevelChange}
+            efforts={efforts}
+            effort={effort}
+            onEffort={onEffortChange}
+            recapAfterMinutes={recapAfterMinutes}
+            onRecap={onRecapChange ? (minutes) => onRecapChange(minutes, 'settings') : undefined}
+            onRecapNow={() => { closeView(); recaps.show(); }}
+            notifyWhenDone={notifyWhenDone}
+            onNotify={onNotifyWhenDoneChange}
+            themes={themes}
+            theme={active.key}
+            onTheme={onThemeChange}
+            onBack={closeView}
+          />
+        );
       case 'theme':
         return <ThemeView themes={themes} current={active.key} onPick={onThemeChange} onBack={closeView} />;
       case 'brief':
@@ -382,10 +372,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
       aria-hidden={!open}
       inert={!open}
       onKeyDown={onKeyDown}
-      onFocus={returned}
-      onPointerDown={() => {
-        lastHere.current = Date.now();
-      }}
+      onFocus={recaps.returned}
+      onPointerDown={recaps.touch}
       className={`flex flex-col overflow-hidden rounded-xl border border-[var(--term-border)] bg-[var(--term-bg)] text-[13px] leading-6 text-[var(--term-text)] shadow-[0_24px_64px_rgba(2,6,23,0.45)] motion-safe:transition-transform motion-safe:duration-200 ${open ? 'translate-x-0' : 'pointer-events-none -translate-x-[calc(100%+2rem)]'} ${className}`}
       style={{ ...themeToTerminalVars(active), width: dock.width, fontFamily: MONO } as React.CSSProperties}
     >
@@ -400,24 +388,13 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
         </h2>
         {sessions ? <button type="button" onClick={() => openView('resume')} className="rounded px-1.5 text-[11px] text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">sessions</button> : null}
         <button type="button" onClick={() => openView('theme')} className="rounded px-1.5 text-[11px] text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">theme</button>
-        <div className="relative">
-          <button type="button" aria-haspopup="menu" aria-expanded={menuOpen} aria-label="More" onClick={() => setMenuOpen((o) => !o)} className="rounded px-1.5 text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">⋮</button>
-          {menuOpen ? (
-            <ul role="menu" className="absolute right-0 top-7 z-10 w-56 rounded-md border border-[var(--term-border)] bg-[var(--term-bar)] py-1 shadow-xl">
-              {menu.map(([label, run]) => (
-                <li key={label} role="none">
-                  <button type="button" role="menuitem" onClick={run} className="w-full px-3 py-1 text-left text-[12px] outline-none hover:bg-[var(--term-selection)] focus-visible:bg-[var(--term-selection)]">{label}</button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
+        <TerminalMenu open={menuOpen} onOpenChange={setMenuOpen} items={menu} />
         <button type="button" onClick={onClose} aria-label={`Close the ${panelTitle} (Ctrl+\`)`} title="Close (Ctrl+`)" className="rounded px-1.5 text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">×</button>
       </header>
 
       {body ?? (
         <div className="relative min-h-0 flex-1">
-          <div ref={scroll.scrollRef} onScroll={scroll.onScroll} role="log" aria-label="Transcript" className="h-full overflow-y-auto px-4 py-3">
+          <div ref={scroll.scrollRef} onScroll={scroll.onScroll} onClick={clickToCompose} role="log" aria-label="Transcript" className="h-full cursor-text overflow-y-auto px-4 py-3">
             {loading ? <p className="text-[var(--term-dim)]">Opening the session…</p> : null}
             {!loading && lines.length === 0 ? (
               <div className="text-[var(--term-dim)]">
@@ -435,7 +412,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
               onRetry={onRetry}
               asking={asking?.key ?? null}
               onReopenQuestions={onAnswer ? () => { setAside(null); requestAnimationFrame(focusComposer); } : undefined}
-              onSuggestion={onSuggestion ? (text) => { setRecap(null); onSuggestion(text); } : undefined}
+              onSuggestion={onSuggestion ? (text) => { recaps.dismiss(); onSuggestion(text); } : undefined}
             />
           </div>
           {!scroll.isPinned ? (
@@ -468,8 +445,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             onDraft={(draft) => setQuestionDraft({ key: asking.key, draft })}
             onAnswer={(answers) => {
               setQuestionDraft(null);
-              setRecap(null);
-              lastHere.current = Date.now();
+              recaps.dismiss();
+              recaps.touch();
               onAnswer(asking.turnId, answers);
             }}
             onChat={() => {
@@ -483,8 +460,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             value={value}
             onChange={onChange}
             onAsk={(text, files, input) => {
-              setRecap(null);
-              lastHere.current = Date.now();
+              recaps.dismiss();
+              recaps.touch();
               onAsk(text, files, input);
             }}
             onCommand={command}
