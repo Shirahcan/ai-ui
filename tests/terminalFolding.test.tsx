@@ -254,6 +254,9 @@ describe('AssistantTerminal 1.45', () => {
 
     rerender(<Harness turns={oneQuestion()} onAnswer={vi.fn()} live={{ startedAt: 1, ask: { text: 'x' }, steps: [], verb: 'Thinking', queued: null }} />);
     expect(screen.queryByRole('dialog', { name: 'A question to answer' })).toBeNull();
+    // The answers may be on their way in that run: the log claims neither "not answered" nor "waiting".
+    expect(screen.queryByText('⎿ Not answered.')).toBeNull();
+    expect(screen.queryByText('⎿ Waiting for your answer below.')).toBeNull();
   });
 
   it('lets several choices be picked when a question allows it', () => {

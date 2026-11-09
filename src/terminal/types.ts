@@ -186,7 +186,7 @@ export type TerminalLine =
   | ({ key: string; kind: 'detail'; text: string; stepKind: string; open: boolean } & Muted)
   | ({ key: string; kind: 'reply'; text: string; open: boolean } & Muted)
   | ({ key: string; kind: 'finding'; findingKind: string; text: string; actionable: boolean } & Muted)
-  | ({ key: string; kind: 'question'; turnId: string; questions: TerminalQuestion[]; answerable: boolean; answers: TerminalAnswer[] } & Muted)
+  | ({ key: string; kind: 'question'; turnId: string; questions: TerminalQuestion[]; answerable: boolean; latest?: boolean; answers: TerminalAnswer[] } & Muted)
   | ({ key: string; kind: 'ideas'; ideas: TerminalIdea[]; recommendation: string | null; open: boolean; level?: string | null } & Muted)
   | ({ key: string; kind: 'outcome'; tone: 'ok' | 'none' | 'fail'; text: string; turnId: string | null; canRewind: boolean; level?: string | null; retry?: TerminalLevel | null } & Muted)
   | ({ key: string; kind: 'plan'; summary: string; steps: string[]; turnId: string | null; open: boolean; level?: string | null } & Muted)

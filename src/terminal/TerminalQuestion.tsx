@@ -336,8 +336,11 @@ export function TerminalQuestionLog({
 }: {
   questions: Question[];
   answers: TerminalAnswer[];
-  /** asking: the picker is up · aside: the person chose to chat about it · closed: no longer open. */
-  state: 'answered' | 'asking' | 'aside' | 'closed';
+  /**
+   * asking: the picker is up · aside: the person chose to chat about it · sending: still the last thing
+   * said while a run goes (its answers may be on their way, so it claims nothing) · closed: no longer open.
+   */
+  state: 'answered' | 'asking' | 'aside' | 'sending' | 'closed';
   onReopen?: () => void;
 }): React.JSX.Element {
   return (

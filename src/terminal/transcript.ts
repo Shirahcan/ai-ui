@@ -191,7 +191,8 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
       const answeredBy = after?.role === 'user' ? (after.structured?.answers ?? []) : [];
 
       if (questions.length > 0) {
-        out.push({ key: `${turn.id}:question`, kind: 'question', turnId: turn.id, questions, answerable: last, answers: answeredBy, muted });
+        // `latest`: still the last thing said, even while a run is going (the answers may be on their way).
+        out.push({ key: `${turn.id}:question`, kind: 'question', turnId: turn.id, questions, answerable: last, latest: index === lastIndex && !turn.rewound, answers: answeredBy, muted });
       }
 
       if (s.plan) {

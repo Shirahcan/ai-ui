@@ -235,7 +235,14 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
                 <TerminalQuestionLog
                   questions={line.questions}
                   answers={line.answers}
-                  state={line.answers.length > 0 ? 'answered' : !line.answerable ? 'closed' : asking === line.key ? 'asking' : onReopenQuestions ? 'aside' : 'closed'}
+                  state={
+                    line.answers.length > 0 ? 'answered'
+                      : line.latest && !line.answerable ? 'sending'
+                      : !line.answerable ? 'closed'
+                      : asking === line.key ? 'asking'
+                      : onReopenQuestions ? 'aside'
+                      : 'closed'
+                  }
                   onReopen={onReopenQuestions ? () => onReopenQuestions(line.key) : undefined}
                 />
               </div>
