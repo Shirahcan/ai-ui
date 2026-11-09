@@ -295,7 +295,10 @@ export function recapLines(turns: TerminalTurn[], words: { assistant: string; su
             : outcomeLine(lastAnswer.structured?.outcome).text
       : 'no answer was recorded';
 
-    out.push(`Last: “${quote(lastAsk.body ?? '')}”, ${result.charAt(0).toLowerCase()}${result.slice(1)}.`);
+    // An outcome reads mid-sentence in lower case ("changed the design"); a name keeps its capital.
+    const named = result.startsWith(words.assistant);
+
+    out.push(`Last: “${quote(lastAsk.body ?? '')}”, ${named ? result : `${result.charAt(0).toLowerCase()}${result.slice(1)}`}.`);
   }
 
   const open = lastTurn?.role === 'assistant' ? lastTurn.structured : null;

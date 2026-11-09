@@ -1,8 +1,8 @@
 import React from 'react';
 
 import { LEVEL_LABELS } from './transcript';
-import { TerminalQuestionBlock } from './TerminalQuestion';
-import type { TerminalAnswer, TerminalLevel, TerminalLine } from './types';
+import { TerminalQuestionLog } from './TerminalQuestion';
+import type { TerminalLevel, TerminalLine } from './types';
 
 /**
  * The transcript, line by line, in the console's marks (design section 3): `❯` an ask, `●` a step,
@@ -101,13 +101,18 @@ export interface TerminalLinesProps {
   onToggle?: (key: string) => void;
   /** "Try again at Pro" on a failed answer: the ask's turn id and the level to try. */
   onRetry?: (turnId: string, level: TerminalLevel) => void;
-  /** The person's answers to the assistant's questions. */
-  onAnswer?: (turnId: string, answers: TerminalAnswer[]) => void;
+  /**
+   * The open questions the picker is asking right now (their line key), drawn over the composer by the
+   * console (1.46.0). The transcript only says "answer below" for them.
+   */
+  asking?: string | null;
+  /** "Answer them now" on open questions the person set aside to chat about: their line key. */
+  onReopenQuestions?: (key: string) => void;
   /** "Do this" on a suggestion, and "Build this" on a brainstorm's recommendation: the next ask. */
   onSuggestion?: (text: string) => void;
 }
 
-export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, buildLabel = 'Build this', onToggle, onRetry, onAnswer, onSuggestion }: TerminalLinesProps): React.JSX.Element {
+export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, buildLabel = 'Build this', onToggle, onRetry, asking = null, onReopenQuestions, onSuggestion }: TerminalLinesProps): React.JSX.Element {
   return (
     <>
       {lines.map((line, index) => {
@@ -227,11 +232,11 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
           case 'question':
             return (
               <div key={line.key} className={muted}>
-                <TerminalQuestionBlock
+                <TerminalQuestionLog
                   questions={line.questions}
-                  answerable={line.answerable}
                   answers={line.answers}
-                  onAnswer={onAnswer ? (answers) => onAnswer(line.turnId, answers) : undefined}
+                  state={line.answers.length > 0 ? 'answered' : !line.answerable ? 'closed' : asking === line.key ? 'asking' : onReopenQuestions ? 'aside' : 'closed'}
+                  onReopen={onReopenQuestions ? () => onReopenQuestions(line.key) : undefined}
                 />
               </div>
             );

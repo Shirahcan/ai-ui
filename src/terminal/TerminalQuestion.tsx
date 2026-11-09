@@ -3,21 +3,26 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { TerminalAnswer, TerminalOption, TerminalQuestion as Question } from './types';
 
 /**
- * The assistant's questions with their choices (1.45.0): Claude Code's multiple-choice tool, in the
- * console. Each question offers its options (with what each means and which one the assistant
- * recommends), and always "Other" to type an answer; `multi` lets several be picked.
+ * The assistant's questions, asked as Claude Code asks them (1.46.0, owner 2026-11-09: "should properly
+ * mirror Claude Code: it should show over the composer ... should also include the 'chat about this'
+ * option").
  *
- * One question is drawn whole. SEVERAL are tabs, as Claude Code draws them (owner 2026-11-09: "mirror
- * the multi-tab UI ... with a summary last tab"): one tab per question, named by its short `header`,
- * checked once answered, and a last "Submit" tab that reviews every answer before they are sent.
- * Keys: 1-9 pick an option, Left and Right move between tabs, Enter sends from the last tab (or from a
- * single question), Space picks the focused option.
+ * TWO PIECES. While questions wait for an answer, `TerminalQuestionBlock` takes the composer's place at
+ * the bottom of the console (the composer comes back the moment they are answered or set aside). The
+ * transcript keeps only `TerminalQuestionLog`: each question and, once given, its answer.
  *
- * ⚠ THE ANSWER IS AN ASK. Sending it starts the next turn with the answers beside the ask, so a reload,
- * the transcript and the assistant's next context all hold the same thing.
+ * The picker: each question lists its choices, numbered, with what each means and the recommended one
+ * badged; then "Type something" for an answer of the person's own; then "Chat about this", which puts
+ * the composer back so the person can talk it through instead (the questions stay in the transcript with
+ * a way back to them). Several questions are tabs, one per question, with a last "Submit" tab that reviews
+ * the answers. Keys: Up and Down move, Enter picks, 1-9 pick by number, Left and Right change tabs, Esc
+ * chats instead. One question with one answer to pick sends the moment it is picked, as Claude Code does.
+ *
+ * ⚠ THE ANSWER IS AN ASK. Sending starts the next turn with the answers beside the ask, so a reload, the
+ * transcript and the assistant's next context all hold the same thing.
  */
 
-const RECOMMENDED_SUFFIX = /\s*\((?:recommended)\)\s*$/i;
+const RECOMMENDED_SUFFIX = /\s*\(recommended\)\s*$/i;
 
 /** An option as drawn: a "(Recommended)" written into the label becomes the badge, once. */
 function shown(option: TerminalOption): { label: string; recommended: boolean } {
@@ -34,86 +39,118 @@ function tabName(question: Question, index: number): string {
 }
 
 const TAB = 'whitespace-nowrap rounded px-2 py-0.5 text-[12px] outline-none focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]';
+const ROW = 'flex w-full gap-2 rounded px-2 py-1 text-left outline-none focus-visible:bg-[var(--term-selection)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]';
+const PRIMARY = 'whitespace-nowrap rounded bg-[var(--term-accent)] px-3 py-1 text-[12px] font-semibold text-[var(--term-on-accent)] outline-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--term-text)]';
+
+/** The focus is in the console already (or nowhere): taking the composer's place may take its focus. */
+function focusIsHere(panel: HTMLElement): boolean {
+  const active = document.activeElement;
+
+  if (active === null || active === document.body) return true;
+
+  return Boolean((panel.closest('[data-ai-terminal]') ?? panel).contains(active));
+}
 
 export function TerminalQuestionBlock({
   questions,
-  answerable,
-  answers,
   onAnswer,
+  onChat,
 }: {
   questions: Question[];
-  answerable: boolean;
-  /** Given already (the ask after this one): drawn beside each question. */
-  answers: TerminalAnswer[];
-  onAnswer?: (answers: TerminalAnswer[]) => void;
+  onAnswer: (answers: TerminalAnswer[]) => void;
+  /** "Chat about this", and Esc: the questions step aside and the composer comes back. */
+  onChat: () => void;
 }): React.JSX.Element {
   const [picked, setPicked] = useState<string[][]>(() => questions.map(() => []));
   const [other, setOther] = useState<string[]>(() => questions.map(() => ''));
   // Several questions are tabs; the last tab (index = questions.length) is the summary.
   const [tab, setTab] = useState(0);
-  // The person moved between tabs (not the first draw): focus follows into the new tab, so the keys
-  // keep working after a pick moves on (the picked button is gone with its tab).
-  const moved = useRef(false);
   const panel = useRef<HTMLDivElement | null>(null);
-  const live = answerable && onAnswer !== undefined;
+  const firstDraw = useRef(true);
   const tabbed = questions.length > 1;
   const summary = tabbed && tab === questions.length;
 
-  const answerFor = (i: number): string => {
-    const own = (other[i] ?? '').trim();
+  const answerFor = (i: number, picks: string[][] = picked, typed: string[] = other): string => {
+    const own = (typed[i] ?? '').trim();
 
-    return [...(picked[i] ?? []), ...(own !== '' ? [own] : [])].join(', ');
+    return [...(picks[i] ?? []), ...(own !== '' ? [own] : [])].join(', ');
   };
   const ready = questions.every((_, i) => answerFor(i) !== '');
 
-  const go = (next: number) => {
-    moved.current = true;
-    setTab(Math.max(0, Math.min(questions.length, next)));
-  };
-
+  // The first choice of the tab on show takes the focus, so the keys work at once and keep working after
+  // a pick moves on (the picked row is gone with its tab). On the first draw only when the console holds
+  // the focus already: a question arriving never pulls the cursor out of the page.
   useEffect(() => {
-    if (!moved.current) return;
-    moved.current = false;
-    (panel.current?.querySelector<HTMLElement>('[role="radio"], [role="checkbox"], input') ?? panel.current)?.focus();
+    const here = panel.current;
+
+    if (!here) return;
+    if (firstDraw.current) {
+      firstDraw.current = false;
+      if (!focusIsHere(here)) return;
+    }
+    (here.querySelector<HTMLElement>('[data-row]') ?? here).focus();
   }, [tab]);
 
-  const toggle = (qi: number, label: string) => {
+  const go = (next: number) => setTab(Math.max(0, Math.min(questions.length, next)));
+
+  const send = (picks: string[][] = picked, typed: string[] = other) => {
+    if (!questions.every((_, i) => answerFor(i, picks, typed) !== '')) return;
+
+    onAnswer(questions.map((q, i) => ({ question: q.text, answer: answerFor(i, picks, typed) })));
+  };
+
+  const pick = (qi: number, label: string) => {
     const multi = questions[qi]?.multi ?? false;
     const already = (picked[qi] ?? []).includes(label);
+    const picks = picked.map((list, i) => {
+      if (i !== qi) return list;
+      if (multi) return already ? list.filter((l) => l !== label) : [...list, label];
 
-    setPicked((all) =>
-      all.map((list, i) => {
-        if (i !== qi) return list;
-        if (multi) return already ? list.filter((l) => l !== label) : [...list, label];
+      return [label];
+    });
+    const typed = multi ? other : other.map((t, i) => (i === qi ? '' : t));
 
-        return already ? [] : [label];
-      }),
-    );
-    if (!multi) setOther((all) => all.map((t, i) => (i === qi ? '' : t)));
-    // Picking one answer to one question moves on to the next tab, as Claude Code does.
-    if (tabbed && !multi && !already) go(qi + 1);
+    setPicked(picks);
+    setOther(typed);
+    if (multi) return;
+    // One question: picking is answering (Claude Code). Several: on to the next tab.
+    if (tabbed) go(qi + 1);
+    else send(picks, typed);
   };
 
-  const send = () => {
-    if (!live || !ready) return;
-
-    onAnswer?.(questions.map((q, i) => ({ question: q.text, answer: answerFor(i) })));
+  const typedDone = (qi: number) => {
+    if ((other[qi] ?? '').trim() === '') return;
+    if (tabbed) go(qi + 1);
+    else send();
   };
 
-  const onKey = (qi: number | null) => (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!live) return;
+  const onKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
 
-    const typing = (event.target as HTMLElement).tagName === 'INPUT';
+    if (event.key === 'Escape') {
+      // Kept from the console's own Esc (stop, rewind): here it only sets the questions aside.
+      event.preventDefault();
+      event.stopPropagation();
+      onChat();
 
-    if (typing) {
-      if (event.key === 'Enter') {
+      return;
+    }
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      const rows = [...(panel.current?.querySelectorAll<HTMLElement>('[data-row]') ?? [])];
+
+      if (rows.length > 0) {
         event.preventDefault();
-        if (tabbed && qi !== null) go(qi + 1);
-        else send();
+        const at = rows.indexOf(target);
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+
+        rows[(at + step + rows.length) % rows.length]?.focus();
       }
 
       return;
     }
+
+    if (target.tagName === 'INPUT') return;
 
     if (tabbed && (event.key === 'ArrowRight' || event.key === 'ArrowLeft')) {
       event.preventDefault();
@@ -123,153 +160,132 @@ export function TerminalQuestionBlock({
     }
 
     const n = Number(event.key);
-    const option = qi !== null && Number.isInteger(n) && n >= 1 ? questions[qi]?.options[n - 1] : undefined;
+    const option = !summary && Number.isInteger(n) && n >= 1 ? questions[tab]?.options[n - 1] : undefined;
 
-    if (option && qi !== null) {
+    if (option) {
       event.preventDefault();
-      toggle(qi, option.label);
-    } else if (event.key === 'Enter' && !event.shiftKey && (!tabbed || summary)) {
-      event.preventDefault();
-      send();
+      pick(tab, option.label);
     }
   };
 
-  const questionBody = (q: Question, qi: number) => {
-    const given = answers.find((a) => a.question === q.text)?.answer ?? null;
-
-    return (
-      <div key={qi} role="group" aria-label={q.text} onKeyDown={onKey(qi)} className={!tabbed && qi > 0 ? 'mt-3' : ''}>
-        <p className="flex gap-2">
-          <span aria-hidden="true" className="w-4 shrink-0 select-none text-center text-[var(--term-accent)]">?</span>
-          <span className="min-w-0 flex-1 whitespace-pre-wrap break-words font-semibold text-[var(--term-text)]">{q.text}</span>
-        </p>
-        {given !== null ? (
-          <p className="ml-6 mt-1 text-[var(--term-dim)]">⎿ <span className="text-[var(--term-text)]">{given}</span></p>
-        ) : live ? (
-          <>
-            {q.options.length > 0 ? (
-              <ul className="ml-6 mt-1 space-y-1" role={q.multi ? 'group' : 'radiogroup'} aria-label={q.multi ? 'Pick any' : 'Pick one'}>
-                {q.options.map((option, oi) => {
-                  const on = (picked[qi] ?? []).includes(option.label);
-                  const look = shown(option);
-
-                  return (
-                    <li key={option.label}>
-                      <button
-                        type="button"
-                        role={q.multi ? 'checkbox' : 'radio'}
-                        aria-checked={on}
-                        onClick={() => toggle(qi, option.label)}
-                        className={`flex w-full gap-2 rounded px-2 py-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-[var(--term-accent)] ${on ? 'bg-[var(--term-selection)]' : 'hover:bg-[var(--term-selection)]'}`}
-                      >
-                        <span aria-hidden="true" className="shrink-0 tabular-nums text-[var(--term-dim)]">{oi + 1}.</span>
-                        <span aria-hidden="true" className={`shrink-0 ${on ? 'text-[var(--term-accent)]' : 'text-[var(--term-dim)]'}`}>{q.multi ? (on ? '[x]' : '[ ]') : on ? '(•)' : '( )'}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="text-[var(--term-text)]">{look.label}</span>
-                          {look.recommended ? (
-                            <span className="ml-2 rounded border border-[var(--term-ok)] px-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--term-ok)]">Recommended</span>
-                          ) : null}
-                          {option.description ? <span className="block text-[12px] text-[var(--term-dim)]">{option.description}</span> : null}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-            <label className="ml-6 mt-1 flex items-center gap-2 px-2 text-[12px] text-[var(--term-dim)]">
-              <span className="shrink-0">{q.options.length > 0 ? 'Other:' : 'Your answer:'}</span>
-              <input
-                value={other[qi] ?? ''}
-                onChange={(e) => {
-                  const text = e.target.value;
-
-                  setOther((all) => all.map((t, i) => (i === qi ? text : t)));
-                  if (!q.multi && text.trim() !== '') setPicked((all) => all.map((list, i) => (i === qi ? [] : list)));
-                }}
-                className="min-w-0 flex-1 rounded border border-[var(--term-border)] bg-[var(--term-bg)] px-3 py-1 text-[13px] text-[var(--term-text)] outline-none focus-visible:border-[var(--term-accent)]"
-              />
-            </label>
-            {tabbed && q.multi ? (
-              <div className="ml-6 mt-2">
-                <button type="button" onClick={() => go(qi + 1)} className="whitespace-nowrap rounded border border-[var(--term-border)] px-3 py-1 text-[12px] text-[var(--term-text)] outline-none hover:bg-[var(--term-selection)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">
-                  Next
-                </button>
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <p className="ml-6 mt-1 text-[12px] text-[var(--term-dim)]">Not answered</p>
-        )}
-      </div>
-    );
-  };
-
-  // Answered already, or no longer answerable: every question with what was given, no tabs.
-  if (!live || !tabbed) {
-    return (
-      <div className="mt-2 rounded-md border border-[var(--term-accent)] px-3 py-2">
-        {questions.map((q, qi) => questionBody(q, qi))}
-        {live ? (
-          <div className="ml-6 mt-2 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={send}
-              disabled={!ready}
-              className="whitespace-nowrap rounded bg-[var(--term-accent)] px-3 py-1 text-[12px] font-semibold text-[var(--term-on-accent)] outline-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--term-text)]"
-            >
-              Send {questions.length === 1 ? 'answer' : 'answers'}
-            </button>
-            <span className="text-[11px] text-[var(--term-dim)]">1-9 pick · enter sends</span>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
+  const question = summary ? null : (questions[tab] ?? null);
+  const qi = tab;
+  const count = question?.options.length ?? 0;
 
   return (
-    <div className="mt-2 rounded-md border border-[var(--term-accent)] px-3 py-2">
-      <div role="tablist" aria-label="Questions" className="mb-2 flex flex-wrap items-center gap-1 border-b border-[var(--term-border)] pb-2">
-        <button type="button" aria-label="Previous question" disabled={tab === 0} onClick={() => go(tab - 1)} className={`${TAB} text-[var(--term-dim)] disabled:opacity-40`}>←</button>
-        {questions.map((q, qi) => {
-          const done = answerFor(qi) !== '';
-
-          return (
+    <div
+      ref={panel}
+      data-ai-question=""
+      role="dialog"
+      aria-label={tabbed ? `${questions.length} questions to answer` : 'A question to answer'}
+      tabIndex={-1}
+      onKeyDown={onKey}
+      className="mt-2 max-h-[55vh] overflow-y-auto rounded-md border border-[var(--term-accent)] bg-[var(--term-bg)] px-3 py-2 outline-none"
+    >
+      {tabbed ? (
+        <div role="tablist" aria-label="Questions" className="mb-2 flex flex-wrap items-center gap-1 border-b border-[var(--term-border)] pb-2">
+          <button type="button" tabIndex={-1} aria-label="Previous question" disabled={tab === 0} onClick={() => go(tab - 1)} className={`${TAB} text-[var(--term-dim)] disabled:opacity-40`}>←</button>
+          {questions.map((q, i) => (
             <button
-              key={qi}
+              key={i}
               type="button"
               role="tab"
-              aria-selected={tab === qi}
-              onClick={() => go(qi)}
-              className={`${TAB} ${tab === qi ? 'bg-[var(--term-accent)] font-semibold text-[var(--term-on-accent)]' : 'text-[var(--term-text)] hover:bg-[var(--term-selection)]'}`}
+              tabIndex={-1}
+              aria-selected={tab === i}
+              onClick={() => go(i)}
+              className={`${TAB} ${tab === i ? 'bg-[var(--term-accent)] font-semibold text-[var(--term-on-accent)]' : 'text-[var(--term-text)] hover:bg-[var(--term-selection)]'}`}
             >
               {/* ✓ and ○, not ☒ and ☐: at the console's size a crossed box reads as an empty one. */}
-              <span aria-hidden="true">{done ? '✓' : '○'} </span>
-              {tabName(q, qi)}
+              <span aria-hidden="true">{answerFor(i) !== '' ? '✓' : '○'} </span>
+              {tabName(q, i)}
             </button>
-          );
-        })}
-        <button
-          type="button"
-          role="tab"
-          aria-selected={summary}
-          onClick={() => go(questions.length)}
-          className={`${TAB} ${summary ? 'bg-[var(--term-accent)] font-semibold text-[var(--term-on-accent)]' : 'text-[var(--term-text)] hover:bg-[var(--term-selection)]'}`}
-        >
-          <span aria-hidden="true">{ready ? '✔' : '·'} </span>Submit
-        </button>
-        <button type="button" aria-label="Next question" disabled={summary} onClick={() => go(tab + 1)} className={`${TAB} text-[var(--term-dim)] disabled:opacity-40`}>→</button>
-      </div>
+          ))}
+          <button
+            type="button"
+            role="tab"
+            tabIndex={-1}
+            aria-selected={summary}
+            onClick={() => go(questions.length)}
+            className={`${TAB} ${summary ? 'bg-[var(--term-accent)] font-semibold text-[var(--term-on-accent)]' : 'text-[var(--term-text)] hover:bg-[var(--term-selection)]'}`}
+          >
+            <span aria-hidden="true">{ready ? '✔' : '·'} </span>Submit
+          </button>
+          <button type="button" tabIndex={-1} aria-label="Next question" disabled={summary} onClick={() => go(tab + 1)} className={`${TAB} text-[var(--term-dim)] disabled:opacity-40`}>→</button>
+        </div>
+      ) : null}
 
-      {summary ? (
-        <div ref={panel} role="tabpanel" aria-label="Review your answers" onKeyDown={onKey(null)} tabIndex={-1} className="outline-none">
-          <p className="font-semibold text-[var(--term-text)]">Review your answers</p>
-          <ul className="mt-1 space-y-1">
-            {questions.map((q, qi) => {
-              const answer = answerFor(qi);
+      {question ? (
+        <div role={tabbed ? 'tabpanel' : 'group'} aria-label={question.text}>
+          <p className="mb-1 whitespace-pre-wrap break-words font-semibold text-[var(--term-text)]">{question.text}</p>
+          <ul className="space-y-0.5" role={question.multi ? 'group' : 'radiogroup'} aria-label={question.multi ? 'Pick any' : 'Pick one'}>
+            {question.options.map((option, oi) => {
+              const on = (picked[qi] ?? []).includes(option.label);
+              const look = shown(option);
 
               return (
-                <li key={qi} className="flex gap-2">
+                <li key={option.label}>
+                  <button
+                    type="button"
+                    data-row=""
+                    role={question.multi ? 'checkbox' : 'radio'}
+                    aria-checked={on}
+                    onClick={() => pick(qi, option.label)}
+                    className={`${ROW} ${on ? 'bg-[var(--term-selection)]' : 'hover:bg-[var(--term-selection)]'}`}
+                  >
+                    <span aria-hidden="true" className="w-5 shrink-0 tabular-nums text-[var(--term-dim)]">{oi + 1}.</span>
+                    {question.multi ? <span aria-hidden="true" className={`shrink-0 ${on ? 'text-[var(--term-accent)]' : 'text-[var(--term-dim)]'}`}>{on ? '[x]' : '[ ]'}</span> : null}
+                    <span className="min-w-0 flex-1">
+                      <span className={on ? 'font-semibold text-[var(--term-accent)]' : 'text-[var(--term-text)]'}>{look.label}</span>
+                      {look.recommended ? (
+                        <span className="ml-2 rounded border border-[var(--term-ok)] px-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--term-ok)]">Recommended</span>
+                      ) : null}
+                      {option.description ? <span className="block text-[12px] text-[var(--term-dim)]">{option.description}</span> : null}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+            <li>
+              <label className="flex w-full items-center gap-2 px-2 py-1">
+                <span aria-hidden="true" className="w-5 shrink-0 tabular-nums text-[var(--term-dim)]">{count + 1}.</span>
+                <input
+                  data-row=""
+                  value={other[qi] ?? ''}
+                  placeholder={count > 0 ? 'Type something.' : 'Type your answer.'}
+                  aria-label={count > 0 ? 'Type something else' : 'Your answer'}
+                  onChange={(e) => {
+                    const text = e.target.value;
+
+                    setOther((all) => all.map((t, i) => (i === qi ? text : t)));
+                    if (!question.multi && text.trim() !== '') setPicked((all) => all.map((list, i) => (i === qi ? [] : list)));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    typedDone(qi);
+                  }}
+                  className="min-w-0 flex-1 rounded border border-[var(--term-border)] bg-[var(--term-bg)] px-3 py-1 text-[13px] text-[var(--term-text)] outline-none placeholder:text-[var(--term-dim)] focus-visible:border-[var(--term-accent)]"
+                />
+              </label>
+            </li>
+          </ul>
+          {question.multi ? (
+            <div className="mt-1 px-2">
+              <button type="button" data-row="" onClick={() => (tabbed ? go(qi + 1) : send())} disabled={answerFor(qi) === ''} className={PRIMARY}>
+                {tabbed ? 'Next' : 'Send'}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div role="tabpanel" aria-label="Review your answers">
+          <p className="font-semibold text-[var(--term-text)]">Review your answers</p>
+          <ul className="mt-1 space-y-1">
+            {questions.map((q, i) => {
+              const answer = answerFor(i);
+
+              return (
+                <li key={i} className="flex gap-2">
                   <span aria-hidden="true" className={`w-4 shrink-0 text-center ${answer ? 'text-[var(--term-ok)]' : 'text-[var(--term-warn)]'}`}>{answer ? '●' : '○'}</span>
                   <span className="min-w-0 flex-1 break-words">
                     <span className="text-[var(--term-dim)]">{q.text}</span>
@@ -277,7 +293,7 @@ export function TerminalQuestionBlock({
                     {answer ? (
                       <span className="text-[var(--term-text)]">→ {answer}</span>
                     ) : (
-                      <button type="button" onClick={() => go(qi)} className="text-[12px] text-[var(--term-warn)] underline decoration-dotted underline-offset-2 outline-none focus-visible:text-[var(--term-accent)]">
+                      <button type="button" onClick={() => go(i)} className="text-[12px] text-[var(--term-warn)] underline decoration-dotted underline-offset-2 outline-none focus-visible:text-[var(--term-accent)]">
                         Not answered yet: answer it
                       </button>
                     )}
@@ -286,24 +302,71 @@ export function TerminalQuestionBlock({
               );
             })}
           </ul>
-          <div className="mt-2 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={send}
-              disabled={!ready}
-              className="whitespace-nowrap rounded bg-[var(--term-accent)] px-3 py-1 text-[12px] font-semibold text-[var(--term-on-accent)] outline-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--term-text)]"
-            >
-              Send answers
-            </button>
-            <span className="text-[11px] text-[var(--term-dim)]">← → tabs · enter sends</span>
-          </div>
-        </div>
-      ) : (
-        <div ref={panel} role="tabpanel" aria-label={tabName(questions[tab] as Question, tab)}>
-          {questionBody(questions[tab] as Question, tab)}
-          <p className="ml-6 mt-2 text-[11px] text-[var(--term-dim)]">1-9 pick · ← → tabs</p>
+          <button type="button" data-row="" onClick={() => send()} disabled={!ready} className={`${PRIMARY} mt-2`}>
+            Send answers
+          </button>
         </div>
       )}
+
+      <div className="mt-2 border-t border-[var(--term-border)] pt-1">
+        <button type="button" data-row="" onClick={onChat} className={`${ROW} text-[var(--term-dim)] hover:bg-[var(--term-selection)] hover:text-[var(--term-text)]`}>
+          <span aria-hidden="true" className="w-5 shrink-0 text-center">↩</span>
+          <span className="min-w-0 flex-1">
+            <span className="text-[var(--term-text)]">Chat about this</span>
+            <span className="block text-[12px]">Set {tabbed ? 'these questions' : 'this question'} aside and reply in your own words.</span>
+          </span>
+        </button>
+      </div>
+      <p className="mt-1 px-2 text-[11px] text-[var(--term-dim)]">
+        enter to select · ↑↓ to move{count > 0 ? ` · 1-${count} to pick` : ''}{tabbed ? ' · ←→ tabs' : ''} · esc to chat instead
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The questions as the transcript keeps them: each question and, once given, its answer. While they are
+ * still open it says where to answer them, or, once set aside to chat, offers the way back.
+ */
+export function TerminalQuestionLog({
+  questions,
+  answers,
+  state,
+  onReopen,
+}: {
+  questions: Question[];
+  answers: TerminalAnswer[];
+  /** asking: the picker is up · aside: the person chose to chat about it · closed: no longer open. */
+  state: 'answered' | 'asking' | 'aside' | 'closed';
+  onReopen?: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="mt-2">
+      {questions.map((q, qi) => {
+        const given = answers.find((a) => a.question === q.text)?.answer ?? null;
+
+        return (
+          <div key={qi} className={qi > 0 ? 'mt-1' : ''}>
+            <p className="flex gap-2">
+              <span aria-hidden="true" className="w-4 shrink-0 select-none text-center text-[var(--term-accent)]">?</span>
+              <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-[var(--term-text)]">{q.text}</span>
+            </p>
+            {given !== null ? <p className="ml-6 break-words text-[var(--term-dim)]">⎿ <span className="text-[var(--term-text)]">{given}</span></p> : null}
+          </div>
+        );
+      })}
+      {state === 'asking' ? <p className="ml-6 text-[12px] text-[var(--term-dim)]">⎿ Waiting for your answer below.</p> : null}
+      {state === 'aside' ? (
+        <p className="ml-6 text-[12px] text-[var(--term-dim)]">
+          ⎿ Set aside to chat about it.{' '}
+          {onReopen ? (
+            <button type="button" onClick={onReopen} className="rounded px-1 text-[var(--term-accent)] underline decoration-dotted underline-offset-2 outline-none hover:text-[var(--term-text)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">
+              Answer {questions.length === 1 ? 'it' : 'them'} now
+            </button>
+          ) : null}
+        </p>
+      ) : null}
+      {state === 'closed' ? <p className="ml-6 text-[12px] text-[var(--term-dim)]">⎿ Not answered.</p> : null}
     </div>
   );
 }

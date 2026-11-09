@@ -14,7 +14,7 @@ export type { AssistantTerminalProps } from './AssistantTerminal';
 export { TerminalInput } from './TerminalInput';
 export type { TerminalComposerOptions, TerminalInputProps, TerminalMentions } from './TerminalInput';
 export { TerminalLines, foldText } from './TerminalLines';
-export { TerminalQuestionBlock } from './TerminalQuestion';
+export { TerminalQuestionBlock, TerminalQuestionLog } from './TerminalQuestion';
 export { TerminalRewind, rewindableAsks } from './TerminalRewind';
 export type { TerminalRewindChoice } from './TerminalRewind';
 export { TerminalStatus } from './TerminalStatus';

@@ -96,6 +96,9 @@ describe('recap', () => {
     expect(lines[1]).toContain('could not finish: The site refused the visit.');
     expect(lines[2]).toMatch(/try again at a higher level/i);
     expect(recapLines([], { assistant: 'Porter', subject: 'page' })).toEqual([]);
+    // The assistant's name keeps its capital mid-sentence.
+    const ideas = recapLines([ask('a1', 'Ideas?', { mode: 'brainstorm' }), answer('b1', { ideas: [{ title: 'One' }], recommendation: 'Do one.' })], { assistant: 'Porter', subject: 'page' });
+    expect(ideas[1]).toContain(', Porter offered ideas.');
   });
 });
 
@@ -158,15 +161,112 @@ describe('AssistantTerminal 1.45', () => {
     expect(screen.getByText('◇ brainstorm')).toBeTruthy();
   });
 
-  it('answers a question with a pick and sends the answers', () => {
+  const oneQuestion = () => [ask('a1', 'Write the about page'), answer('b1', { questions: [{ text: 'Which tone?', options: [{ label: 'Warm', description: 'Friendly' }, { label: 'Formal' }] }] }, 'One question first.')];
+
+  it('asks over the composer, and one pick to one question sends it (Claude Code)', () => {
     const onAnswer = vi.fn();
-    const turns = [ask('a1', 'Write the about page'), answer('b1', { questions: [{ text: 'Which tone?', options: [{ label: 'Warm', description: 'Friendly' }, { label: 'Formal' }] }] }, 'One question first.')];
+
+    render(<Harness turns={oneQuestion()} onAnswer={onAnswer} />);
+
+    // The questions take the composer's place; the transcript only says where to answer.
+    expect(screen.queryByRole('textbox', { name: /describe what you want/i })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'A question to answer' })).toBeTruthy();
+    expect(screen.getByText('⎿ Waiting for your answer below.')).toBeTruthy();
+    // It takes the focus too, so the keys work at once.
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: /warm/i }));
+
+    fireEvent.click(screen.getByRole('radio', { name: /warm/i }));
+    expect(onAnswer).toHaveBeenCalledWith('b1', [{ question: 'Which tone?', answer: 'Warm' }]);
+  });
+
+  it('picks by number, moves with the arrows, and takes a typed answer', () => {
+    const onAnswer = vi.fn();
+
+    render(<Harness turns={oneQuestion()} onAnswer={onAnswer} />);
+
+    fireEvent.keyDown(document.activeElement as Element, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: /formal/i }));
+    fireEvent.keyDown(document.activeElement as Element, { key: 'ArrowDown' });
+    const typed = screen.getByRole('textbox', { name: 'Type something else' });
+    expect(document.activeElement).toBe(typed);
+
+    // A digit typed in the box is text, not a pick.
+    fireEvent.keyDown(typed, { key: '2' });
+    expect(onAnswer).not.toHaveBeenCalled();
+    fireEvent.change(typed, { target: { value: 'Plain and direct' } });
+    fireEvent.keyDown(typed, { key: 'Enter' });
+    expect(onAnswer).toHaveBeenCalledWith('b1', [{ question: 'Which tone?', answer: 'Plain and direct' }]);
+
+    onAnswer.mockClear();
+    fireEvent.keyDown(screen.getByRole('radio', { name: /warm/i }), { key: '2' });
+    expect(onAnswer).toHaveBeenCalledWith('b1', [{ question: 'Which tone?', answer: 'Formal' }]);
+  });
+
+  it('"Chat about this" brings the composer back with the draft, and the transcript offers the way back', () => {
+    const onAnswer = vi.fn();
+
+    render(<Harness turns={oneQuestion()} onAnswer={onAnswer} value="half a thought" onChange={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /chat about this/i }));
+
+    expect(screen.queryByRole('dialog', { name: 'A question to answer' })).toBeNull();
+    expect(input().value).toBe('half a thought');
+    expect(screen.getByText(/set aside to chat about it/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Answer it now' }));
+    expect(screen.getByRole('dialog', { name: 'A question to answer' })).toBeTruthy();
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  it('Esc sets the questions aside, and never reaches the console (no stop, no rewind)', () => {
+    const onStop = vi.fn();
+
+    render(<Harness turns={oneQuestion()} onAnswer={vi.fn()} onStop={onStop} />);
+
+    fireEvent.keyDown(screen.getByRole('radio', { name: /warm/i }), { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'A question to answer' })).toBeNull();
+    expect(input()).toBeTruthy();
+    expect(onStop).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: /rewind/i })).toBeNull();
+  });
+
+  it('a question arriving never pulls the cursor out of the page', () => {
+    const outside = document.createElement('input');
+    document.body.appendChild(outside);
+
+    const { rerender } = render(<Harness turns={[ask('a1', 'Write it')]} onAnswer={vi.fn()} />);
+    outside.focus();
+    rerender(<Harness turns={oneQuestion()} onAnswer={vi.fn()} />);
+
+    expect(screen.getByRole('dialog', { name: 'A question to answer' })).toBeTruthy();
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it('gives the composer back once answered, and while a run is going', () => {
+    const answered = [...oneQuestion(), ask('a2', 'Answers', { answers: [{ question: 'Which tone?', answer: 'Warm' }] })];
+    const { rerender } = render(<Harness turns={answered} onAnswer={vi.fn()} />);
+
+    expect(screen.queryByRole('dialog', { name: 'A question to answer' })).toBeNull();
+    expect(screen.getAllByText('Warm').length).toBeGreaterThan(0);
+    expect(input()).toBeTruthy();
+
+    rerender(<Harness turns={oneQuestion()} onAnswer={vi.fn()} live={{ startedAt: 1, ask: { text: 'x' }, steps: [], verb: 'Thinking', queued: null }} />);
+    expect(screen.queryByRole('dialog', { name: 'A question to answer' })).toBeNull();
+  });
+
+  it('lets several choices be picked when a question allows it', () => {
+    const onAnswer = vi.fn();
+    const turns = [ask('a1', 'x'), answer('b1', { questions: [{ text: 'Which sections?', multi: true, options: [{ label: 'FAQ' }, { label: 'Team' }, { label: 'Pricing' }] }] }, 'One.')];
 
     render(<Harness turns={turns} onAnswer={onAnswer} />);
-    fireEvent.click(screen.getByRole('radio', { name: /warm/i }));
-    fireEvent.click(screen.getByRole('button', { name: /send answer/i }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'FAQ' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Pricing' }));
+    expect(onAnswer).not.toHaveBeenCalled();
 
-    expect(onAnswer).toHaveBeenCalledWith('b1', [{ question: 'Which tone?', answer: 'Warm' }]);
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(onAnswer).toHaveBeenCalledWith('b1', [{ question: 'Which sections?', answer: 'FAQ, Pricing' }]);
   });
 
   it('shows the recommended choice, from the flag or a "(Recommended)" label', () => {
@@ -235,5 +335,17 @@ describe('AssistantTerminal 1.45', () => {
     fireEvent.keyDown(input(), { key: 'Enter' });
 
     expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('1 ask in this session: 1 changed the page.');
+  });
+
+  it('stops drawing a recap once the session moves on (a rewind, a new answer)', () => {
+    const turns = [ask('a1', 'Add a FAQ'), answer('b1', { outcome: { changed: true } })];
+    const { rerender } = render(<Harness turns={turns} />);
+
+    fireEvent.change(input(), { target: { value: '/recap' } });
+    fireEvent.keyDown(input(), { key: 'Enter' });
+    expect(screen.getByRole('note', { name: 'Recap' })).toBeTruthy();
+
+    rerender(<Harness turns={turns.map((t) => ({ ...t, rewound: true }))} />);
+    expect(screen.queryByRole('note', { name: 'Recap' })).toBeNull();
   });
 });

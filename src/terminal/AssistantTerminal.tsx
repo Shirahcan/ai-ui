@@ -6,6 +6,7 @@ import { useAutoscroll } from '../useAutoscroll';
 import type { TerminalCommandName } from './commands';
 import { TerminalInput, type TerminalComposerOptions, type TerminalMentions } from './TerminalInput';
 import { TerminalLines } from './TerminalLines';
+import { TerminalQuestionBlock } from './TerminalQuestion';
 import { TerminalRewind, type TerminalRewindChoice } from './TerminalRewind';
 import { TerminalStatus } from './TerminalStatus';
 import { BriefView, ContextView, HelpView, ResumeView, ThemeView, TuningView } from './TerminalViews';
@@ -125,15 +126,27 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
   const [menuOpen, setMenuOpen] = useState(false);
   // What the person opened (thinking, a long reply, a rewound turn), by line key: folded, never cut.
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
-  const [recap, setRecap] = useState<{ key: string; lines: string[] } | null>(null);
+  // A recap describes the session as it stood: `at` is that session's shape, and once the turns move on
+  // (a new answer, a rewind) the recap is no longer drawn, so it never states something stale.
+  const [recap, setRecap] = useState<{ key: string; lines: string[]; at: string } | null>(null);
+  const shape = turns.map((t) => `${t.id}${t.rewound ? '~' : ''}`).join(',');
   const dock = useTerminalDock(width, onWidthChange);
   const words = useMemo(() => ({ assistant: assistantName, subject: subjectNoun }), [assistantName, subjectNoun]);
   const active = terminalTheme(theme, themes);
   const working = live !== null;
   const lines = useMemo(
-    () => toLines(turns, { session, live, expanded, opened, notes, recap, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName }),
-    [turns, session, live, expanded, opened, notes, recap, clearedThrough, assistantName],
+    () => toLines(turns, { session, live, expanded, opened, notes, recap: recap && recap.at === shape ? recap : null, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName }),
+    [turns, session, live, expanded, opened, notes, recap, shape, clearedThrough, assistantName],
   );
+  // The assistant's last word asked questions and nothing has run since: they take the composer's place
+  // (Claude Code), unless the person chose "Chat about this" for them (`aside`, by their line key).
+  const [aside, setAside] = useState<string | null>(null);
+  const lastTurn = turns.at(-1);
+  const openQuestions =
+    onAnswer && !working && lastTurn && lastTurn.role === 'assistant' && !lastTurn.rewound && (lastTurn.structured?.questions?.length ?? 0) > 0
+      ? { key: `${lastTurn.id}:question`, turnId: lastTurn.id, questions: lastTurn.structured?.questions ?? [] }
+      : null;
+  const asking = openQuestions && aside !== openQuestions.key && view === null ? openQuestions : null;
   const hidden = useMemo(() => {
     const out: TerminalCommandName[] = [];
 
@@ -173,7 +186,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
 
     const text = recapLines(all, w);
 
-    if (text.length > 0) setRecap({ key: `recap:${Date.now()}`, lines: text });
+    if (text.length > 0) setRecap({ key: `recap:${Date.now()}`, lines: text, at: all.map((t) => `${t.id}${t.rewound ? '~' : ''}`).join(',') });
   }, []);
 
   useEffect(() => {
@@ -218,9 +231,12 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
   const panelTitle = title ?? `${assistantName} console`;
   const inputWrap = useRef<HTMLDivElement | null>(null);
 
+  // The composer, or the questions standing in its place.
+  const focusComposer = () => inputWrap.current?.querySelector<HTMLElement>('textarea, [data-ai-question] [data-row]')?.focus();
+
   // Opening the console puts the cursor in it (a fresh page opens straight into an ask).
   useEffect(() => {
-    if (open) inputWrap.current?.querySelector('textarea')?.focus();
+    if (open) inputWrap.current?.querySelector<HTMLElement>('textarea, [data-ai-question] [data-row]')?.focus();
   }, [open]);
 
   const openView = (next: View) => {
@@ -233,7 +249,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
   const closeView = () => {
     setView(null);
     setRewindFrom(null);
-    requestAnimationFrame(() => inputWrap.current?.querySelector('textarea')?.focus());
+    requestAnimationFrame(focusComposer);
   };
 
   const exportTranscript = async () => {
@@ -275,7 +291,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
 
       const text = recapLines(turns, words);
 
-      return setRecap({ key: `recap:${Date.now()}`, lines: text.length > 0 ? text : [`Nothing asked in this session yet.`] });
+      return setRecap({ key: `recap:${Date.now()}`, lines: text.length > 0 ? text : [`Nothing asked in this session yet.`], at: shape });
     }
     if (name === 'export') return void exportTranscript();
     if (name === 'clear') setClearedThrough(null);
@@ -393,7 +409,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
               onDismissPlan={onDismissPlan}
               onToggle={toggleOpen}
               onRetry={onRetry}
-              onAnswer={onAnswer ? (turnId, answers) => { setRecap(null); onAnswer(turnId, answers); } : undefined}
+              asking={asking?.key ?? null}
+              onReopenQuestions={onAnswer ? () => { setAside(null); requestAnimationFrame(focusComposer); } : undefined}
               onSuggestion={onSuggestion ? (text) => { setRecap(null); onSuggestion(text); } : undefined}
             />
           </div>
@@ -419,23 +436,40 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
       />
 
       <div ref={inputWrap} className="shrink-0 bg-[var(--term-bar)] px-2 pb-2">
-        <TerminalInput
-          value={value}
-          onChange={onChange}
-          onAsk={(text, files, input) => {
-            setRecap(null);
-            lastHere.current = Date.now();
-            onAsk(text, files, input);
-          }}
-          onCommand={command}
-          history={history}
-          words={words}
-          hiddenCommands={hidden}
-          mentions={mentions}
-          composer={composer}
-          searching={searching}
-          onSearchClose={() => setSearching(false)}
-        />
+        {asking && onAnswer ? (
+          <TerminalQuestionBlock
+            key={asking.key}
+            questions={asking.questions}
+            onAnswer={(answers) => {
+              setRecap(null);
+              lastHere.current = Date.now();
+              onAnswer(asking.turnId, answers);
+            }}
+            onChat={() => {
+              setAside(asking.key);
+              // The draft the person had is still theirs: the composer comes back holding it.
+              requestAnimationFrame(focusComposer);
+            }}
+          />
+        ) : (
+          <TerminalInput
+            value={value}
+            onChange={onChange}
+            onAsk={(text, files, input) => {
+              setRecap(null);
+              lastHere.current = Date.now();
+              onAsk(text, files, input);
+            }}
+            onCommand={command}
+            history={history}
+            words={words}
+            hiddenCommands={hidden}
+            mentions={mentions}
+            composer={composer}
+            searching={searching}
+            onSearchClose={() => setSearching(false)}
+          />
+        )}
       </div>
 
       <div
