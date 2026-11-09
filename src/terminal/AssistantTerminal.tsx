@@ -392,9 +392,10 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
         <button type="button" onClick={onClose} aria-label={`Close the ${panelTitle} (Ctrl+\`)`} title="Close (Ctrl+`)" className="rounded px-1.5 text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">×</button>
       </header>
 
-      {body ?? (
-        <div className="relative min-h-0 flex-1">
-          <div ref={scroll.scrollRef} onScroll={scroll.onScroll} onClick={clickToCompose} role="log" aria-label="Transcript" className="h-full cursor-text overflow-y-auto px-4 py-3">
+      {/* A view opens OVER the transcript, which stays mounted (1.48.0): it used to be swapped out, so
+          closing Help or Settings re-mounted it at the top of a long session instead of where it was. */}
+      <div className="relative min-h-0 flex-1">
+          <div ref={scroll.scrollRef} onScroll={scroll.onScroll} onClick={clickToCompose} role="log" aria-label="Transcript" aria-hidden={body ? true : undefined} inert={body !== null} className="h-full cursor-text overflow-y-auto px-4 py-3">
             {loading ? <p className="text-[var(--term-dim)]">Opening the session…</p> : null}
             {!loading && lines.length === 0 ? (
               <div className="text-[var(--term-dim)]">
@@ -415,13 +416,13 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
               onSuggestion={onSuggestion ? (text) => { recaps.dismiss(); onSuggestion(text); } : undefined}
             />
           </div>
-          {!scroll.isPinned ? (
+          {!scroll.isPinned && body === null ? (
             <button type="button" onClick={scroll.scrollToBottom} className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[var(--term-border)] bg-[var(--term-bar)] px-3 py-0.5 text-[11px] text-[var(--term-text)] shadow outline-none focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">
               Jump to latest ↓
             </button>
           ) : null}
-        </div>
-      )}
+          {body ? <div className="absolute inset-0 flex flex-col bg-[var(--term-bg)]">{body}</div> : null}
+      </div>
 
       <TerminalStatus
         working={working}

@@ -64,7 +64,7 @@ export function TerminalMenu({ open, onOpenChange, items }: { open: boolean; onO
         ⋮
       </button>
       {open ? (
-        <ul role="menu" aria-label="More" onKeyDown={move} className="absolute right-0 top-7 z-10 w-56 rounded-md border border-[var(--term-border)] bg-[var(--term-bar)] py-1 shadow-xl">
+        <ul role="menu" aria-label="More" onKeyDown={move} className="absolute right-0 top-7 z-10 w-max min-w-56 rounded-md border border-[var(--term-border)] bg-[var(--term-bar)] py-1 shadow-xl">
           {items.map((item) => (
             <li key={item.label} role="none">
               <button

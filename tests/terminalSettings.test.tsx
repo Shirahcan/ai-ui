@@ -196,6 +196,24 @@ describe('/config', () => {
   });
 });
 
+describe('a view over the transcript', () => {
+  it('keeps the transcript mounted, so closing the view returns to the same place', () => {
+    render(<Harness />);
+
+    const log = screen.getByRole('log', { name: 'Transcript' });
+
+    fireEvent.change(input(), { target: { value: '/help' } });
+    fireEvent.keyDown(input(), { key: 'Enter' });
+    expect(screen.getByRole('heading', { name: 'Commands and shortcuts' })).toBeTruthy();
+    // Under the view it is hidden from the keyboard and from screen readers, not removed.
+    expect(screen.queryByRole('log', { name: 'Transcript' })).toBeNull();
+    expect(document.querySelector('[role="log"][aria-label="Transcript"]')).toBe(log);
+    expect(log.getAttribute('aria-hidden')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Back (Esc)' }));
+    expect(screen.getByRole('log', { name: 'Transcript' })).toBe(log);
+  });
+});
+
 describe('the recap on opening a session', () => {
   it('shows when the last turn is older than the recap time', () => {
     render(<Harness turns={turnsAt(120)} recapAfterMinutes={30} />);
