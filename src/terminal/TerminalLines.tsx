@@ -2,7 +2,7 @@ import React from 'react';
 
 import { LEVEL_LABELS } from './transcript';
 import { TerminalQuestionLog } from './TerminalQuestion';
-import type { TerminalLevel, TerminalLine } from './types';
+import type { TerminalChange, TerminalLevel, TerminalLine } from './types';
 
 /**
  * The transcript, line by line, in the console's marks (design section 3): `❯` an ask, `●` a step,
@@ -110,9 +110,40 @@ export interface TerminalLinesProps {
   onReopenQuestions?: (key: string) => void;
   /** "Do this" on a suggestion, and "Build this" on a brainstorm's recommendation: the next ask. */
   onSuggestion?: (text: string) => void;
+  /** An element in an outcome's "what changed" list (1.53.0): the host shows it (selects it, scrolls to it). */
+  onElement?: (uid: string) => void;
+  /** "Compare with the picture" under a Build made from one (1.53.0). */
+  onCompare?: () => void;
 }
 
-export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, buildLabel = 'Build this', onToggle, onRetry, asking = null, onReopenQuestions, onSuggestion }: TerminalLinesProps): React.JSX.Element {
+const CHANGE: Record<string, { mark: string; verb: string }> = {
+  added: { mark: '+', verb: 'Added' },
+  changed: { mark: '~', verb: 'Changed' },
+  removed: { mark: '−', verb: 'Removed' },
+};
+
+/** "Added the heading “Pricing”": one element an ask changed, a button that shows it when it is still there. */
+function ChangeLine({ change, onElement }: { change: TerminalChange; onElement?: (uid: string) => void }): React.JSX.Element {
+  const look = CHANGE[change.how] ?? { mark: '·', verb: 'Changed' };
+  const words = `${look.verb} the ${change.label}`;
+  // A removed element is gone: nothing to show.
+  const showable = onElement && change.how !== 'removed';
+
+  return (
+    <li className="flex gap-2">
+      <span aria-hidden="true" className={`${MARK} text-[var(--term-dim)]`}>{look.mark}</span>
+      {showable ? (
+        <button type="button" onClick={() => onElement(change.uid)} title="Show it" className="min-w-0 break-words text-left text-[var(--term-text)] underline decoration-dotted underline-offset-2 outline-none hover:text-[var(--term-accent)] focus-visible:text-[var(--term-accent)]">
+          {words}
+        </button>
+      ) : (
+        <span className="min-w-0 break-words text-[var(--term-dim)]">{words}</span>
+      )}
+    </li>
+  );
+}
+
+export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, buildLabel = 'Build this', onToggle, onRetry, asking = null, onReopenQuestions, onSuggestion, onElement, onCompare }: TerminalLinesProps): React.JSX.Element {
   return (
     <>
       {lines.map((line, index) => {
@@ -283,12 +314,20 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
 
           case 'outcome': {
             const tone = line.tone === 'ok' ? 'text-[var(--term-ok)]' : line.tone === 'fail' ? 'text-[var(--term-fail)]' : 'text-[var(--term-dim)]';
+            const changes = line.changes ?? [];
 
             return (
               <div key={line.key} className={`mt-1 flex flex-wrap items-baseline gap-x-2 ${muted}`}>
                 <span aria-hidden="true" className={`${MARK} ${tone}`}>{line.tone === 'ok' ? '✓' : line.tone === 'fail' ? '✗' : '○'}</span>
                 <span className={`min-w-0 flex-1 break-words ${tone}`}>
-                  {line.text}
+                  {changes.length > 0 && onToggle ? (
+                    // What changed folds under the line (1.53.0): the line itself opens it.
+                    <button type="button" aria-expanded={line.open === true} onClick={toggle(line.key)} className="text-left outline-none hover:underline focus-visible:underline">
+                      {line.text} <span className="text-[var(--term-dim)]">{line.open ? '▾' : '▸'}</span>
+                    </button>
+                  ) : (
+                    line.text
+                  )}
                   {line.level ? <span className="text-[11px] text-[var(--term-dim)]"> · {line.level}</span> : null}
                 </span>
                 {line.retry && line.turnId && onRetry ? (
@@ -296,10 +335,23 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
                     Try again at {LEVEL_LABELS[line.retry]}
                   </button>
                 ) : null}
+                {line.compare && onCompare ? (
+                  <button type="button" onClick={onCompare} className={TOGGLE}>
+                    Compare with the picture
+                  </button>
+                ) : null}
                 {line.canRewind && line.turnId && onRewind ? (
                   <button type="button" onClick={() => onRewind(line.turnId as string)} className={TOGGLE}>
                     Rewind to before this
                   </button>
+                ) : null}
+                {changes.length > 0 && line.open ? (
+                  <ul aria-label="What changed" className="ml-6 mt-0.5 w-full space-y-0.5">
+                    {changes.map((change, i) => (
+                      <ChangeLine key={`${change.uid}:${i}`} change={change} onElement={onElement} />
+                    ))}
+                    {line.more ? <li className="ml-6 text-[var(--term-dim)]">and {line.more} more</li> : null}
+                  </ul>
                 ) : null}
               </div>
             );

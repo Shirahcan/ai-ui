@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AttachmentChip } from '../types';
 import { FileIcon, PaperclipIcon } from '../icons';
 import { aiVar } from '../theme';
@@ -42,6 +42,26 @@ export interface PendingAttachment {
   status: 'uploading' | 'ready' | 'failed';
   chip?: AttachmentChip;
   error?: string;
+  /**
+   * A picture's own thumbnail (1.53.0, owner 2026-11-09): an object URL for an image file, drawn on its
+   * chip in place of the file icon. Revoked when the file leaves the composer.
+   */
+  preview?: string;
+}
+
+/** A thumbnail for a picture the browser can draw; null for anything else. */
+function previewOf(file: File): string | undefined {
+  if (!file.type.startsWith('image/') || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return undefined;
+
+  try {
+    return URL.createObjectURL(file);
+  } catch {
+    return undefined;
+  }
+}
+
+function revoke(item: PendingAttachment | undefined): void {
+  if (item?.preview && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(item.preview);
 }
 
 function megabytes(bytes: number): string {
@@ -74,6 +94,14 @@ export function acceptsFile(accept: string[], file: { name: string; type: string
 export function useComposerAttachments(config: ComposerAttachmentsConfig | undefined) {
   const [items, setItems] = useState<PendingAttachment[]>([]);
   const seq = useRef(0);
+  // The chips on screen, for revoking every thumbnail when the composer goes away.
+  const live = useRef<PendingAttachment[]>([]);
+
+  useEffect(() => {
+    live.current = items;
+  }, [items]);
+
+  useEffect(() => () => live.current.forEach(revoke), []);
 
   const add = useCallback(
     (files: File[]) => {
@@ -97,7 +125,8 @@ export function useComposerAttachments(config: ComposerAttachmentsConfig | undef
 
         seq.current += 1;
         const key = `f${seq.current}`;
-        setItems((prev) => [...prev, { key, name: file.name, size: file.size, status: 'uploading' }]);
+        const preview = previewOf(file);
+        setItems((prev) => [...prev, { key, name: file.name, size: file.size, status: 'uploading', ...(preview ? { preview } : {}) }]);
 
         config
           .onUpload(file)
@@ -122,10 +151,14 @@ export function useComposerAttachments(config: ComposerAttachmentsConfig | undef
     if (gone?.status === 'ready' && gone.chip && config?.onRemove) {
       void Promise.resolve(config.onRemove(gone.chip)).catch(() => undefined);
     }
+    revoke(gone);
     setItems((prev) => prev.filter((i) => i.key !== key));
   }, [config, items]);
 
-  const clear = useCallback(() => setItems([]), []);
+  const clear = useCallback(() => {
+    live.current.forEach(revoke);
+    setItems([]);
+  }, []);
 
   const ready = items.filter((i) => i.status === 'ready' && i.chip).map((i) => i.chip as AttachmentChip);
   const uploading = items.some((i) => i.status === 'uploading');
@@ -200,7 +233,11 @@ export function PendingAttachmentChips({
           }}
           title={item.error ?? item.name}
         >
-          <FileIcon size={12} />
+          {item.preview ? (
+            <img src={item.preview} alt="" className="-my-0.5 -ml-1 h-6 w-6 shrink-0 rounded object-cover" />
+          ) : (
+            <FileIcon size={12} />
+          )}
           <span className="max-w-[12rem] truncate">{item.name}</span>
           <span style={{ color: item.status === 'failed' ? aiVar('--ai-danger') : aiVar('--ai-muted') }}>
             {item.status === 'uploading' ? 'Uploading' : item.status === 'failed' ? 'Not attached' : formatBytes(item.size)}

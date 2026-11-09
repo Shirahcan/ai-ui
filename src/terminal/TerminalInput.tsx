@@ -4,7 +4,7 @@ import { Composer, type ComposerProps } from '../components/Composer';
 import type { ComposerMention } from '../components/ComposerPicker';
 import type { AttachmentChip } from '../types';
 import type { AssistantInputKind } from '../useAssistantConversation';
-import { parseCommand, slashCommands, type TerminalCommandName } from './commands';
+import { expandSavedCommand, parseCommand, savedSlashCommands, slashCommands, type TerminalCommandName, type TerminalSavedCommand } from './commands';
 
 /** What the host lets the console's Composer do, beyond the words (files, dictation, Send's label). */
 export type TerminalComposerOptions = Omit<ComposerProps, 'value' | 'onChange' | 'onSend' | 'history' | 'slashCommands' | 'mentions'>;
@@ -25,6 +25,8 @@ export interface TerminalInputProps {
   words: { assistant: string; subject: string };
   /** Commands this host does not offer (1.45.0): left out of the "/" picker. */
   hiddenCommands?: readonly TerminalCommandName[];
+  /** The person's own commands (1.53.0): listed after the built-ins; `/name` sends its ask. */
+  saved?: readonly TerminalSavedCommand[];
   mentions?: TerminalMentions;
   composer?: TerminalComposerOptions;
   /** Ctrl+R: the reverse search row is open. */
@@ -36,12 +38,16 @@ export interface TerminalInputProps {
  * The console's input: the ONE shared `Composer` (never a copy: its docblock says why), with the up-arrow
  * history, the "/" commands run here instead of sent, "@" aiming at an element, and Ctrl+R search.
  */
-export function TerminalInput({ value, onChange, onAsk, onCommand, history, words, hiddenCommands, mentions, composer, searching, onSearchClose }: TerminalInputProps): React.JSX.Element {
+export function TerminalInput({ value, onChange, onAsk, onCommand, history, words, hiddenCommands, saved = [], mentions, composer, searching, onSearchClose }: TerminalInputProps): React.JSX.Element {
   const picked = useRef(new Map<string, string>());
-  // A command with nothing to add runs the moment it is picked; one that takes words fills the box.
+  // A command with nothing to add runs the moment it is picked; one that takes words fills the box. The
+  // person's own fill the box too, so words can be added before Enter sends them.
   const commands = useMemo(
-    () => slashCommands(words, hiddenCommands).map((c) => (c.prompt.endsWith(' ') ? c : { ...c, run: () => onCommand(c.key as TerminalCommandName, '') })),
-    [words, hiddenCommands, onCommand],
+    () => [
+      ...slashCommands(words, hiddenCommands).map((c) => (c.prompt.endsWith(' ') ? c : { ...c, run: () => onCommand(c.key as TerminalCommandName, '') })),
+      ...savedSlashCommands(saved),
+    ],
+    [words, hiddenCommands, onCommand, saved],
   );
 
   const mentionConfig = useMemo(
@@ -84,7 +90,8 @@ export function TerminalInput({ value, onChange, onAsk, onCommand, history, word
 
     if (value.trim() === '' && files.length === 0) return;
 
-    onAsk(value.trim(), files, input);
+    // `/seo-pass` sends the ask it stands for (the person's own command, 1.53.0).
+    onAsk(expandSavedCommand(value, saved) ?? value.trim(), files, input);
   };
 
   return (

@@ -20,7 +20,10 @@ export type TerminalCommandName =
   | 'effort'
   | 'brainstorm'
   | 'recap'
-  | 'config';
+  | 'config'
+  | 'cost'
+  | 'compare'
+  | 'save';
 
 export interface TerminalCommand {
   name: TerminalCommandName;
@@ -49,10 +52,59 @@ export const TERMINAL_COMMANDS: TerminalCommand[] = [
   { name: 'brainstorm', description: 'Think it through with {assistant}: ideas, questions and a recommendation, nothing changed' },
   { name: 'recap', args: '[off|minutes]', bare: true, description: 'Where the session stands; or when to show it after a break' },
   { name: 'config', description: 'Settings: level, effort, recap, tab mark and theme' },
+  { name: 'cost', description: 'What this session has cost so far, by level' },
+  { name: 'compare', description: "Check {assistant}'s {subject} against the picture it was built from, difference by difference" },
+  { name: 'save', args: '[name]', description: 'Save your last ask as your own command (/name runs it again)' },
 ];
 
 /** Commands a host may not offer (no level, no brainstorm): left out of the picker and the help. */
-export const OPTIONAL_COMMANDS: TerminalCommandName[] = ['level', 'effort', 'brainstorm', 'recap'];
+export const OPTIONAL_COMMANDS: TerminalCommandName[] = ['level', 'effort', 'brainstorm', 'recap', 'cost', 'compare', 'save'];
+
+/**
+ * A person's own command (1.53.0, owner 2026-11-09 "saved asks"): `/seo-pass` sends its ask again, with
+ * any words typed after the name added to it.
+ */
+export interface TerminalSavedCommand {
+  name: string;
+  ask: string;
+  description?: string | null;
+}
+
+/** A saved command's name: lower case, digits and dashes, 2 to 24 long, never a built-in's. */
+export const SAVED_COMMAND_NAME = /^[a-z0-9][a-z0-9-]{1,23}$/;
+
+export function savedNameProblem(name: string, saved: readonly TerminalSavedCommand[], editing: string | null = null): string | null {
+  if (!SAVED_COMMAND_NAME.test(name)) return 'Use 2 to 24 lower-case letters, digits or dashes, starting with a letter or digit.';
+  if (TERMINAL_COMMANDS.some((c) => c.name === name)) return `/${name} is already a command.`;
+  if (saved.some((c) => c.name === name && c.name !== editing)) return `You already have /${name}.`;
+
+  return null;
+}
+
+/** The "/" picker's entries for the person's own commands: picking one fills the box, Enter sends it. */
+export function savedSlashCommands(saved: readonly TerminalSavedCommand[]): ComposerSlashCommand[] {
+  return saved.map((command) => ({
+    key: `saved:${command.name}`,
+    label: `/${command.name}`,
+    detail: command.description?.trim() || (command.ask.length > 80 ? `${command.ask.slice(0, 79)}…` : command.ask),
+    prompt: `/${command.name}`,
+  }));
+}
+
+/**
+ * A typed saved command as the ask it stands for (`/seo-pass on the blog` -> its ask plus "on the blog"),
+ * or null. Built-in commands win, so a saved one can never shadow /clear.
+ */
+export function expandSavedCommand(text: string, saved: readonly TerminalSavedCommand[]): string | null {
+  const match = /^\/([a-z0-9][a-z0-9-]*)(?:\s+([\s\S]*))?$/.exec(text.trim());
+
+  if (!match || parseCommand(text) !== null) return null;
+
+  const command = saved.find((c) => c.name === match[1]);
+  const extra = (match[2] ?? '').trim();
+
+  return command ? (extra === '' ? command.ask : `${command.ask}\n\n${extra}`) : null;
+}
 
 export interface TerminalKey {
   keys: string;

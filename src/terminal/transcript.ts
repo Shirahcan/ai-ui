@@ -58,6 +58,9 @@ export function outcomeLine(outcome: TerminalOutcome | undefined): { tone: 'ok' 
 
 type IsOpen = (key: string) => boolean;
 
+/** A file name a browser draws as a picture. */
+const PICTURE = /\.(png|jpe?g|webp|gif)$/i;
+
 function stepLines(steps: TerminalStep[], keyPrefix: string, expanded: boolean, isOpen: IsOpen, muted: 'rewound' | 'folded' | undefined, liveIndex: number | null): TerminalLine[] {
   const lines: TerminalLine[] = [];
 
@@ -215,6 +218,11 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
       } else if (questions.length === 0 && !(s.ideas?.length || s.recommendation)) {
         const outcome = outcomeLine(s.outcome);
         const retry = outcome.tone === 'fail' && last ? nextLevel(asked) : null;
+        const changes = s.outcome?.changed ? (s.outcome.changes ?? []) : [];
+        // Built from a picture just now: offered a check against it (1.53.0, "Compare with the picture").
+        const before = index > 0 ? turns[index - 1] : undefined;
+        const askTurn = before?.role === 'user' ? before : null;
+        const pictured = (askTurn?.structured?.files ?? []).some((name) => PICTURE.test(name));
 
         out.push({
           key: `${turn.id}:outcome`,
@@ -225,6 +233,11 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
           canRewind: !turn.rewound && Boolean(s.outcome?.changed),
           level: levelPhrase(asked, s.served_level),
           retry,
+          // What changed, element by element (1.53.0): folded under the line until opened (or Ctrl+O).
+          ...(changes.length > 0
+            ? { changes, more: Math.max(0, Number(s.outcome?.elements ?? 0) - changes.length), open: isOpen(`${turn.id}:outcome`) }
+            : {}),
+          ...(last && s.outcome?.changed && pictured ? { compare: true } : {}),
           muted,
         });
       }

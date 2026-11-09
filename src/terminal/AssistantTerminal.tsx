@@ -3,7 +3,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AttachmentChip } from '../types';
 import type { AssistantInputKind } from '../useAssistantConversation';
 import { useAutoscroll } from '../useAutoscroll';
-import type { TerminalCommandName } from './commands';
+import type { TerminalCommandName, TerminalSavedCommand } from './commands';
+import { CostView, SavedCommandsView } from './TerminalExtrasViews';
 import { TerminalInput, type TerminalComposerOptions, type TerminalMentions } from './TerminalInput';
 import { TerminalLines } from './TerminalLines';
 import { TerminalMenu, type TerminalMenuItem } from './TerminalMenu';
@@ -14,13 +15,13 @@ import { TerminalStatus } from './TerminalStatus';
 import { BriefView, ContextView, HelpView, ResumeView, ThemeView, TuningView } from './TerminalViews';
 import { TERMINAL_THEMES, terminalTheme, themeToTerminalVars, type TerminalTheme } from './terminalThemes';
 import { toLines, toMarkdown } from './transcript';
-import type { TerminalAnswer, TerminalBrief, TerminalEffort, TerminalLevel, TerminalLive, TerminalMode, TerminalNote, TerminalSessionRow, TerminalSize, TerminalTurn } from './types';
+import type { TerminalAnswer, TerminalBrief, TerminalEffort, TerminalLevel, TerminalLive, TerminalMode, TerminalNote, TerminalSessionRow, TerminalSize, TerminalTurn, TerminalUsage } from './types';
 import { useDoneMark } from './useDoneMark';
 import { useTerminalDock } from './useTerminalDock';
 import { useTerminalKeys } from './useTerminalKeys';
 import { useTerminalRecap } from './useTerminalRecap';
 
-type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind' | 'tuning' | 'settings';
+type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind' | 'tuning' | 'settings' | 'cost' | 'commands';
 
 const ALL_LEVELS: TerminalLevel[] = ['normal', 'pro', 'expert'];
 const ALL_EFFORTS: TerminalEffort[] = ['low', 'medium', 'high'];
@@ -74,6 +75,19 @@ export interface AssistantTerminalProps {
   onAnswer?: (turnId: string, answers: TerminalAnswer[]) => void;
   /** "Do this" on a suggestion, "Build this" on a recommendation: the host runs it as the next ask. */
   onSuggestion?: (text: string) => void;
+  /**
+   * An element named in an outcome's "what changed" list (1.53.0): the host shows it (selects it on the
+   * canvas, scrolls to it). Without it the list is plain text.
+   */
+  onElement?: (uid: string) => void;
+  /** `/cost` (1.53.0): what this session has cost, by level, read when the view opens. Without it, no /cost. */
+  onUsage?: () => Promise<TerminalUsage | null>;
+  /** The person's own commands (1.53.0): `/name` sends the ask saved under it. */
+  savedCommands?: TerminalSavedCommand[];
+  /** Keep the person's commands (add, change, delete, `/save`). Without it, no /save and no editor. */
+  onSavedCommandsChange?: (next: TerminalSavedCommand[]) => void;
+  /** `/compare` (1.53.0): check the subject against the picture it was built from. The host runs it. */
+  onCompare?: () => void;
   /** Minutes away before a recap is shown on return (1.45.0); null turns it off. Default 30. */
   recapAfterMinutes?: number | null;
   /**
@@ -136,7 +150,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     open, onClose, assistantName, subjectLabel, subjectNoun = 'page', title, session, turns, live = null, notes = [], size = null, brief = null,
     history = [], loading = false, mode, onModeChange, modes = ['build', 'plan'], target = null, value, onChange, onAsk, composer, mentions, onStop, onCommand, onRewind,
     onBuildPlan, onDismissPlan, sessions, onSaveBrief, onClearDraft, theme, themes = TERMINAL_THEMES, onThemeChange, width, onWidthChange, onError, className = '',
-    level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion,
+    level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion, onElement, onUsage, savedCommands = [], onSavedCommandsChange, onCompare,
     recapAfterMinutes = 30, onRecapChange, onRecap, notifyWhenDone = true, onNotifyWhenDoneChange,
   } = props;
   const [view, setView] = useState<View | null>(null);
@@ -176,9 +190,14 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     if (!onLevelChange) out.push('level');
     if (!onEffortChange) out.push('effort');
     if (!modes.includes('brainstorm')) out.push('brainstorm');
+    if (!onUsage) out.push('cost');
+    if (!onCompare) out.push('compare');
+    if (!onSavedCommandsChange) out.push('save');
 
     return out;
-  }, [onLevelChange, onEffortChange, modes]);
+  }, [onLevelChange, onEffortChange, modes, onUsage, onCompare, onSavedCommandsChange]);
+  // `/save name`: the commands view opens with the last ask under that name.
+  const [commandDraft, setCommandDraft] = useState<TerminalSavedCommand | null>(null);
   const nextMode = () => modes[(modes.indexOf(mode) + 1) % modes.length] ?? 'build';
   const toggleOpen = useCallback((key: string) => {
     setOpened((prev) => {
@@ -279,6 +298,13 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
       return recaps.show();
     }
     if (name === 'export') return void exportTranscript();
+    if (name === 'cost' && onUsage) return openView('cost');
+    if (name === 'compare' && onCompare) return onCompare();
+    if (name === 'save' && onSavedCommandsChange) {
+      setCommandDraft({ name: arg.toLowerCase().replace(/^\//, '').replace(/\s+/g, '-'), ask: history[0] ?? '', description: null });
+
+      return openView('commands');
+    }
     if (name === 'clear') setClearedThrough(null);
 
     const panelView = PANEL_VIEWS[name];
@@ -315,6 +341,9 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     { label: 'Brief', run: () => openView('brief') },
     ...(onLevelChange || onEffortChange ? [{ label: 'Level and effort', run: () => openView('tuning') }] : []),
     { label: 'Recap: where the session stands', run: () => command('recap', '') },
+    ...(onCompare ? [{ label: 'Compare with the picture', run: () => command('compare', '') }] : []),
+    ...(onUsage ? [{ label: 'Session cost', run: () => openView('cost') }] : []),
+    ...(onSavedCommandsChange ? [{ label: 'Your commands', run: () => { setCommandDraft(null); openView('commands'); } }] : []),
     { label: 'Export transcript', run: () => command('export', '') },
     { label: 'Settings', run: () => openView('settings') },
     { label: 'Commands and shortcuts', run: () => openView('help') },
@@ -360,6 +389,12 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             onBack={closeView}
           />
         );
+      case 'cost':
+        return onUsage ? <CostView assistant={assistantName} load={onUsage} onBack={closeView} /> : null;
+      case 'commands':
+        return onSavedCommandsChange ? (
+          <SavedCommandsView key={commandDraft?.name ?? ''} saved={savedCommands} draft={commandDraft} onSave={onSavedCommandsChange} onBack={() => { setCommandDraft(null); closeView(); }} />
+        ) : null;
       case 'theme':
         return <ThemeView themes={themes} current={active.key} onPick={onThemeChange} onBack={closeView} />;
       case 'brief':
@@ -420,6 +455,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
               asking={asking?.key ?? null}
               onReopenQuestions={onAnswer ? () => { setAside(null); requestAnimationFrame(focusComposer); } : undefined}
               onSuggestion={onSuggestion ? (text) => { recaps.dismiss(); onSuggestion(text); } : undefined}
+              onElement={onElement}
+              onCompare={onCompare}
             />
           </div>
           {!scroll.isPinned && body === null ? (
@@ -475,6 +512,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             history={history}
             words={words}
             hiddenCommands={hidden}
+            saved={savedCommands}
             mentions={mentions}
             composer={composer}
             searching={searching}

@@ -10,8 +10,8 @@ import type { TerminalBrief, TerminalEffort, TerminalLevel, TerminalSessionRow, 
  * sessions, help, theme and brief. Each takes the panel's whole body and is closed by Esc or its Back.
  */
 
-const BUTTON = 'whitespace-nowrap rounded border border-[var(--term-border)] px-3 py-1 text-[12px] text-[var(--term-text)] outline-none hover:bg-[var(--term-selection)] focus-visible:ring-2 focus-visible:ring-[var(--term-accent)]';
-const PRIMARY = 'whitespace-nowrap rounded bg-[var(--term-accent)] px-3 py-1 text-[12px] font-semibold text-[var(--term-on-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--term-text)]';
+export const BUTTON = 'whitespace-nowrap rounded border border-[var(--term-border)] px-3 py-1 text-[12px] text-[var(--term-text)] outline-none hover:bg-[var(--term-selection)] focus-visible:ring-2 focus-visible:ring-[var(--term-accent)]';
+export const PRIMARY = 'whitespace-nowrap rounded bg-[var(--term-accent)] px-3 py-1 text-[12px] font-semibold text-[var(--term-on-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--term-text)]';
 
 export function TerminalView({ title, onBack, children }: { title: string; onBack: () => void; children: React.ReactNode }): React.JSX.Element {
   const heading = useRef<HTMLHeadingElement | null>(null);

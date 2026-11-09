@@ -11,10 +11,22 @@ export interface TerminalStep {
   detail?: string | null;
 }
 
+/**
+ * One element an ask changed (1.53.0, owner 2026-11-09 "What changed"): its id on the subject, its name in
+ * the person's words ("heading “Pricing”") and how (`added`, `changed`, `removed`).
+ */
+export interface TerminalChange {
+  uid: string;
+  label: string;
+  how: 'added' | 'changed' | 'removed' | string;
+}
+
 /** What came of an ask. */
 export interface TerminalOutcome {
   changed?: boolean;
   elements?: number;
+  /** The elements themselves (1.53.0), at most a dozen; `elements` counts them all. */
+  changes?: TerminalChange[];
   /** Edits the person made while the assistant worked, kept. */
   kept?: number;
   /** Elements both changed; the person's version won. */
@@ -26,6 +38,23 @@ export interface TerminalOutcome {
    * one level up ("Try again at Pro" after a Stop read as if the assistant had failed).
    */
   stopped?: boolean;
+}
+
+/** What one level's asks in a session cost (1.53.0, `/cost`). The LEVEL is named, never the model. */
+export interface TerminalUsageRow {
+  level: TerminalLevel | string;
+  calls: number;
+  tokens_in: number;
+  tokens_out: number;
+  cost_usd: number;
+}
+
+/** What a session has cost so far (1.53.0): per level, and in all, as the AI service counted it. */
+export interface TerminalUsage {
+  levels: TerminalUsageRow[];
+  total: Omit<TerminalUsageRow, 'level'>;
+  /** Since when it was counted (the session's start). */
+  since?: string | null;
 }
 
 export interface TerminalPlan {
@@ -197,7 +226,8 @@ export type TerminalLine =
   | ({ key: string; kind: 'finding'; findingKind: string; text: string; actionable: boolean } & Muted)
   | ({ key: string; kind: 'question'; turnId: string; questions: TerminalQuestion[]; answerable: boolean; latest?: boolean; answers: TerminalAnswer[] } & Muted)
   | ({ key: string; kind: 'ideas'; ideas: TerminalIdea[]; recommendation: string | null; open: boolean; level?: string | null } & Muted)
-  | ({ key: string; kind: 'outcome'; tone: 'ok' | 'none' | 'fail'; text: string; turnId: string | null; canRewind: boolean; level?: string | null; retry?: TerminalLevel | null } & Muted)
+  /** `changes` (1.53.0): the elements it changed, listed under the line while it is `open`; `more` were not listed. */
+  | ({ key: string; kind: 'outcome'; tone: 'ok' | 'none' | 'fail'; text: string; turnId: string | null; canRewind: boolean; level?: string | null; retry?: TerminalLevel | null; changes?: TerminalChange[]; more?: number; open?: boolean; compare?: boolean } & Muted)
   | ({ key: string; kind: 'plan'; summary: string; steps: string[]; turnId: string | null; open: boolean; level?: string | null } & Muted)
   | { key: string; kind: 'system'; text: string; tone: 'system' | 'fail' | 'ok' }
   /** `pending` (1.51.0): the assistant is writing its own recap; these lines stand until it arrives. */
