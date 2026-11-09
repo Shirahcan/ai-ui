@@ -273,6 +273,15 @@ describe('AssistantTerminal 1.45', () => {
     expect(screen.queryByRole('dialog', { name: /rewind/i })).toBeNull();
   });
 
+  it('gives the cursor back to the composer once the answers are sent, so Esc stops the run they start', () => {
+    const { rerender } = render(<Harness turns={oneQuestion()} onAnswer={vi.fn()} />);
+
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: /warm/i }));
+    rerender(<Harness turns={oneQuestion()} onAnswer={vi.fn()} live={{ startedAt: 1, ask: { text: 'x', answers: [{ question: 'Which tone?', answer: 'Warm' }] }, steps: [], verb: 'Thinking', queued: null }} />);
+
+    expect(document.activeElement).toBe(input());
+  });
+
   it('a question arriving never pulls the cursor out of the page', () => {
     const outside = document.createElement('input');
     document.body.appendChild(outside);

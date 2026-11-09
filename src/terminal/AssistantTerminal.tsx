@@ -241,6 +241,28 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     if (open) inputWrap.current?.querySelector<HTMLElement>('textarea, [data-ai-question] [data-row]')?.focus();
   }, [open]);
 
+  // The questions answered (or set aside), the cursor goes back to the composer, as Claude Code returns
+  // to its prompt (1.47.2). The picker held the focus, and when it left, the focus fell to the page: the
+  // console's keys stopped, so Esc no longer stopped the run the answers had just started (test box,
+  // 2026-11-09). Only when the focus is lost or still in the console: it never pulls the cursor away.
+  const askingKey = asking?.key ?? null;
+  const wasAsking = useRef<string | null>(null);
+
+  useEffect(() => {
+    const was = wasAsking.current;
+
+    wasAsking.current = askingKey;
+    // A view opened over the questions keeps its own focus.
+    if (was === null || askingKey !== null || view !== null) return;
+
+    const active = document.activeElement;
+    const here = inputWrap.current?.closest('[data-ai-terminal]');
+
+    if (active === null || active === document.body || Boolean(here?.contains(active))) {
+      inputWrap.current?.querySelector<HTMLElement>('textarea')?.focus();
+    }
+  }, [askingKey]);
+
   const openView = (next: View) => {
     setMenuOpen(false);
     setSearching(false);
