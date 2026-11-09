@@ -318,8 +318,11 @@ export function recapLines(turns: TerminalTurn[], words: { assistant: string; su
 
     // An outcome reads mid-sentence in lower case ("changed the design"); a name keeps its capital.
     const named = result.startsWith(words.assistant);
+    // The sentence ends once (1.50.1): an outcome that already ends with a stop ("Stopped. Nothing has
+    // changed.") drew "changed.." on the test box.
+    const said = (named ? result : `${result.charAt(0).toLowerCase()}${result.slice(1)}`).replace(/[.!?…]+$/u, '');
 
-    out.push(`Last: “${quote(lastAsk.body ?? '')}”, ${named ? result : `${result.charAt(0).toLowerCase()}${result.slice(1)}`}.`);
+    out.push(`Last: “${quote(lastAsk.body ?? '')}”, ${said}.`);
   }
 
   const open = lastTurn?.role === 'assistant' ? lastTurn.structured : null;

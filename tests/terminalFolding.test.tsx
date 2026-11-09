@@ -413,6 +413,19 @@ describe('AssistantTerminal 1.45', () => {
     expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('1 ask in this session: 1 changed the page.');
   });
 
+  it('ends the recap sentence once when the outcome already ends with a stop', () => {
+    const turns = [ask('a1', 'Make the hero darker'), answer('b1', { outcome: { changed: false, stopped: true, reason: 'Stopped. Nothing has changed.' } })];
+
+    render(<Harness turns={turns} />);
+    fireEvent.change(input(), { target: { value: '/recap' } });
+    fireEvent.keyDown(input(), { key: 'Enter' });
+
+    const recap = screen.getByRole('note', { name: 'Recap' }).textContent ?? '';
+
+    expect(recap).toContain('Last: “Make the hero darker”, ');
+    expect(recap).not.toMatch(/\.\./);
+  });
+
   it('stops drawing a recap once the session moves on (a rewind, a new answer)', () => {
     const turns = [ask('a1', 'Add a FAQ'), answer('b1', { outcome: { changed: true } })];
     const { rerender } = render(<Harness turns={turns} />);
