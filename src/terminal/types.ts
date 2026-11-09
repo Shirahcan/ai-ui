@@ -21,6 +21,11 @@ export interface TerminalOutcome {
   conflicts?: number;
   /** Why it could not finish (a refusal, an outage, a stop). */
   reason?: string | null;
+  /**
+   * The person pressed Stop (1.47.1): drawn as a plain stop, never as a failure, and never offered again
+   * one level up ("Try again at Pro" after a Stop read as if the assistant had failed).
+   */
+  stopped?: boolean;
 }
 
 export interface TerminalPlan {

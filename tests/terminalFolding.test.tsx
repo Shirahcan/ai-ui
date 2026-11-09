@@ -47,6 +47,13 @@ describe('levels', () => {
     expect(levelPhrase(null, null)).toBeNull();
   });
 
+  it('draws a stop the person chose plainly, and never offers it again one level up', () => {
+    const stopped = answer('b1', { outcome: { changed: false, reason: 'Stopped. Nothing has changed.', stopped: true } }, null);
+    const line = toLines([ask('a1', 'Plan it'), stopped]).at(-1);
+
+    expect(line).toMatchObject({ kind: 'outcome', tone: 'none', text: 'Stopped. Nothing has changed.', retry: null });
+  });
+
   it('offers the next level only on the last failed answer', () => {
     const failed = (level: TerminalLevel | null) => [ask('a1', 'Rebuild the page'), answer('b1', { level, outcome: { changed: false, reason: 'The page check failed twice.' } }, null)];
 

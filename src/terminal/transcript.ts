@@ -50,6 +50,9 @@ export function outcomeLine(outcome: TerminalOutcome | undefined): { tone: 'ok' 
 
   const reason = (outcome?.reason ?? '').trim();
 
+  // A stop the person chose is not a failure: no "Could not finish", no retry one level up.
+  if (outcome?.stopped) return { tone: 'none', text: reason !== '' ? reason : 'Stopped' };
+
   return reason !== '' ? { tone: 'fail', text: `Could not finish: ${reason}` } : { tone: 'none', text: 'Nothing changed' };
 }
 
