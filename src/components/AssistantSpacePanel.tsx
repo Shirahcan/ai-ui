@@ -115,12 +115,32 @@ export interface AssistantSpacePanelProps {
   closeLabel?: string;
   /** Attributes on the panel's root (Porter's `data-porter-ui`, which its screen snapshot excludes). */
   rootAttributes?: Record<`data-${string}`, string>;
-  /** The screen the person is on, so suggested questions follow it. Default: the browser's path at mount. */
+  /**
+   * The screen the person is on: every turn carries it (`page_context.route`) and suggested questions
+   * follow it. Default: the browser's path (at send time for a turn, at mount for the questions).
+   */
   route?: string;
 }
 
 /** The panel opens in a loading state and may reveal the welcome view only after this (a settling session). */
 const MIN_LOADING_MS = 1000;
+
+/**
+ * Every turn says which page the person is on (1.52). A product's own `page_context` (Porter's entity,
+ * subjects, list) is kept and only gains the route when it left it out.
+ *
+ * ⚠ THE PANEL KNEW THE PAGE AND KEPT IT TO ITSELF (2026-11-09). It read the route for its suggested
+ * questions and never put it on a turn, so only a product that added it by hand (Porter) was answered
+ * for its page; Mira's engine was told every page was "/" and she told an admin to look "at /.".
+ */
+export function withPage(body: Record<string, unknown>, route: string | undefined): Record<string, unknown> {
+  const own = body.page_context !== null && typeof body.page_context === 'object' ? body.page_context as Record<string, unknown> : {};
+  const path = typeof own.route === 'string' && own.route !== ''
+    ? own.route
+    : route ?? (typeof window !== 'undefined' ? window.location.pathname : undefined);
+
+  return path === undefined ? body : { ...body, page_context: { ...own, route: path } };
+}
 
 export function AssistantSpacePanel(props: AssistantSpacePanelProps) {
   return <SpacePanel key={props.accountKey} {...props} />;
@@ -129,6 +149,8 @@ export function AssistantSpacePanel(props: AssistantSpacePanelProps) {
 function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose, closeLabel, rootAttributes, route }: AssistantSpacePanelProps) {
   const adapterRef = useRef(adapter);
   adapterRef.current = adapter;
+  const routeRef = useRef(route);
+  routeRef.current = route;
 
   const [notice, setNotice] = useState<string | null>(null);
   const [minLoadingElapsed, setMinLoadingElapsed] = useState(false);
@@ -161,7 +183,7 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
   const conversation = useAssistantConversation({
     ...client.conversation,
     sendUrl: client.conversation.sendUrl,
-    body: () => adapterRef.current.turnBody?.() ?? {},
+    body: () => withPage(adapterRef.current.turnBody?.() ?? {}, routeRef.current),
     toPanelMessage,
     supersede: adapter.supersede ?? true,
     loadConversation: async (id) => {

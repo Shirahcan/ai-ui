@@ -267,6 +267,54 @@ describe('useAssistantConversation', () => {
     expect(result.current.messages[0]?.text).toBe('Typed straight away');
   });
 
+  /*
+   * 2026-11-09, Mira: an employer typed "everything I should do next" while the panel restored, then
+   * "actually keep it short". The queue held one string, so only the second was ever sent.
+   */
+  it('keeps EVERY question typed while the thread restores and sends them together', async () => {
+    let release: (id: string | null) => void = () => undefined;
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      sse('event: message\ndata: {"conversation_id":"c-9","message":{"id":"a9","role":"assistant","content":"Short version."}}\n\n'),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useAssistantConversation({
+      ...base,
+      restore: () => new Promise((resolve) => { release = resolve; }),
+      loadConversation: async (id) => ({ id, messages: [] }),
+    }));
+
+    act(() => result.current.send('What should I do next?'));
+    act(() => result.current.send('actually keep it short'));
+    await act(async () => release(null));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const sent = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(sent.message).toBe('What should I do next?\nactually keep it short');
+  });
+
+  it('a New conversation chosen while the last thread restores is not pulled back to the old one', async () => {
+    let release: (id: string | null) => void = () => undefined;
+    const load = vi.fn(async (id: string) => ({ id, messages: [{ id: 'old', role: 'assistant', content: 'From before.' }] }));
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      sse('event: message\ndata: {"conversation_id":"c-new","message":{"id":"a1","role":"assistant","content":"Fresh."}}\n\n'),
+    ));
+
+    const { result } = renderHook(() => useAssistantConversation({
+      ...base,
+      restore: () => new Promise((resolve) => { release = resolve; }),
+      loadConversation: load,
+    }));
+
+    act(() => result.current.startNew());
+    expect(result.current.ready).toBe(true);
+    await act(async () => release('c-old'));
+
+    expect(load).not.toHaveBeenCalled();
+    expect(result.current.conversationId).toBeNull();
+    expect(result.current.messages).toEqual([]);
+  });
+
   it('sends the product body on every turn, and has no Stop where there is no cancel route', async () => {
     const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => json({ data: { conversation_id: 'g', message: answer() } }));
     vi.stubGlobal('fetch', fetchMock);

@@ -235,7 +235,19 @@ export function useAssistantConversation(options: AssistantConversationOptions):
   const turnRef = useRef<string | null>(null);
   // Questions the person asked that have not been answered yet - what supersede folds together.
   const pendingRef = useRef<string[]>([]);
-  const queuedRef = useRef<string | null>(null);
+  /*
+   * ⚠ EVERY QUESTION TYPED WHILE THE PANEL WAITS IS KEPT, NOT ONLY THE LAST (2026-11-09). This held one
+   * string, so a second question typed while the thread restored REPLACED the first: an employer asked
+   * Mira "everything I should do next", added "actually keep it short", and only the second reached
+   * her ("I'm not sure what you'd like me to keep short"). They go together, as a supersede does.
+   */
+  const queuedRef = useRef<string[]>([]);
+  /*
+   * ⚠ A CHOICE THE PERSON MAKES WHILE THE LAST THREAD IS STILL RESTORING WINS. "New conversation" or
+   * opening another thread bumps this, and a restore that settles afterwards no longer pulls the old
+   * thread back over the one they chose.
+   */
+  const choiceRef = useRef(0);
   const [queued, setQueued] = useState(false);
 
   /*
@@ -455,7 +467,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     // ⚠ A QUESTION TYPED WHILE THE THREAD RESTORES, OR BEFORE THE BOT CHECK PASSES, IS QUEUED,
     // NOT DISCARDED. It sends itself when the wait is over; nobody presses Send twice.
     if (!ready || (needsCheck() && checkTokenRef.current === '')) {
-      queuedRef.current = text;
+      queuedRef.current = [...queuedRef.current, text];
       setQueued(true);
 
       return;
@@ -489,7 +501,7 @@ export function useAssistantConversation(options: AssistantConversationOptions):
           setError(null);
           // A failed FIRST turn spent its token; wait for the fresh one rather than be refused.
           if (needsCheck() && checkTokenRef.current === '') {
-            queuedRef.current = failed;
+            queuedRef.current = [failed];
             setQueued(true);
             setRows((prev) => prev.slice(0, -1));
 
@@ -503,17 +515,21 @@ export function useAssistantConversation(options: AssistantConversationOptions):
 
   const startNew = useCallback(() => {
     stop();
+    choiceRef.current += 1;
     pendingRef.current = [];
     setRows([]);
     setConversationId(null);
     setError(null);
     setFailed(null);
+    // Nothing is left to wait for: a fresh thread needs no restore.
+    setReady(true);
   }, [stop]);
 
   const open = useCallback(async (id: string) => {
     const load = optionsRef.current.loadConversation;
     if (!load) return;
     stop();
+    choiceRef.current += 1;
     setReady(false);
     try {
       const thread = await load(id);
@@ -537,22 +553,24 @@ export function useAssistantConversation(options: AssistantConversationOptions):
     const restore = optionsRef.current.restore;
     if (!restore) return;
     let cancelled = false;
+    const chosenBefore = choiceRef.current;
+    const overtaken = () => cancelled || choiceRef.current !== chosenBefore;
 
     restore()
       .then(async (id) => {
-        if (cancelled || !id) return;
+        if (overtaken() || !id) return;
         const load = optionsRef.current.loadConversation;
         if (!load) return;
         const thread = await load(id);
-        if (cancelled) return;
+        if (overtaken()) return;
         setConversationId(thread.id);
         setRows(thread.messages.map((m) => optionsRef.current.toPanelMessage(m)));
       })
       .catch(() => {
-        if (!cancelled) optionsRef.current.onRestoreFailed?.();
+        if (!overtaken()) optionsRef.current.onRestoreFailed?.();
       })
       .finally(() => {
-        if (!cancelled) setReady(true);
+        if (!overtaken()) setReady(true);
       });
 
     return () => {
@@ -562,10 +580,11 @@ export function useAssistantConversation(options: AssistantConversationOptions):
 
   // Flush a question typed while the thread was restoring, or held for the bot check.
   useEffect(() => {
-    if (!ready || queuedRef.current === null) return;
+    if (!ready || queuedRef.current.length === 0) return;
     if (needsCheck() && checkToken === '') return;
-    const text = queuedRef.current;
-    queuedRef.current = null;
+    // Asked together, sent together: the turn resolves which one stands, as a supersede does.
+    const text = queuedRef.current.filter((q, i, all) => all.indexOf(q) === i).join('\n');
+    queuedRef.current = [];
     setQueued(false);
     send(text);
   }, [checkToken, needsCheck, ready, send]);
