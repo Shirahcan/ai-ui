@@ -336,7 +336,7 @@ export function toMarkdown(title: string, lines: TerminalLine[]): string {
         out.push(`${MARK.finding} ${line.findingKind}: ${line.text}`);
         break;
       case 'question':
-        for (const q of line.questions) out.push(`? ${q.text}`, ...q.options.map((o, i) => `   ${i + 1}. ${o.label}${o.description ? `: ${o.description}` : ''}`));
+        for (const q of line.questions) out.push(`? ${q.text}`, ...q.options.map((o, i) => `   ${i + 1}. ${o.label}${o.recommended ? ' (Recommended)' : ''}${o.description ? `: ${o.description}` : ''}`));
         break;
       case 'ideas':
         out.push(...line.ideas.map((idea) => `- ${idea.title}${idea.why ? `: ${idea.why}` : ''}`), ...(line.recommendation ? [`Recommended: ${line.recommendation}`] : []));

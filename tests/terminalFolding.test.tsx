@@ -167,6 +167,52 @@ describe('AssistantTerminal 1.45', () => {
     expect(onAnswer).toHaveBeenCalledWith('b1', [{ question: 'Which tone?', answer: 'Warm' }]);
   });
 
+  it('shows the recommended choice, from the flag or a "(Recommended)" label', () => {
+    const turns = [ask('a1', 'Write it'), answer('b1', { questions: [{ text: 'Which tone?', options: [{ label: 'Warm (Recommended)' }, { label: 'Formal', recommended: false }] }] }, 'One question.')];
+
+    render(<Harness turns={turns} onAnswer={vi.fn()} />);
+
+    // The number and the circle are hidden from screen readers: the name is the label and the badge.
+    expect(screen.getByRole('radio', { name: /^Warm\s*Recommended$/ })).toBeTruthy();
+    expect(screen.queryByText('Warm (Recommended)')).toBeNull();
+  });
+
+  it('draws several questions as tabs with a summary tab last, and sends them all from it', () => {
+    const onAnswer = vi.fn();
+    const turns = [
+      ask('a1', 'Write the about page'),
+      answer('b1', {
+        questions: [
+          { text: 'Which tone?', header: 'Tone', options: [{ label: 'Warm', recommended: true }, { label: 'Formal' }] },
+          { text: 'Who reads it?', header: 'Audience', options: [{ label: 'Employers' }, { label: 'Clients' }] },
+        ],
+      }, 'Two questions first.'),
+    ];
+
+    render(<Harness turns={turns} onAnswer={onAnswer} />);
+
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['☐ Tone', '☐ Audience', '· Submit']);
+    fireEvent.click(screen.getByRole('radio', { name: /warm/i }));
+    // A pick moves on to the next tab.
+    expect(screen.getByRole('tab', { name: /audience/i }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(screen.getByRole('radio', { name: /employers/i }));
+    expect(screen.getByText('Review your answers')).toBeTruthy();
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['☒ Tone', '☒ Audience', '✔ Submit']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send answers' }));
+    expect(onAnswer).toHaveBeenCalledWith('b1', [{ question: 'Which tone?', answer: 'Warm' }, { question: 'Who reads it?', answer: 'Employers' }]);
+  });
+
+  it('keeps Send on the summary tab until every question has an answer', () => {
+    const turns = [ask('a1', 'x'), answer('b1', { questions: [{ text: 'One?', options: [{ label: 'A' }] }, { text: 'Two?', options: [{ label: 'B' }] }] }, 'Two.')];
+
+    render(<Harness turns={turns} onAnswer={vi.fn()} />);
+    fireEvent.click(screen.getByRole('tab', { name: /submit/i }));
+
+    expect((screen.getByRole('button', { name: 'Send answers' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getAllByText('Not answered yet: answer it')).toHaveLength(2);
+  });
+
   it('offers to try a failed ask again one level up', () => {
     const onRetry = vi.fn();
     const turns = [ask('a1', 'Rebuild it'), answer('b1', { outcome: { changed: false, reason: 'The check failed.' } }, null)];

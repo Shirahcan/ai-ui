@@ -47,6 +47,8 @@ export interface TerminalFinding {
 export interface TerminalOption {
   label: string;
   description?: string | null;
+  /** The choice the assistant recommends (drawn with a badge; owner 2026-11-09: "always ... specify which options it recommends"). */
+  recommended?: boolean;
 }
 
 /** A question the assistant asks before it goes on (1.45.0), with choices or none (the person types). */
@@ -54,6 +56,8 @@ export interface TerminalQuestion {
   text: string;
   options: TerminalOption[];
   multi?: boolean;
+  /** A word or two naming the question: its tab when there are several ("Tone", "Audience"). */
+  header?: string | null;
 }
 
 /** An answer the person gave, as they read it. */
