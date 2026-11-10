@@ -1,4 +1,4 @@
-import type { TerminalLevel, TerminalLine, TerminalLive, TerminalNote, TerminalOutcome, TerminalSessionRow, TerminalStep, TerminalTurn } from './types';
+import type { TerminalEffort, TerminalLevel, TerminalLine, TerminalLive, TerminalNote, TerminalOutcome, TerminalSessionRow, TerminalStep, TerminalTurn } from './types';
 
 /** Steps whose detail is shown even when details are collapsed: the ones a person acts on. */
 const ALWAYS_DETAILED = new Set(['gather', 'repair', 'check', 'merge']);
@@ -14,6 +14,11 @@ function plural(n: number, one: string, many: string): string {
 
 function isLevel(value: unknown): value is TerminalLevel {
   return value === 'normal' || value === 'pro' || value === 'expert';
+}
+
+/** The effort above this one, or null at the top ("Think harder", 1.53.1). */
+export function nextEffort(effort: string | null | undefined): TerminalEffort | null {
+  return effort === 'high' ? null : effort === 'medium' ? 'high' : 'medium';
 }
 
 /** The level above this one, or null at the top ("Try again at Pro"). */
@@ -218,6 +223,9 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
       } else if (questions.length === 0 && !(s.ideas?.length || s.recommendation)) {
         const outcome = outcomeLine(s.outcome);
         const retry = outcome.tone === 'fail' && last ? nextLevel(asked) : null;
+        // A failed answer is also offered more thought at the same level (owner 2026-11-10: "offering to
+        // retry with a higher level and/or deeper thought if attempts fail"). Never after a Stop.
+        const deeper = outcome.tone === 'fail' && last ? nextEffort(s.effort) : null;
         const changes = s.outcome?.changed ? (s.outcome.changes ?? []) : [];
         // Built from a picture just now: offered a check against it (1.53.0, "Compare with the picture").
         const before = index > 0 ? turns[index - 1] : undefined;
@@ -233,6 +241,7 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
           canRewind: !turn.rewound && Boolean(s.outcome?.changed),
           level: levelPhrase(asked, s.served_level),
           retry,
+          ...(deeper ? { deeper, askedLevel: isLevel(asked) ? asked : 'normal' } : {}),
           // What changed, element by element (1.53.0): folded under the line until opened (or Ctrl+O).
           ...(changes.length > 0
             ? { changes, more: Math.max(0, Number(s.outcome?.elements ?? 0) - changes.length), open: isOpen(`${turn.id}:outcome`) }

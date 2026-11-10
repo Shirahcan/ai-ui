@@ -2,7 +2,7 @@ import React from 'react';
 
 import { LEVEL_LABELS } from './transcript';
 import { TerminalQuestionLog } from './TerminalQuestion';
-import type { TerminalChange, TerminalLevel, TerminalLine } from './types';
+import type { TerminalChange, TerminalEffort, TerminalLevel, TerminalLine } from './types';
 
 /**
  * The transcript, line by line, in the console's marks (design section 3): `❯` an ask, `●` a step,
@@ -99,8 +99,11 @@ export interface TerminalLinesProps {
   buildLabel?: string;
   /** Open or fold one entry (thinking, a long reply or detail, a rewound turn), by its key. */
   onToggle?: (key: string) => void;
-  /** "Try again at Pro" on a failed answer: the ask's turn id and the level to try. */
-  onRetry?: (turnId: string, level: TerminalLevel) => void;
+  /**
+   * "Try again at Pro" on a failed answer: the ask's turn id and the level to try; "Think harder" (1.53.1):
+   * the level it was asked at and the effort to try.
+   */
+  onRetry?: (turnId: string, level: TerminalLevel, effort?: TerminalEffort) => void;
   /**
    * The open questions the picker is asking right now (their line key), drawn over the composer by the
    * console (1.46.0). The transcript only says "answer below" for them.
@@ -333,6 +336,11 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
                 {line.retry && line.turnId && onRetry ? (
                   <button type="button" onClick={() => onRetry(line.turnId as string, line.retry as TerminalLevel)} className={TOGGLE}>
                     Try again at {LEVEL_LABELS[line.retry]}
+                  </button>
+                ) : null}
+                {line.deeper && line.turnId && onRetry ? (
+                  <button type="button" onClick={() => onRetry(line.turnId as string, line.askedLevel ?? 'normal', line.deeper as TerminalEffort)} title={`Try again, thinking at ${line.deeper} effort`} className={TOGGLE}>
+                    Think harder
                   </button>
                 ) : null}
                 {line.compare && onCompare ? (

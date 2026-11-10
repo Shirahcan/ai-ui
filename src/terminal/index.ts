@@ -24,7 +24,7 @@ export type { TerminalCommand, TerminalCommandName, TerminalKey, TerminalSavedCo
 export { CostView, SavedCommandsView } from './TerminalExtrasViews';
 export { DEFAULT_TERMINAL_THEME, TERMINAL_THEMES, contrastRatio, terminalTheme, themeToTerminalVars } from './terminalThemes';
 export type { TerminalTheme } from './terminalThemes';
-export { LEVEL_LABELS, levelPhrase, nextLevel, outcomeLine, recapLines, toLines, toMarkdown } from './transcript';
+export { LEVEL_LABELS, levelPhrase, nextEffort, nextLevel, outcomeLine, recapLines, toLines, toMarkdown } from './transcript';
 export type { ToLinesOptions } from './transcript';
 export { TERMINAL_DEFAULT_WIDTH, TERMINAL_MIN_WIDTH, clampTerminalWidth, useTerminalDock } from './useTerminalDock';
 export { useTerminalKeys } from './useTerminalKeys';

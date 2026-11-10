@@ -70,7 +70,7 @@ export interface AssistantTerminalProps {
   efforts?: TerminalEffort[];
   onEffortChange?: (effort: TerminalEffort) => void;
   /** "Try again at Pro" on a failed answer: the ask's turn id and the level to try it at. */
-  onRetry?: (turnId: string, level: TerminalLevel) => void;
+  onRetry?: (turnId: string, level: TerminalLevel, effort?: TerminalEffort) => void;
   /** The person's answers to the assistant's questions (the multiple-choice tool). */
   onAnswer?: (turnId: string, answers: TerminalAnswer[]) => void;
   /** "Do this" on a suggestion, "Build this" on a recommendation: the host runs it as the next ask. */

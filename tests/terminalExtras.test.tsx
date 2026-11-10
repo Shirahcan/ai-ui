@@ -214,6 +214,31 @@ describe('compare with the picture', () => {
   });
 });
 
+describe('a failed answer offers a higher level and more thought', () => {
+  const failed = (effort: 'low' | 'medium' | 'high'): TerminalTurn[] => [
+    { id: 'a1', role: 'user', body: 'Mirror this', structured: null, rewound: false, at: null },
+    { id: 'b1', role: 'assistant', body: null, structured: { level: 'normal', effort, outcome: { changed: false, reason: 'The draft still had something this page cannot hold.' } }, rewound: false, at: null },
+  ];
+
+  it('offers Try again at Pro and Think harder, each handed to the host', () => {
+    const onRetry = vi.fn();
+
+    render(<Harness turns={failed('low')} onRetry={onRetry} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again at Pro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Think harder' }));
+
+    expect(onRetry).toHaveBeenNthCalledWith(1, 'a1', 'pro');
+    expect(onRetry).toHaveBeenNthCalledWith(2, 'a1', 'normal', 'medium');
+  });
+
+  it('stops offering more thought at high effort', () => {
+    render(<Harness turns={failed('high')} onRetry={() => {}} />);
+
+    expect(screen.queryByRole('button', { name: 'Think harder' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Try again at Pro' })).toBeTruthy();
+  });
+});
+
 describe('picture thumbnails', () => {
   function Chips({ onReady }: { onReady: (api: ReturnType<typeof useComposerAttachments>) => void }) {
     const api = useComposerAttachments({ accept: ['image/png', 'application/pdf'], maxBytes: 5_000_000, maxFiles: 3, onUpload: (file) => Promise.resolve({ id: file.name, name: file.name, mime: file.type, size: file.size }) });
