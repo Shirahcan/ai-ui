@@ -20,6 +20,18 @@ export interface TerminalKeyHandlers {
   onClearScreen: () => void;
   onHelp: () => void;
   onSearch: () => void;
+  /** Ctrl + / Ctrl - / Ctrl 0 (1.54.0): bigger, smaller, or the usual text size. Absent: the browser's zoom. */
+  onZoom?: (step: 1 | -1 | 0) => void;
+}
+
+/** Ctrl with + (or =, which shares its key), - or 0, on the main row or the number pad. */
+function zoomStep(event: ReactKeyboardEvent<HTMLElement>): 1 | -1 | 0 | null {
+  if (!event.ctrlKey || event.altKey || event.metaKey) return null;
+  if (event.key === '+' || event.key === '=' || event.code === 'NumpadAdd') return 1;
+  if (event.key === '-' || event.key === '_' || event.code === 'NumpadSubtract') return -1;
+  if (event.key === '0' || event.code === 'Numpad0') return 0;
+
+  return null;
 }
 
 /**
@@ -27,7 +39,9 @@ export interface TerminalKeyHandlers {
  * first: an open "@" or "/" list keeps its own Escape and arrows, and the history recall keeps Up/Down.
  *
  * ⚠ CTRL+R / CTRL+O / CTRL+L ARE THE BROWSER'S EVERYWHERE ELSE. They are taken only here, while focus
- * is inside the console, so reload, open and the address bar still work on the rest of the page.
+ * is inside the console, so reload, open and the address bar still work on the rest of the page. The same
+ * for Ctrl + / Ctrl - / Ctrl 0 (1.54.0, owner 2026-11-10: "zoom"): the console's own text size inside it,
+ * the browser's page zoom everywhere else.
  * ⚠ SHIFT+TAB IS NOT TAKEN (Claude Code's mode key): in a browser it is backward keyboard navigation,
  * and taking it traps keyboard users. The mode is Alt+M, Claude Code's own alternative on Windows.
  */
@@ -78,7 +92,12 @@ export function useTerminalKeys(handlers: TerminalKeyHandlers) {
       return;
     }
 
-    if (plainCtrl && key.toLowerCase() === 'r') {
+    const zoom = h.onZoom ? zoomStep(event) : null;
+
+    if (zoom !== null) {
+      event.preventDefault();
+      h.onZoom?.(zoom);
+    } else if (plainCtrl && key.toLowerCase() === 'r') {
       event.preventDefault();
       h.onSearch();
     } else if (plainCtrl && key.toLowerCase() === 'o') {

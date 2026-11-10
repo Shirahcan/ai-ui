@@ -4,6 +4,7 @@ import type { TerminalTheme } from './terminalThemes';
 import { LEVEL_LABELS } from './transcript';
 import type { TerminalEffort, TerminalLevel } from './types';
 import { TerminalView } from './TerminalViews';
+import { TERMINAL_ZOOMS } from './zoom';
 
 /** The recap choices offered; a host's own number (`/recap 45`) is added in its place. */
 const RECAP_MINUTES: (number | null)[] = [null, 10, 30, 60, 120];
@@ -48,6 +49,8 @@ export function SettingsView({
   onRecapNow,
   notifyWhenDone,
   onNotify,
+  zoom = 1,
+  onZoom,
   themes,
   theme,
   onTheme,
@@ -65,6 +68,9 @@ export function SettingsView({
   onRecapNow: () => void;
   notifyWhenDone: boolean;
   onNotify?: (on: boolean) => void;
+  /** The console's text size (1.54.0): a factor, 1 the usual size. */
+  zoom?: number;
+  onZoom?: (zoom: number) => void;
   themes: TerminalTheme[];
   theme: string;
   onTheme: (key: string) => void;
@@ -108,6 +114,18 @@ export function SettingsView({
       value: notifyWhenDone ? 'On' : 'Off',
       note: `Marks the browser tab's title when ${assistant} finishes while you are on another tab.`,
       step: () => onNotify(!notifyWhenDone),
+    });
+  }
+  if (onZoom) {
+    const sizes: number[] = [...TERMINAL_ZOOMS];
+    const nearest = sizes.reduce((best, size) => (Math.abs(size - zoom) < Math.abs(best - zoom) ? size : best), 1);
+
+    rows.push({
+      key: 'zoom',
+      label: 'Text size',
+      value: `${Math.round(nearest * 100)}%`,
+      note: 'Ctrl + and Ctrl - change it while you are in the console; Ctrl 0 puts it back.',
+      step: (by) => onZoom(cycle(sizes, nearest, by)),
     });
   }
   if (current) {

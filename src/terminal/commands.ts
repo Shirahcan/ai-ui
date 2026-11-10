@@ -112,7 +112,9 @@ export interface TerminalKey {
 }
 
 export const TERMINAL_KEYS: TerminalKey[] = [
-  { keys: 'Ctrl+`', does: 'Open or close the console' },
+  { keys: 'Ctrl+~', does: 'Open or close the console' },
+  { keys: 'Ctrl + / Ctrl -', does: 'Bigger or smaller text in the console' },
+  { keys: 'Ctrl+0', does: 'Text back to its usual size' },
   { keys: 'Esc', does: 'Stop {assistant} while it works; close a view' },
   { keys: 'Esc Esc', does: 'Rewind (on an empty input); clear the input otherwise' },
   { keys: '↑ ↓', does: 'Earlier asks' },

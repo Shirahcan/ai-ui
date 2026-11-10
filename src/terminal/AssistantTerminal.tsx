@@ -20,6 +20,7 @@ import { useDoneMark } from './useDoneMark';
 import { useTerminalDock } from './useTerminalDock';
 import { useTerminalKeys } from './useTerminalKeys';
 import { useTerminalRecap } from './useTerminalRecap';
+import { stepZoom } from './zoom';
 
 type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind' | 'tuning' | 'settings' | 'cost' | 'commands';
 
@@ -88,6 +89,13 @@ export interface AssistantTerminalProps {
   onSavedCommandsChange?: (next: TerminalSavedCommand[]) => void;
   /** `/compare` (1.53.0): check the subject against the picture it was built from. The host runs it. */
   onCompare?: () => void;
+  /**
+   * The console's text size (1.54.0, owner 2026-11-10: "zoom: in (Ctrl +) bigger text, out (Ctrl -) smaller
+   * text"): a factor, 1 the usual size, one of TERMINAL_ZOOMS. The host keeps it, like the theme. Without
+   * `onZoomChange` the keys stay the browser's.
+   */
+  zoom?: number;
+  onZoomChange?: (zoom: number) => void;
   /** Minutes away before a recap is shown on return (1.45.0); null turns it off. Default 30. */
   recapAfterMinutes?: number | null;
   /**
@@ -150,7 +158,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     open, onClose, assistantName, subjectLabel, subjectNoun = 'page', title, session, turns, live = null, notes = [], size = null, brief = null,
     history = [], loading = false, mode, onModeChange, modes = ['build', 'plan'], target = null, value, onChange, onAsk, composer, mentions, onStop, onCommand, onRewind,
     onBuildPlan, onDismissPlan, sessions, onSaveBrief, onClearDraft, theme, themes = TERMINAL_THEMES, onThemeChange, width, onWidthChange, onError, className = '',
-    level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion, onElement, onUsage, savedCommands = [], onSavedCommandsChange, onCompare,
+    level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion, onElement, onUsage, savedCommands = [], onSavedCommandsChange, onCompare, zoom = 1, onZoomChange,
     recapAfterMinutes = 30, onRecapChange, onRecap, notifyWhenDone = true, onNotifyWhenDoneChange,
   } = props;
   const [view, setView] = useState<View | null>(null);
@@ -314,6 +322,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     onCommand(name, arg);
   };
 
+  const zoomTo = useCallback((step: 1 | -1 | 0) => onZoomChange?.(stepZoom(zoom, step)), [onZoomChange, zoom]);
+
   const onKeyDown = useTerminalKeys({
     working,
     viewOpen: view !== null || menuOpen,
@@ -330,7 +340,10 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     onClearScreen: () => setClearedThrough(turns.at(-1)?.id ?? null),
     onHelp: () => openView('help'),
     onSearch: () => setSearching(true),
+    onZoom: onZoomChange ? zoomTo : undefined,
   });
+  // The text size: the transcript, the views and the composer grow; the bars stay as they are.
+  const zoomed: React.CSSProperties | undefined = zoom === 1 ? undefined : { zoom };
 
   // Every view and command a person may look for without knowing its slash name (1.48.0, owner
   // 2026-11-09: "level and effort should be added as an option/entry on the kebab menu").
@@ -383,6 +396,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             onRecapNow={() => { closeView(); recaps.show(); }}
             notifyWhenDone={notifyWhenDone}
             onNotify={onNotifyWhenDoneChange}
+            zoom={zoom}
+            onZoom={onZoomChange}
             themes={themes}
             theme={active.key}
             onTheme={onThemeChange}
@@ -430,13 +445,14 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
         {sessions ? <button type="button" onClick={() => openView('resume')} className="rounded px-1.5 text-[11px] text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">sessions</button> : null}
         <button type="button" onClick={() => openView('theme')} className="rounded px-1.5 text-[11px] text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">theme</button>
         <TerminalMenu open={menuOpen} onOpenChange={setMenuOpen} items={menu} />
-        <button type="button" onClick={onClose} aria-label={`Close the ${panelTitle} (Ctrl+\`)`} title="Close (Ctrl+`)" className="rounded px-1.5 text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">×</button>
+        <button type="button" onClick={onClose} aria-label={`Close the ${panelTitle} (Ctrl+~)`} title="Close (Ctrl+~)" className="rounded px-1.5 text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">×</button>
       </header>
 
       {/* A view opens OVER the transcript, which stays mounted (1.48.0): it used to be swapped out, so
           closing Help or Settings re-mounted it at the top of a long session instead of where it was. */}
       <div className="relative min-h-0 flex-1">
           <div ref={scroll.scrollRef} onScroll={scroll.onScroll} onClick={clickToCompose} role="log" aria-label="Transcript" aria-hidden={body ? true : undefined} inert={body !== null} className="h-full cursor-text overflow-y-auto px-4 py-3">
+            <div style={zoomed}>
             {loading ? <p className="text-[var(--term-dim)]">Opening the session…</p> : null}
             {!loading && lines.length === 0 ? (
               <div className="text-[var(--term-dim)]">
@@ -458,13 +474,14 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
               onElement={onElement}
               onCompare={onCompare}
             />
+            </div>
           </div>
           {!scroll.isPinned && body === null ? (
             <button type="button" onClick={scroll.scrollToBottom} className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[var(--term-border)] bg-[var(--term-bar)] px-3 py-0.5 text-[11px] text-[var(--term-text)] shadow outline-none focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">
               Jump to latest ↓
             </button>
           ) : null}
-          {body ? <div className="absolute inset-0 flex flex-col bg-[var(--term-bg)]">{body}</div> : null}
+          {body ? <div className="absolute inset-0 flex flex-col bg-[var(--term-bg)]" style={zoomed}>{body}</div> : null}
       </div>
 
       <TerminalStatus
@@ -480,7 +497,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
         tuning={onLevelChange || onEffortChange ? { level: onLevelChange ? level : null, effort: onEffortChange ? effort : null, onOpen: () => openView('tuning') } : null}
       />
 
-      <div ref={inputWrap} className="shrink-0 bg-[var(--term-bar)] px-2 pb-2">
+      <div ref={inputWrap} className="shrink-0 bg-[var(--term-bar)] px-2 pb-2" style={zoomed}>
         {asking && onAnswer ? (
           <TerminalQuestionBlock
             key={asking.key}

@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { PendingAttachmentChips, useComposerAttachments } from '../src/components/ComposerAttachments';
 import { AssistantTerminal, type AssistantTerminalProps } from '../src/terminal/AssistantTerminal';
 import { expandSavedCommand, savedNameProblem, type TerminalSavedCommand } from '../src/terminal/commands';
+import { stepZoom } from '../src/terminal/zoom';
 import type { TerminalMode, TerminalTurn } from '../src/terminal/types';
 
 /**
@@ -236,6 +237,52 @@ describe('a failed answer offers a higher level and more thought', () => {
 
     expect(screen.queryByRole('button', { name: 'Think harder' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Try again at Pro' })).toBeTruthy();
+  });
+});
+
+describe('zoom', () => {
+  it('Ctrl + and Ctrl - step the text size inside the console, and Ctrl 0 puts it back', () => {
+    const onZoomChange = vi.fn();
+
+    render(<Harness zoom={1} onZoomChange={onZoomChange} />);
+    const plus = fireEvent.keyDown(input(), { key: '=', ctrlKey: true });
+    fireEvent.keyDown(input(), { key: '-', ctrlKey: true });
+    fireEvent.keyDown(input(), { key: '0', ctrlKey: true });
+
+    expect(plus).toBe(false);
+    expect(onZoomChange.mock.calls).toEqual([[1.15], [0.85], [1]]);
+  });
+
+  it('stops at the largest and smallest sizes', () => {
+    expect(stepZoom(1.5, 1)).toBe(1.5);
+    expect(stepZoom(0.85, -1)).toBe(0.85);
+    expect(stepZoom(1.2, 1)).toBe(1.3);
+  });
+
+  it('draws the transcript and the composer at the size, and leaves the browser its zoom without a host', () => {
+    const { unmount } = render(<Harness zoom={1.3} onZoomChange={() => {}} />);
+
+    expect((screen.getByRole('log', { name: 'Transcript' }).firstElementChild as HTMLElement).style.zoom).toBe('1.3');
+    unmount();
+
+    render(<Harness />);
+    expect(fireEvent.keyDown(input(), { key: '=', ctrlKey: true })).toBe(true);
+  });
+
+  it('is a Settings row', () => {
+    const onZoomChange = vi.fn();
+
+    render(<Harness zoom={1} onZoomChange={onZoomChange} />);
+    send('/config');
+    fireEvent.click(screen.getByRole('button', { name: /Text size/ }));
+
+    expect(onZoomChange).toHaveBeenCalledWith(1.15);
+  });
+
+  it('names Ctrl+~ as the key that opens and closes the console', () => {
+    render(<Harness />);
+
+    expect(screen.getByRole('button', { name: /Close the Porter console \(Ctrl\+~\)/ })).toBeTruthy();
   });
 });
 

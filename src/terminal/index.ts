@@ -27,5 +27,6 @@ export type { TerminalTheme } from './terminalThemes';
 export { LEVEL_LABELS, levelPhrase, nextEffort, nextLevel, outcomeLine, recapLines, toLines, toMarkdown } from './transcript';
 export type { ToLinesOptions } from './transcript';
 export { TERMINAL_DEFAULT_WIDTH, TERMINAL_MIN_WIDTH, clampTerminalWidth, useTerminalDock } from './useTerminalDock';
+export { TERMINAL_ZOOMS, stepZoom } from './zoom';
 export { useTerminalKeys } from './useTerminalKeys';
 export type * from './types';
