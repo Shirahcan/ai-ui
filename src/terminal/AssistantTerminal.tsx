@@ -3,8 +3,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AttachmentChip } from '../types';
 import type { AssistantInputKind } from '../useAssistantConversation';
 import { useAutoscroll } from '../useAutoscroll';
-import type { TerminalCommandName, TerminalSavedCommand } from './commands';
-import { CostView, SavedCommandsView } from './TerminalExtrasViews';
+import { specializationFromArg, type TerminalCommandName, type TerminalSavedCommand } from './commands';
+import { CostView, SavedCommandsView, SpecializationView, specializationWhy } from './TerminalExtrasViews';
 import { TerminalInput, type TerminalComposerOptions, type TerminalMentions } from './TerminalInput';
 import { TerminalLines } from './TerminalLines';
 import { TerminalMenu, type TerminalMenuItem } from './TerminalMenu';
@@ -15,14 +15,14 @@ import { TerminalStatus } from './TerminalStatus';
 import { BriefView, ContextView, HelpView, ResumeView, ThemeView, TuningView } from './TerminalViews';
 import { TERMINAL_THEMES, terminalTheme, themeToTerminalVars, type TerminalTheme } from './terminalThemes';
 import { toLines, toMarkdown } from './transcript';
-import type { TerminalAnswer, TerminalBrief, TerminalEffort, TerminalLevel, TerminalLive, TerminalMode, TerminalNote, TerminalSessionRow, TerminalSize, TerminalTurn, TerminalUsage } from './types';
+import type { TerminalAnswer, TerminalBrief, TerminalEffort, TerminalLevel, TerminalLive, TerminalMode, TerminalNote, TerminalSessionRow, TerminalSize, TerminalSpecialization, TerminalSpecializationOption, TerminalTurn, TerminalUsage } from './types';
 import { useDoneMark } from './useDoneMark';
 import { useTerminalDock } from './useTerminalDock';
 import { useTerminalKeys } from './useTerminalKeys';
 import { useTerminalRecap } from './useTerminalRecap';
 import { stepZoom } from './zoom';
 
-type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind' | 'tuning' | 'settings' | 'cost' | 'commands';
+type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind' | 'tuning' | 'settings' | 'cost' | 'commands' | 'specialize';
 
 const ALL_LEVELS: TerminalLevel[] = ['normal', 'pro', 'expert'];
 const ALL_EFFORTS: TerminalEffort[] = ['low', 'medium', 'high'];
@@ -55,6 +55,20 @@ export interface AssistantTerminalProps {
   notes?: TerminalNote[];
   size?: TerminalSize | null;
   brief?: TerminalBrief | null;
+  /**
+   * The guide the work follows (1.55.0, owner 2026-11-11: "specialization" for landing pages, blog posts):
+   * what applies now, the guides on offer, and the person's own choice (a key, 'none', or null for "let the
+   * subject decide"). Without `onSpecializationChange` there is no chip, no menu item and no /specialize.
+   */
+  specialization?: TerminalSpecialization | null;
+  specializations?: TerminalSpecializationOption[];
+  specializationChoice?: string | null;
+  onSpecializationChange?: (key: string | null) => void;
+  /** Where the guides are edited, linked from the picker. */
+  manageSpecializationsHref?: string | null;
+  /** Apply or dismiss fields drafted for the page's record (1.55.0); `proposalState` is what was done. */
+  onProposal?: (turnId: string, action: 'apply' | 'dismiss') => void;
+  proposalState?: (turnId: string) => 'applied' | 'dismissed' | null;
   history?: string[];
   /** Loading the console, or its history could not be read: a line says so. */
   loading?: boolean;
@@ -160,6 +174,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     onBuildPlan, onDismissPlan, sessions, onSaveBrief, onClearDraft, theme, themes = TERMINAL_THEMES, onThemeChange, width, onWidthChange, onError, className = '',
     level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion, onElement, onUsage, savedCommands = [], onSavedCommandsChange, onCompare, zoom = 1, onZoomChange,
     recapAfterMinutes = 30, onRecapChange, onRecap, notifyWhenDone = true, onNotifyWhenDoneChange,
+    specialization = null, specializations = [], specializationChoice = null, onSpecializationChange, manageSpecializationsHref = null, onProposal, proposalState,
   } = props;
   const [view, setView] = useState<View | null>(null);
   const [rewindFrom, setRewindFrom] = useState<string | null>(null);
@@ -178,8 +193,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
   const recaps = useTerminalRecap({ turns, words, afterMinutes: recapAfterMinutes, working, loading, sessionId: session?.id ?? null, fetchRecap: onRecap });
   const recap = recaps.recap;
   const lines = useMemo(
-    () => toLines(turns, { session, live, expanded, opened, notes, recap, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName }),
-    [turns, session, live, expanded, opened, notes, recap, clearedThrough, assistantName],
+    () => toLines(turns, { session, live, expanded, opened, notes, recap, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName, proposalState }),
+    [turns, session, live, expanded, opened, notes, recap, clearedThrough, assistantName, proposalState],
   );
   // The assistant's last word asked questions and nothing has run since: they take the composer's place
   // (Claude Code), unless the person chose "Chat about this" for them (`aside`, by their line key).
@@ -201,9 +216,10 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     if (!onUsage) out.push('cost');
     if (!onCompare) out.push('compare');
     if (!onSavedCommandsChange) out.push('save');
+    if (!onSpecializationChange) out.push('specialize');
 
     return out;
-  }, [onLevelChange, onEffortChange, modes, onUsage, onCompare, onSavedCommandsChange]);
+  }, [onLevelChange, onEffortChange, modes, onUsage, onCompare, onSavedCommandsChange, onSpecializationChange]);
   // `/save name`: the commands view opens with the last ask under that name.
   const [commandDraft, setCommandDraft] = useState<TerminalSavedCommand | null>(null);
   const nextMode = () => modes[(modes.indexOf(mode) + 1) % modes.length] ?? 'build';
@@ -287,6 +303,11 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     setMenuOpen(false);
 
     if (name === 'brief' && arg !== '') return onSaveBrief(arg);
+    if (name === 'specialize') {
+      const pick = arg === '' ? undefined : specializationFromArg(arg, specializations);
+
+      return pick === undefined ? openView('specialize') : onSpecializationChange?.(pick);
+    }
     if (name === 'plan') return onModeChange(mode === 'plan' ? 'build' : 'plan');
     if (name === 'brainstorm') return onModeChange(mode === 'brainstorm' ? 'build' : 'brainstorm');
     if (name === 'level' || name === 'effort') {
@@ -352,6 +373,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     { label: 'Summarise the session', run: () => command('compact', '') },
     { label: 'Context', run: () => openView('context') },
     { label: 'Brief', run: () => openView('brief') },
+    ...(onSpecializationChange ? [{ label: 'Specialization', run: () => openView('specialize') }] : []),
     ...(onLevelChange || onEffortChange ? [{ label: 'Level and effort', run: () => openView('tuning') }] : []),
     { label: 'Recap: where the session stands', run: () => command('recap', '') },
     ...(onCompare ? [{ label: 'Compare with the picture', run: () => command('compare', '') }] : []),
@@ -412,6 +434,19 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
         ) : null;
       case 'theme':
         return <ThemeView themes={themes} current={active.key} onPick={onThemeChange} onBack={closeView} />;
+      case 'specialize':
+        return (
+          <SpecializationView
+            assistant={assistantName}
+            subject={subjectNoun}
+            current={specialization}
+            chosen={specializationChoice}
+            options={specializations}
+            manageHref={manageSpecializationsHref}
+            onPick={(key) => { closeView(); onSpecializationChange?.(key); }}
+            onBack={closeView}
+          />
+        );
       case 'brief':
         return <BriefView brief={brief} subject={subjectNoun} onBack={closeView} onSave={(text) => { closeView(); onSaveBrief(text); }} />;
       case 'rewind':
@@ -473,6 +508,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
               onSuggestion={onSuggestion ? (text) => { recaps.dismiss(); onSuggestion(text); } : undefined}
               onElement={onElement}
               onCompare={onCompare}
+              onProposal={onProposal}
             />
             </div>
           </div>
@@ -495,6 +531,15 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
         size={size}
         onContext={() => openView('context')}
         tuning={onLevelChange || onEffortChange ? { level: onLevelChange ? level : null, effort: onEffortChange ? effort : null, onOpen: () => openView('tuning') } : null}
+        specialization={
+          onSpecializationChange
+            ? {
+                label: specialization ? (specialization.key === null ? `${assistantName} picks` : specialization.name) : 'No guide',
+                title: `Specialization (/specialize): ${specializationWhy(specialization, subjectNoun)}`,
+                onOpen: () => openView('specialize'),
+              }
+            : null
+        }
       />
 
       <div ref={inputWrap} className="shrink-0 bg-[var(--term-bar)] px-2 pb-2" style={zoomed}>

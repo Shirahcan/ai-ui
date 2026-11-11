@@ -23,7 +23,8 @@ export type TerminalCommandName =
   | 'config'
   | 'cost'
   | 'compare'
-  | 'save';
+  | 'save'
+  | 'specialize';
 
 export interface TerminalCommand {
   name: TerminalCommandName;
@@ -55,10 +56,23 @@ export const TERMINAL_COMMANDS: TerminalCommand[] = [
   { name: 'cost', description: 'What this session has cost so far, by level' },
   { name: 'compare', description: "Check {assistant}'s {subject} against the picture it was built from, difference by difference" },
   { name: 'save', args: '[name]', description: 'Save your last ask as your own command (/name runs it again)' },
+  { name: 'specialize', args: '[name|none|auto]', bare: true, description: 'Which guide {assistant} follows on this {subject} (a blog post, a landing page...)' },
 ];
 
 /** Commands a host may not offer (no level, no brainstorm): left out of the picker and the help. */
-export const OPTIONAL_COMMANDS: TerminalCommandName[] = ['level', 'effort', 'brainstorm', 'recap', 'cost', 'compare', 'save'];
+export const OPTIONAL_COMMANDS: TerminalCommandName[] = ['level', 'effort', 'brainstorm', 'recap', 'cost', 'compare', 'save', 'specialize'];
+
+/**
+ * `/specialize <words>` as a choice (1.55.0): `none` follows no guide, `auto` (or `page`) leaves it to the
+ * subject and the assistant (null), a guide's key or name chooses it; undefined when nothing matches.
+ */
+export function specializationFromArg(arg: string, options: readonly { key: string; name: string }[]): string | null | undefined {
+  const words = arg.trim().toLowerCase();
+  if (words === 'none' || words === 'off') return 'none';
+  if (words === 'auto' || words === 'page' || words === 'default') return null;
+  const match = options.find((o) => o.key === words || o.name.toLowerCase() === words);
+  return match ? match.key : undefined;
+}
 
 /**
  * A person's own command (1.53.0, owner 2026-11-09 "saved asks"): `/seo-pass` sends its ask again, with

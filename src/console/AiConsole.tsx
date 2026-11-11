@@ -3,6 +3,7 @@ import { useConsole } from './ConsoleContext';
 import { AiEstateOverview } from './AiEstateOverview';
 import { AiFeedbackInbox } from './AiFeedbackInbox';
 import { AiAssistantView } from './AiAssistantView';
+import { AiSpecializations } from './AiSpecializations';
 import { AiGapInbox } from './AiGapInbox';
 import { AiKnowledgeBrowser } from './AiKnowledgeBrowser';
 import { AiPromptTemplates } from './AiPromptTemplates';
@@ -24,6 +25,7 @@ const TAB_ICONS: Record<string, (p: { className?: string }) => React.ReactElemen
   prompts: FileText,
   voice: MessageVoice,
   assistant: Bot,
+  specializations: FileText,
   knowledge: BookOpen,
   feedback: ThumbsUp,
   gaps: AlertTriangle,
@@ -42,15 +44,31 @@ function tabIcon(key: string) {
   return Icon ? <Icon className="h-4 w-4" /> : undefined;
 }
 
-export type AiConsoleTab = 'overview' | 'calls' | 'prompts' | 'voice' | 'assistant' | 'knowledge' | 'feedback' | 'gaps' | 'estate' | `vault.${AiVaultSectionKey}`;
+export type AiConsoleTab =
+  | 'overview'
+  | 'calls'
+  | 'prompts'
+  | 'voice'
+  | 'assistant'
+  | 'specializations'
+  | 'knowledge'
+  | 'feedback'
+  | 'gaps'
+  | 'estate'
+  | `vault.${AiVaultSectionKey}`;
 
 /** The console's sections, in order, with the words a tab bar shows. */
-export const AI_CONSOLE_TABS: ReadonlyArray<{ key: AiConsoleTab; label: string; estateOnly?: boolean }> = [
+/**
+ * `optIn`: listed only when the product asks for it (`include`), because it needs the product's own catalogue
+ * (Specializations, 1.55.0). Every product's sidebar still comes from this one list.
+ */
+export const AI_CONSOLE_TABS: ReadonlyArray<{ key: AiConsoleTab; label: string; estateOnly?: boolean; optIn?: boolean }> = [
   { key: 'overview', label: 'Overview' },
   { key: 'calls', label: 'Calls' },
   { key: 'prompts', label: 'Prompts' },
   { key: 'voice', label: 'Voice' },
   { key: 'assistant', label: 'Assistant' },
+  { key: 'specializations', label: 'Specializations', optIn: true },
   { key: 'knowledge', label: 'Knowledge' },
   { key: 'feedback', label: 'Feedback' },
   { key: 'gaps', label: 'Could not do' },
@@ -96,6 +114,8 @@ function sectionBody(tab: AiConsoleTab): ReactNode {
       return <AiVoiceEditor />;
     case 'assistant':
       return <AiAssistantView />;
+    case 'specializations':
+      return <AiSpecializations />;
     case 'knowledge':
       return <AiKnowledgeBrowser />;
     case 'feedback':
@@ -114,9 +134,13 @@ function sectionBody(tab: AiConsoleTab): ReactNode {
  * The AI area's sidebar groups for this product: its own sections, then the AI vault's parts
  * when it holds the estate admin key. One list, so every product's sidebar matches.
  */
-export function aiConsoleSidebarGroups(capabilities: ConsoleCapabilities | null, hrefFor: (tab: AiConsoleTab) => string): ConsoleSidebarGroup[] {
+export function aiConsoleSidebarGroups(
+  capabilities: ConsoleCapabilities | null,
+  hrefFor: (tab: AiConsoleTab) => string,
+  options: { include?: ReadonlyArray<AiConsoleTab> } = {},
+): ConsoleSidebarGroup[] {
   const estate = capabilities?.can.estate === true;
-  const main = AI_CONSOLE_TABS.filter((t) => !t.estateOnly || estate).map((t) => ({ key: t.key, label: t.label, href: hrefFor(t.key), icon: tabIcon(t.key) }));
+  const main = AI_CONSOLE_TABS.filter((t) => (!t.estateOnly || estate) && (!t.optIn || (options.include ?? []).includes(t.key))).map((t) => ({ key: t.key, label: t.label, href: hrefFor(t.key), icon: tabIcon(t.key) }));
   if (!estate) return [{ items: main }];
   const vault = AI_VAULT_SECTIONS.map((v) => {
     const key = `vault.${v.key}` as AiConsoleTab;
@@ -161,8 +185,8 @@ export function AiConsole({ initialTab = 'overview', storageKey = 'ai-console.si
 }
 
 /** The tabs this product may see, or null until its capabilities have loaded. */
-export function useConsoleTabs() {
+export function useConsoleTabs(include: ReadonlyArray<AiConsoleTab> = []) {
   const { capabilities } = useConsole();
   if (!capabilities) return null;
-  return AI_CONSOLE_TABS.filter((t) => !t.estateOnly || capabilities.can.estate);
+  return AI_CONSOLE_TABS.filter((t) => (!t.estateOnly || capabilities.can.estate) && (!t.optIn || include.includes(t.key)));
 }

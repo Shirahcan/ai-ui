@@ -117,6 +117,8 @@ export interface TerminalLinesProps {
   onElement?: (uid: string) => void;
   /** "Compare with the picture" under a Build made from one (1.53.0). */
   onCompare?: () => void;
+  /** Apply or dismiss the fields drafted for the page's record (1.55.0), by the assistant turn's id. */
+  onProposal?: (turnId: string, action: 'apply' | 'dismiss') => void;
 }
 
 const CHANGE: Record<string, { mark: string; verb: string }> = {
@@ -146,7 +148,7 @@ function ChangeLine({ change, onElement }: { change: TerminalChange; onElement?:
   );
 }
 
-export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, buildLabel = 'Build this', onToggle, onRetry, asking = null, onReopenQuestions, onSuggestion, onElement, onCompare }: TerminalLinesProps): React.JSX.Element {
+export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, buildLabel = 'Build this', onToggle, onRetry, asking = null, onReopenQuestions, onSuggestion, onElement, onCompare, onProposal }: TerminalLinesProps): React.JSX.Element {
   return (
     <>
       {lines.map((line, index) => {
@@ -246,6 +248,36 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
               </div>
             );
           }
+
+          case 'proposal':
+            return (
+              <div key={line.key} className={`flex gap-2 ${muted}`}>
+                <span aria-hidden="true" className={`ml-4 ${MARK} text-[var(--term-accent)]`}>◆</span>
+                <div className="min-w-0 flex-1 break-words">
+                  <p className="font-semibold text-[var(--term-text)]">{line.title}</p>
+                  <dl className="mt-1 space-y-1">
+                    {line.fields.map((field) => (
+                      <div key={field.key}>
+                        <dt className="text-[var(--term-dim)]">{field.label}</dt>
+                        <dd className="whitespace-pre-line text-[var(--term-text)]">{field.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {line.state === 'open' && line.actionable && onProposal ? (
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" onClick={() => onProposal(line.turnId, 'apply')} className="whitespace-nowrap rounded bg-[var(--term-accent)] px-3 py-1 text-[12px] font-semibold text-[var(--term-on-accent)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--term-text)]">
+                        Apply
+                      </button>
+                      <button type="button" onClick={() => onProposal(line.turnId, 'dismiss')} className={TOGGLE}>
+                        Dismiss
+                      </button>
+                    </div>
+                  ) : line.state !== 'open' ? (
+                    <p className="mt-1 text-[var(--term-dim)]">{line.state === 'applied' ? 'Applied.' : 'Dismissed.'}</p>
+                  ) : null}
+                </div>
+              </div>
+            );
 
           case 'finding': {
             const look = FINDING[line.findingKind] ?? { mark: '•', tone: 'text-[var(--term-dim)]', label: 'Note' };

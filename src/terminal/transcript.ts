@@ -120,6 +120,8 @@ export interface ToLinesOptions {
   assistantName?: string;
   /** Where the session stands, after an idle time (`/recap`): drawn after the last turn. */
   recap?: { key: string; lines: string[]; pending?: boolean } | null;
+  /** What the person did with a turn's drafted fields (1.55.0), by the assistant turn's id; the host keeps it. */
+  proposalState?: (turnId: string) => 'applied' | 'dismissed' | null;
 }
 
 /**
@@ -131,7 +133,7 @@ export interface ToLinesOptions {
  * fold is a key in `opened`, so it survives every redraw too.
  */
 export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): TerminalLine[] {
-  const { session = null, live = null, expanded = false, opened, notes = [], clearedThrough = null, assistantName = 'the assistant', recap = null } = options;
+  const { session = null, live = null, expanded = false, opened, notes = [], clearedThrough = null, assistantName = 'the assistant', recap = null, proposalState } = options;
   const isOpen: IsOpen = (key) => expanded || (opened?.has(key) ?? false);
   const folded = new Set(session?.summary?.folded ?? []);
   const lines: TerminalLine[] = [];
@@ -249,6 +251,21 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
           ...(last && s.outcome?.changed && pictured ? { compare: true } : {}),
           muted,
         });
+
+        // Fields drafted for the page's own record (1.55.0): the person applies or dismisses them.
+        const proposal = s.outcome?.proposal;
+        if (proposal && proposal.fields.length > 0) {
+          out.push({
+            key: `${turn.id}:proposal`,
+            kind: 'proposal',
+            turnId: turn.id,
+            title: proposal.title,
+            fields: proposal.fields,
+            state: proposalState?.(turn.id) ?? 'open',
+            actionable: !turn.rewound && live === null,
+            muted,
+          });
+        }
       }
 
       if (collapsed !== null) {
@@ -396,6 +413,9 @@ export function toMarkdown(title: string, lines: TerminalLine[]): string {
         break;
       case 'recap':
         out.push(...line.lines.map((l) => `— ${l}`));
+        break;
+      case 'proposal':
+        out.push(`◆ ${line.title}`, ...line.fields.map((f) => `   ${f.label}: ${f.value}`));
         break;
       default:
         out.push(`${MARK[line.kind]} ${line.text}`);

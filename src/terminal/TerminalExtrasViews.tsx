@@ -2,11 +2,89 @@ import React, { useEffect, useState } from 'react';
 
 import { savedNameProblem, type TerminalSavedCommand } from './commands';
 import { LEVEL_LABELS } from './transcript';
-import type { TerminalLevel, TerminalUsage } from './types';
+import type { TerminalLevel, TerminalSpecialization, TerminalSpecializationOption, TerminalUsage } from './types';
 import { BUTTON, PRIMARY, TerminalView } from './TerminalViews';
 
 const FIELD =
   'w-full rounded-md border border-[var(--term-border)] bg-[var(--term-bar)] px-3 py-2 font-[inherit] text-[13px] text-[var(--term-text)] outline-none focus-visible:border-[var(--term-accent)]';
+
+const PICK =
+  'w-full rounded-md border px-3 py-2 text-left outline-none hover:bg-[var(--term-selection)] focus-visible:ring-2 focus-visible:ring-[var(--term-accent)]';
+
+/** Why the current guide applies, in a few words. */
+export function specializationWhy(current: TerminalSpecialization | null, subject: string): string {
+  if (!current) return 'No guide: you turned it off for this ' + subject + '.';
+  if (current.source === 'person') return 'You chose it for this ' + subject + '.';
+  if (current.source === 'page') return 'This ' + subject + "'s own kind decides it.";
+  return 'Picked for each ask from the guides below.';
+}
+
+/**
+ * `/specialize` (1.55.0, owner 2026-11-11): which guide the assistant follows on this subject. "Let the
+ * subject decide" goes back to its own kind (a blog post's page follows Blog post) or the assistant's pick;
+ * "None" follows no guide. The choice is kept per subject, for everyone working on it.
+ */
+export function SpecializationView({
+  assistant,
+  subject,
+  current,
+  chosen,
+  options,
+  manageHref,
+  onPick,
+  onBack,
+}: {
+  assistant: string;
+  subject: string;
+  current: TerminalSpecialization | null;
+  /** The person's own choice, when they made one: a key, or 'none'. */
+  chosen: string | null;
+  options: TerminalSpecializationOption[];
+  manageHref?: string | null;
+  onPick: (key: string | null) => void;
+  onBack: () => void;
+}): React.JSX.Element {
+  const ring = (on: boolean) => (on ? 'border-[var(--term-accent)]' : 'border-[var(--term-border)]');
+
+  return (
+    <TerminalView title="Specialization" onBack={onBack}>
+      <p className="text-[var(--term-dim)]">
+        A guide {assistant} follows for one kind of output: its sections, what it looks up first, and what it checks after writing.
+        {current ? ` Now: ${current.key === null ? `${assistant} picks` : current.name}. ` : ' Now: none. '}
+        {specializationWhy(current, subject)}
+      </p>
+      <ul className="mt-3 space-y-2">
+        <li>
+          <button type="button" onClick={() => onPick(null)} className={`${PICK} ${ring(chosen === null)}`}>
+            <span className="font-semibold text-[var(--term-text)]">Let the {subject} decide</span>
+            <span className="block text-[var(--term-dim)]">Its own kind when it has one, otherwise {assistant} picks a guide for each ask.</span>
+          </button>
+        </li>
+        {options.map((option) => (
+          <li key={option.key}>
+            <button type="button" onClick={() => onPick(option.key)} className={`${PICK} ${ring(chosen === option.key)}`}>
+              <span className="font-semibold text-[var(--term-text)]">{option.name}</span>
+              {option.use_when ? <span className="block text-[var(--term-dim)]">{option.use_when}</span> : null}
+            </button>
+          </li>
+        ))}
+        <li>
+          <button type="button" onClick={() => onPick('none')} className={`${PICK} ${ring(chosen === 'none')}`}>
+            <span className="font-semibold text-[var(--term-text)]">None</span>
+            <span className="block text-[var(--term-dim)]">Follow no guide on this {subject}.</span>
+          </button>
+        </li>
+      </ul>
+      {manageHref ? (
+        <p className="mt-3">
+          <a href={manageHref} className="text-[var(--term-accent)] underline underline-offset-2 outline-none focus-visible:ring-1 focus-visible:ring-[var(--term-accent)]">
+            Manage specializations
+          </a>
+        </p>
+      ) : null}
+    </TerminalView>
+  );
+}
 
 const dollars = (usd: number) => (usd > 0 && usd < 0.01 ? 'under $0.01' : `$${usd.toFixed(2)}`);
 const tokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k` : String(n));

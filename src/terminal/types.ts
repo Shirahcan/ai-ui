@@ -38,6 +38,34 @@ export interface TerminalOutcome {
    * one level up ("Try again at Pro" after a Stop read as if the assistant had failed).
    */
   stopped?: boolean;
+  /**
+   * Fields the assistant drafted for the record the page belongs to (1.55.0, a specialization's
+   * "also draft these fields"): the person applies or dismisses them; nothing is saved until they do.
+   */
+  proposal?: TerminalProposal | null;
+}
+
+/** Drafted values for the page's own record (a blog post's answer, a landing page's headline). */
+export interface TerminalProposal {
+  title: string;
+  fields: { key: string; label: string; value: string }[];
+}
+
+/**
+ * The guide the console's work follows (1.55.0): `source` says why: the person chose it, the page's own
+ * kind decides (a blog post's page), or the assistant picks per ask (`key` null).
+ */
+export interface TerminalSpecialization {
+  key: string | null;
+  name: string;
+  source: 'person' | 'page' | 'porter' | string;
+}
+
+/** A guide the person may choose. */
+export interface TerminalSpecializationOption {
+  key: string;
+  name: string;
+  use_when?: string | null;
 }
 
 /** What one level's asks in a session cost (1.53.0, `/cost`). The LEVEL is named, never the model. */
@@ -229,6 +257,8 @@ export type TerminalLine =
   /** `changes` (1.53.0): the elements it changed, listed under the line while it is `open`; `more` were not listed. */
   | ({ key: string; kind: 'outcome'; tone: 'ok' | 'none' | 'fail'; text: string; turnId: string | null; canRewind: boolean; level?: string | null; retry?: TerminalLevel | null; changes?: TerminalChange[]; more?: number; open?: boolean; compare?: boolean; deeper?: TerminalEffort | null; askedLevel?: TerminalLevel } & Muted)
   | ({ key: string; kind: 'plan'; summary: string; steps: string[]; turnId: string | null; open: boolean; level?: string | null } & Muted)
+  /** Fields drafted for the page's record (1.55.0): Apply or Dismiss while `state` is open. */
+  | ({ key: string; kind: 'proposal'; turnId: string; title: string; fields: TerminalProposal['fields']; state: 'open' | 'applied' | 'dismissed'; actionable: boolean } & Muted)
   | { key: string; kind: 'system'; text: string; tone: 'system' | 'fail' | 'ok' }
   /** `pending` (1.51.0): the assistant is writing its own recap; these lines stand until it arrives. */
   | { key: string; kind: 'recap'; lines: string[]; pending?: boolean }

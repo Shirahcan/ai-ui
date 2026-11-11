@@ -21,6 +21,7 @@ export function TerminalStatus({
   size,
   onContext,
   tuning = null,
+  specialization = null,
 }: {
   working: boolean;
   verb: string | null;
@@ -33,6 +34,8 @@ export function TerminalStatus({
   onContext: () => void;
   /** The level and effort (1.45.0), when the host offers them: a chip that opens their picker. */
   tuning?: { level: TerminalLevel | null; effort: TerminalEffort | null; onOpen: () => void } | null;
+  /** The guide the work follows (1.55.0), when the host offers them: a chip that opens the picker. */
+  specialization?: { label: string; title: string; onOpen: () => void } | null;
 }): React.JSX.Element {
   const [now, setNow] = useState(() => Date.now());
 
@@ -69,6 +72,11 @@ export function TerminalStatus({
       {target ? (
         <button type="button" onClick={target.onClear} title="Stop aiming at this element" className="max-w-[10rem] shrink-0 truncate rounded border border-[var(--term-border)] px-1.5 text-[var(--term-accent)] outline-none hover:border-[var(--term-accent)] focus-visible:border-[var(--term-accent)]">
           @{target.label} ×
+        </button>
+      ) : null}
+      {specialization ? (
+        <button type="button" onClick={specialization.onOpen} title={specialization.title} className="max-w-[9rem] shrink-0 truncate rounded border border-[var(--term-border)] px-1.5 text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:border-[var(--term-accent)]">
+          {specialization.label}
         </button>
       ) : null}
       {tuning ? (
