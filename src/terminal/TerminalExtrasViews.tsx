@@ -16,7 +16,7 @@ export function specializationWhy(current: TerminalSpecialization | null, subjec
   if (!current) return 'No guide: you turned it off for this ' + subject + '.';
   if (current.source === 'person') return 'You chose it for this ' + subject + '.';
   if (current.source === 'page') return 'This ' + subject + "'s own kind decides it.";
-  return 'Picked for each ask from the guides below.';
+  return 'Picked for each ask from the active guides, or none.';
 }
 
 /**
