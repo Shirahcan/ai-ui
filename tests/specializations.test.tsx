@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { upsertGuide } from '../src/console/AiSpecializations';
 import { blankSpecialization, keyFromName, mergeDraft, moveSection, saveBody } from '../src/console/specializationTypes';
 import { AssistantTerminal, type AssistantTerminalProps } from '../src/terminal/AssistantTerminal';
 import { specializationFromArg } from '../src/terminal/commands';
@@ -95,6 +96,16 @@ describe('the editor helpers', () => {
     expect(body).not.toHaveProperty('version');
     expect(body).not.toHaveProperty('key');
     expect(body.sections).toHaveLength(1);
+  });
+});
+
+describe('the list after a save', () => {
+  it('draws the saved guide at once, replacing it by key and keeping name order', () => {
+    const a = { ...blankSpecialization(), key: 'landing-page', name: 'Landing page' };
+    const b = { ...blankSpecialization(), key: 'blog-post', name: 'Blog post', version: 1 };
+    const listed = upsertGuide([a, b], { ...b, version: 2 });
+    expect(listed.map((g) => [g.key, g.version])).toEqual([['blog-post', 2], ['landing-page', 0]]);
+    expect(upsertGuide([a], { ...blankSpecialization(), key: 'case-study', name: 'Case study' }).map((g) => g.key)).toEqual(['case-study', 'landing-page']);
   });
 });
 

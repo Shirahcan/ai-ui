@@ -153,17 +153,21 @@ export function SpecializationEditor({ initial, isNew, vocabulary, taken, onCanc
           <div className="text-sm font-medium">Sections, in order</div>
           <p className="text-xs text-[var(--ai-muted)]">Required sections are always written. "Heading words" are how a check finds the section on the page.</p>
           {form.sections.map((s, i) => (
-            <div key={i} className="grid gap-2 rounded-xl border border-[var(--ai-border)] p-3 sm:grid-cols-[1fr_1.4fr_1fr_auto]">
-              <input aria-label={`Section ${i + 1} name`} className={INPUT} value={s.name} maxLength={80} placeholder="Name" onChange={(e) => setSection(i, { name: e.target.value })} />
-              <input aria-label={`Section ${i + 1} purpose`} className={INPUT} value={s.purpose} maxLength={300} placeholder="What it does" onChange={(e) => setSection(i, { purpose: e.target.value })} />
-              <input
-                aria-label={`Section ${i + 1} heading words`}
-                className={INPUT}
-                value={s.look_for.join(', ')}
-                placeholder="Heading words, comma separated"
-                onChange={(e) => setSection(i, { look_for: e.target.value.split(',').map((w) => w.trimStart()).slice(0, 6) })}
-              />
-              <div className="flex items-center gap-2">
+            // Two lines per section (1.55.1): its words on the first, how it is checked and moved on the second, so
+            // nothing is cut off at the console's usual width.
+            <div key={i} className="space-y-2 rounded-xl border border-[var(--ai-border)] p-3">
+              <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+                <input aria-label={`Section ${i + 1} name`} className={INPUT} value={s.name} maxLength={80} placeholder="Name" onChange={(e) => setSection(i, { name: e.target.value })} />
+                <input aria-label={`Section ${i + 1} purpose`} className={INPUT} value={s.purpose} maxLength={300} placeholder="What it does" onChange={(e) => setSection(i, { purpose: e.target.value })} />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  aria-label={`Section ${i + 1} heading words`}
+                  className={`${INPUT} min-w-[12rem] flex-1`}
+                  value={s.look_for.join(', ')}
+                  placeholder="Heading words the check looks for, comma separated"
+                  onChange={(e) => setSection(i, { look_for: e.target.value.split(',').map((w) => w.trimStart()).slice(0, 6) })}
+                />
                 <Tick checked={s.required} onChange={(on) => setSection(i, { required: on })}>
                   Required
                 </Tick>
@@ -217,7 +221,7 @@ export function SpecializationEditor({ initial, isNew, vocabulary, taken, onCanc
         </fieldset>
 
         {vocabulary.hosts.some((h) => h.fields.length) ? (
-          <Checks label="Also draft these fields" hint="After writing, the assistant suggests them for the person to accept. Nothing is saved without them.">
+          <Checks label="Also draft these fields" hint="After writing, the assistant suggests these for the person to apply in the console. Nothing changes until they do.">
             {vocabulary.hosts.flatMap((h) =>
               h.fields.map((f) => {
                 const on = form.host_fields.some((p) => p.host === h.key && p.field === f.key);

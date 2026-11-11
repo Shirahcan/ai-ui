@@ -4,6 +4,11 @@ import { Button, Confirm, Empty, Kebab, LoadError, Loading, Pill, Section, Table
 import { SpecializationEditor } from './SpecializationEditor';
 import { blankSpecialization, type Specialization, type SpecializationVocabulary } from './specializationTypes';
 
+/** The list with one guide replaced (by key) or added, in name order as the service lists them. */
+export function upsertGuide(list: Specialization[], saved: Specialization): Specialization[] {
+  return [...list.filter((g) => g.key !== saved.key), saved].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /**
  * Specializations (1.55.0): named guides the assistant follows for one kind of output ("Blog post",
  * "Landing page"): its instructions, its sections in order, the data it fetches first, the checks after
@@ -12,7 +17,7 @@ import { blankSpecialization, type Specialization, type SpecializationVocabulary
  */
 export function AiSpecializations() {
   const { request, notify, reportError } = useConsole();
-  const { data, error, loading, reload } = useConsoleResource<{ specializations?: Specialization[]; vocabulary?: SpecializationVocabulary | null }>('specializations');
+  const { data, error, loading, reload, setData } = useConsoleResource<{ specializations?: Specialization[]; vocabulary?: SpecializationVocabulary | null }>('specializations');
   const [editing, setEditing] = useState<{ guide: Specialization; isNew: boolean } | null>(null);
   const [removing, setRemoving] = useState<Specialization | null>(null);
 
@@ -33,6 +38,8 @@ export function AiSpecializations() {
         onCancel={() => setEditing(null)}
         onSaved={(saved) => {
           setEditing(null);
+          // The saved guide is drawn at once (1.55.1); the refetch then confirms the whole list.
+          if (data) setData({ ...data, specializations: upsertGuide(data.specializations ?? [], saved) });
           reload();
           notify({ title: `Saved ${saved.name}`, description: `Version ${saved.version}.` });
         }}
