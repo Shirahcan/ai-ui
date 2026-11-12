@@ -75,7 +75,7 @@ export function TerminalStatus({
         </button>
       ) : null}
       {specialization ? (
-        <button type="button" onClick={specialization.onOpen} title={specialization.title} className="max-w-[9rem] shrink-0 truncate rounded border border-[var(--term-border)] px-1.5 text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:border-[var(--term-accent)]">
+        <button type="button" onClick={specialization.onOpen} title={specialization.title} className="max-w-[15rem] shrink-0 truncate rounded border border-[var(--term-border)] px-1.5 text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:border-[var(--term-accent)]">
           {specialization.label}
         </button>
       ) : null}

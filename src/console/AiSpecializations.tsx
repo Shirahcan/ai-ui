@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ConsoleError, useConsole, useConsoleResource } from './ConsoleContext';
 import { Button, Confirm, Empty, Kebab, LoadError, Loading, Pill, Section, Table, Td, copyText, when } from './primitives';
+import { GuideTemplates } from './GuideTemplates';
 import { SpecializationEditor } from './SpecializationEditor';
 import { blankSpecialization, type Specialization, type SpecializationVocabulary } from './specializationTypes';
 
@@ -20,6 +21,8 @@ export function AiSpecializations() {
   const { data, error, loading, reload, setData } = useConsoleResource<{ specializations?: Specialization[]; vocabulary?: SpecializationVocabulary | null }>('specializations');
   const [editing, setEditing] = useState<{ guide: Specialization; isNew: boolean } | null>(null);
   const [removing, setRemoving] = useState<Specialization | null>(null);
+  // 1.56.0: the formats inside one guide, opened from its row.
+  const [templatesOf, setTemplatesOf] = useState<Specialization | null>(null);
 
   if (loading && !data) return <Loading />;
   if (error && !data) return <LoadError error={error} onRetry={reload} />;
@@ -27,6 +30,10 @@ export function AiSpecializations() {
   const guides = data?.specializations ?? [];
   const vocabulary = data?.vocabulary ?? null;
   const label = (kind: 'surfaces' | 'hosts', key: string) => (vocabulary?.[kind] ?? []).find((v) => v.key === key)?.label ?? key;
+
+  if (templatesOf && vocabulary) {
+    return <GuideTemplates guide={templatesOf} vocabulary={vocabulary} onBack={() => setTemplatesOf(null)} />;
+  }
 
   if (editing && vocabulary) {
     return (
@@ -81,6 +88,9 @@ export function AiSpecializations() {
                 {g.name}
               </button>
               {g.use_when ? <div className="text-xs text-[var(--ai-muted)]">{g.use_when}</div> : null}
+              <button type="button" className="text-xs text-[var(--ai-accent)] outline-none hover:underline focus-visible:underline" onClick={() => setTemplatesOf(g)}>
+                Templates
+              </button>
             </Td>
             <Td className="text-sm">{g.surfaces.map((s) => label('surfaces', s)).join(', ')}</Td>
             <Td className="text-sm">{g.defaults_for.length ? g.defaults_for.map((h) => label('hosts', h)).join(', ') : 'None'}</Td>
@@ -96,6 +106,7 @@ export function AiSpecializations() {
                 label={`Actions for ${g.name}`}
                 items={[
                   { label: 'Edit', onSelect: () => setEditing({ guide: g, isNew: false }) },
+                  { label: 'Templates', onSelect: () => setTemplatesOf(g) },
                   {
                     label: g.status === 'active' ? 'Pause' : 'Make active',
                     onSelect: () => {

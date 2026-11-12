@@ -3,8 +3,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AttachmentChip } from '../types';
 import type { AssistantInputKind } from '../useAssistantConversation';
 import { useAutoscroll } from '../useAutoscroll';
-import { specializationFromArg, type TerminalCommandName, type TerminalSavedCommand } from './commands';
-import { CostView, SavedCommandsView, SpecializationView, specializationWhy } from './TerminalExtrasViews';
+import { specializationFromArg, templateFromArg, type TerminalCommandName, type TerminalSavedCommand } from './commands';
+import { CostView, SavedCommandsView, SpecializationView, specializationWhy, TemplateView, templateWhy } from './TerminalExtrasViews';
 import { TerminalInput, type TerminalComposerOptions, type TerminalMentions } from './TerminalInput';
 import { TerminalLines } from './TerminalLines';
 import { TerminalMenu, type TerminalMenuItem } from './TerminalMenu';
@@ -15,14 +15,14 @@ import { TerminalStatus } from './TerminalStatus';
 import { BriefView, ContextView, HelpView, ResumeView, ThemeView, TuningView } from './TerminalViews';
 import { TERMINAL_THEMES, terminalTheme, themeToTerminalVars, type TerminalTheme } from './terminalThemes';
 import { toLines, toMarkdown } from './transcript';
-import type { TerminalAnswer, TerminalBrief, TerminalEffort, TerminalLevel, TerminalLive, TerminalMode, TerminalNote, TerminalSessionRow, TerminalSize, TerminalSpecialization, TerminalSpecializationOption, TerminalTurn, TerminalUsage } from './types';
+import type { TerminalAnswer, TerminalBrief, TerminalEffort, TerminalLevel, TerminalLive, TerminalMode, TerminalNote, TerminalSessionRow, TerminalSize, TerminalSpecialization, TerminalSpecializationOption, TerminalTemplate, TerminalTemplateOption, TerminalTurn, TerminalUsage } from './types';
 import { useDoneMark } from './useDoneMark';
 import { useTerminalDock } from './useTerminalDock';
 import { useTerminalKeys } from './useTerminalKeys';
 import { useTerminalRecap } from './useTerminalRecap';
 import { stepZoom } from './zoom';
 
-type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind' | 'tuning' | 'settings' | 'cost' | 'commands' | 'specialize';
+type View = 'context' | 'resume' | 'help' | 'theme' | 'brief' | 'rewind' | 'tuning' | 'settings' | 'cost' | 'commands' | 'specialize' | 'template';
 
 const ALL_LEVELS: TerminalLevel[] = ['normal', 'pro', 'expert'];
 const ALL_EFFORTS: TerminalEffort[] = ['low', 'medium', 'high'];
@@ -66,6 +66,20 @@ export interface AssistantTerminalProps {
   onSpecializationChange?: (key: string | null) => void;
   /** Where the guides are edited, linked from the picker. */
   manageSpecializationsHref?: string | null;
+  /**
+   * The template the work follows inside its guide (1.56.0, owner 2026-11-12: "templates for narratives, Q&A, new
+   * feature intro"): what applies now, the guide's templates, and the stored choice (a key, 'none', or null for
+   * "let the assistant pick"). Without `onTemplateChange` there is no chip suffix, no menu item and no /template.
+   */
+  template?: TerminalTemplate | null;
+  templates?: TerminalTemplateOption[];
+  templateChoice?: string | null;
+  onTemplateChange?: (key: string | null) => void;
+  /**
+   * A fill-in first ask for a NEW subject (the chosen template's starter): put in the empty composer once, when the
+   * session has no turns, never over anything typed. The host passes it only for a subject with nothing on it yet.
+   */
+  starter?: string | null;
   /** Apply or dismiss fields drafted for the page's record (1.55.0); `proposalState` is what was done. */
   onProposal?: (turnId: string, action: 'apply' | 'dismiss') => void;
   proposalState?: (turnId: string) => 'applied' | 'dismissed' | null;
@@ -175,6 +189,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion, onElement, onUsage, savedCommands = [], onSavedCommandsChange, onCompare, zoom = 1, onZoomChange,
     recapAfterMinutes = 30, onRecapChange, onRecap, notifyWhenDone = true, onNotifyWhenDoneChange,
     specialization = null, specializations = [], specializationChoice = null, onSpecializationChange, manageSpecializationsHref = null, onProposal, proposalState,
+    template = null, templates = [], templateChoice = null, onTemplateChange, starter = null,
   } = props;
   const [view, setView] = useState<View | null>(null);
   const [rewindFrom, setRewindFrom] = useState<string | null>(null);
@@ -217,9 +232,17 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     if (!onCompare) out.push('compare');
     if (!onSavedCommandsChange) out.push('save');
     if (!onSpecializationChange) out.push('specialize');
+    if (!onTemplateChange) out.push('template');
 
     return out;
-  }, [onLevelChange, onEffortChange, modes, onUsage, onCompare, onSavedCommandsChange, onSpecializationChange]);
+  }, [onLevelChange, onEffortChange, modes, onUsage, onCompare, onSavedCommandsChange, onSpecializationChange, onTemplateChange]);
+  // The template's starter fills the empty composer once per starter (1.56.0): cleared, it stays cleared.
+  const starterUsed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open || !starter || starterUsed.current === starter || value !== '' || turns.length > 0 || loading) return;
+    starterUsed.current = starter;
+    onChange(starter);
+  }, [open, starter, value, turns.length, loading, onChange]);
   // `/save name`: the commands view opens with the last ask under that name.
   const [commandDraft, setCommandDraft] = useState<TerminalSavedCommand | null>(null);
   const nextMode = () => modes[(modes.indexOf(mode) + 1) % modes.length] ?? 'build';
@@ -308,6 +331,11 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
 
       return pick === undefined ? openView('specialize') : onSpecializationChange?.(pick);
     }
+    if (name === 'template') {
+      const pick = arg === '' ? undefined : templateFromArg(arg, templates);
+
+      return pick === undefined ? openView('template') : onTemplateChange?.(pick);
+    }
     if (name === 'plan') return onModeChange(mode === 'plan' ? 'build' : 'plan');
     if (name === 'brainstorm') return onModeChange(mode === 'brainstorm' ? 'build' : 'brainstorm');
     if (name === 'level' || name === 'effort') {
@@ -374,6 +402,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     { label: 'Context', run: () => openView('context') },
     { label: 'Brief', run: () => openView('brief') },
     ...(onSpecializationChange ? [{ label: 'Specialization', run: () => openView('specialize') }] : []),
+    ...(onTemplateChange ? [{ label: 'Template', run: () => openView('template') }] : []),
     ...(onLevelChange || onEffortChange ? [{ label: 'Level and effort', run: () => openView('tuning') }] : []),
     { label: 'Recap: where the session stands', run: () => command('recap', '') },
     ...(onCompare ? [{ label: 'Compare with the picture', run: () => command('compare', '') }] : []),
@@ -444,6 +473,19 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             options={specializations}
             manageHref={manageSpecializationsHref}
             onPick={(key) => { closeView(); onSpecializationChange?.(key); }}
+            onBack={closeView}
+          />
+        );
+      case 'template':
+        return (
+          <TemplateView
+            assistant={assistantName}
+            subject={subjectNoun}
+            guide={specialization && specialization.key !== null ? specialization.name : null}
+            current={template}
+            chosen={templateChoice}
+            options={templates}
+            onPick={(key) => { closeView(); onTemplateChange?.(key); }}
             onBack={closeView}
           />
         );
@@ -534,8 +576,10 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
         specialization={
           onSpecializationChange
             ? {
-                label: specialization ? (specialization.key === null ? `${assistantName} picks` : specialization.name) : 'No guide',
-                title: `Specialization (/specialize): ${specializationWhy(specialization, subjectNoun)}`,
+                label: (specialization ? (specialization.key === null ? `${assistantName} picks` : specialization.name) : 'No guide') + (onTemplateChange && template ? ` · ${template.name}` : ''),
+                title:
+                  `Specialization (/specialize): ${specializationWhy(specialization, subjectNoun)}` +
+                  (onTemplateChange && specialization?.key ? ` Template (/template): ${template ? `${template.name}. ` : ''}${templateWhy(template, templateChoice, assistantName, subjectNoun)}` : ''),
                 onOpen: () => openView('specialize'),
               }
             : null

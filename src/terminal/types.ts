@@ -68,6 +68,26 @@ export interface TerminalSpecializationOption {
   use_when?: string | null;
 }
 
+/**
+ * The template the work follows inside its guide (1.56.0, owner 2026-11-12): a format such as "Story" or "How-to
+ * guide" under "Blog post". `source` says why: the person chose it, or the assistant picked it for this subject.
+ */
+export interface TerminalTemplate {
+  key: string;
+  name: string;
+  source: 'person' | 'porter' | string;
+}
+
+/** A template the person may choose, grouped in the picker. */
+export interface TerminalTemplateOption {
+  key: string;
+  name: string;
+  use_when?: string | null;
+  group?: string | null;
+  example_titles?: string[];
+  starter?: string | null;
+}
+
 /** What one level's asks in a session cost (1.53.0, `/cost`). The LEVEL is named, never the model. */
 export interface TerminalUsageRow {
   level: TerminalLevel | string;

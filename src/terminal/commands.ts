@@ -24,7 +24,8 @@ export type TerminalCommandName =
   | 'cost'
   | 'compare'
   | 'save'
-  | 'specialize';
+  | 'specialize'
+  | 'template';
 
 export interface TerminalCommand {
   name: TerminalCommandName;
@@ -57,10 +58,11 @@ export const TERMINAL_COMMANDS: TerminalCommand[] = [
   { name: 'compare', description: "Check {assistant}'s {subject} against the picture it was built from, difference by difference" },
   { name: 'save', args: '[name]', description: 'Save your last ask as your own command (/name runs it again)' },
   { name: 'specialize', args: '[name|none|auto]', bare: true, description: 'Which guide {assistant} follows on this {subject} (a blog post, a landing page...)' },
+  { name: 'template', args: '[name|none|auto]', bare: true, description: 'Which format of its guide this {subject} is written in (a story, a how-to guide...)' },
 ];
 
 /** Commands a host may not offer (no level, no brainstorm): left out of the picker and the help. */
-export const OPTIONAL_COMMANDS: TerminalCommandName[] = ['level', 'effort', 'brainstorm', 'recap', 'cost', 'compare', 'save', 'specialize'];
+export const OPTIONAL_COMMANDS: TerminalCommandName[] = ['level', 'effort', 'brainstorm', 'recap', 'cost', 'compare', 'save', 'specialize', 'template'];
 
 /**
  * `/specialize <words>` as a choice (1.55.0): `none` follows no guide, `auto` (or `page`) leaves it to the
@@ -72,6 +74,14 @@ export function specializationFromArg(arg: string, options: readonly { key: stri
   if (words === 'auto' || words === 'page' || words === 'default') return null;
   const match = options.find((o) => o.key === words || o.name.toLowerCase() === words);
   return match ? match.key : undefined;
+}
+
+/**
+ * `/template <words>` as a choice (1.56.0): `none` writes in the guide's own sections, `auto` leaves it to the
+ * assistant's pick (null), a template's key or name chooses it; undefined when nothing matches.
+ */
+export function templateFromArg(arg: string, options: readonly { key: string; name: string }[]): string | null | undefined {
+  return specializationFromArg(arg, options);
 }
 
 /**

@@ -22,7 +22,7 @@ interface Props {
   onSaved: (saved: Specialization) => void;
 }
 
-function Checks({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Checks({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">{label}</legend>
@@ -32,7 +32,7 @@ function Checks({ label, hint, children }: { label: string; hint?: string; child
   );
 }
 
-function Tick({ checked, onChange, children, title }: { checked: boolean; onChange: (on: boolean) => void; children: ReactNode; title?: string }) {
+export function Tick({ checked, onChange, children, title }: { checked: boolean; onChange: (on: boolean) => void; children: ReactNode; title?: string }) {
   return (
     <label className="flex items-center gap-2 text-sm" title={title}>
       <input type="checkbox" className="outline-none" checked={checked} onChange={(e) => onChange(e.target.checked)} />

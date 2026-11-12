@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import { savedNameProblem, type TerminalSavedCommand } from './commands';
 import { LEVEL_LABELS } from './transcript';
-import type { TerminalLevel, TerminalSpecialization, TerminalSpecializationOption, TerminalUsage } from './types';
+import type { TerminalLevel, TerminalSpecialization, TerminalSpecializationOption, TerminalTemplate, TerminalTemplateOption, TerminalUsage } from './types';
 import { BUTTON, PRIMARY, TerminalView } from './TerminalViews';
 
 const FIELD =
@@ -81,6 +81,92 @@ export function SpecializationView({
             Manage specializations
           </a>
         </p>
+      ) : null}
+    </TerminalView>
+  );
+}
+
+/** Why the current template applies, in a few words. */
+export function templateWhy(current: TerminalTemplate | null, chosen: string | null, assistant: string, subject: string): string {
+  if (current?.source === 'person') return 'You chose it for this ' + subject + '.';
+  if (current) return 'I picked it for this ' + subject + ', and later rebuilds keep it.';
+  if (chosen === 'none') return 'No template: the guide\'s own sections.';
+  return assistant + ' picks one when it writes or rebuilds the ' + subject + '.';
+}
+
+/**
+ * `/template` (1.56.0, owner 2026-11-12): which format of its guide this subject is written in, grouped as the
+ * product groups them. "Let {assistant} pick" leaves it to the next ask that writes the page; "None" keeps the
+ * guide's own sections. The choice is kept per subject, for everyone working on it.
+ */
+export function TemplateView({
+  assistant,
+  subject,
+  guide,
+  current,
+  chosen,
+  options,
+  onPick,
+  onBack,
+}: {
+  assistant: string;
+  subject: string;
+  /** The guide whose templates these are ("Blog post"). */
+  guide: string | null;
+  current: TerminalTemplate | null;
+  /** The stored choice: a key, 'none', or null. */
+  chosen: string | null;
+  options: TerminalTemplateOption[];
+  onPick: (key: string | null) => void;
+  onBack: () => void;
+}): React.JSX.Element {
+  const ring = (on: boolean) => (on ? 'border-[var(--term-accent)]' : 'border-[var(--term-border)]');
+  const groups: { name: string; items: TerminalTemplateOption[] }[] = [];
+  for (const option of options) {
+    const name = option.group?.trim() || 'Other';
+    const group = groups.find((g) => g.name === name);
+    if (group) group.items.push(option);
+    else groups.push({ name, items: [option] });
+  }
+
+  return (
+    <TerminalView title="Template" onBack={onBack}>
+      <p className="text-[var(--term-dim)]">
+        {guide ? `The format of ${guide} this ${subject} is written in: its sections, how each looks, and its length.` : `No guide applies to this ${subject}, so there is no template to choose.`}
+        {current ? ` Now: ${current.name}. ` : ' Now: none. '}
+        {templateWhy(current, chosen, assistant, subject)}
+      </p>
+      {guide ? (
+        <ul className="mt-3 space-y-2">
+          <li>
+            <button type="button" onClick={() => onPick(null)} className={`${PICK} ${ring(chosen === null || (current?.source === 'porter' && chosen !== 'none'))}`}>
+              <span className="font-semibold text-[var(--term-text)]">Let {assistant} pick</span>
+              <span className="block text-[var(--term-dim)]">The one that fits the next ask that writes or rebuilds this {subject}.</span>
+            </button>
+          </li>
+          {groups.map((group) => (
+            <li key={group.name}>
+              <p className="mb-1 mt-2 text-[var(--term-dim)]">{group.name}</p>
+              <ul className="space-y-2">
+                {group.items.map((option) => (
+                  <li key={option.key}>
+                    <button type="button" onClick={() => onPick(option.key)} className={`${PICK} ${ring(current?.source === 'person' && current.key === option.key)}`}>
+                      <span className="font-semibold text-[var(--term-text)]">{option.name}</span>
+                      {option.use_when ? <span className="block text-[var(--term-dim)]">{option.use_when}</span> : null}
+                      {option.example_titles?.[0] ? <span className="block italic text-[var(--term-dim)]">“{option.example_titles[0]}”</span> : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+          <li>
+            <button type="button" onClick={() => onPick('none')} className={`${PICK} ${ring(chosen === 'none')}`}>
+              <span className="font-semibold text-[var(--term-text)]">None</span>
+              <span className="block text-[var(--term-dim)]">Write it in the guide's own sections.</span>
+            </button>
+          </li>
+        </ul>
       ) : null}
     </TerminalView>
   );
