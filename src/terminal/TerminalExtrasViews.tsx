@@ -132,7 +132,7 @@ export function TemplateView({
   return (
     <TerminalView title="Template" onBack={onBack}>
       <p className="text-[var(--term-dim)]">
-        {guide ? `The format of ${guide} this ${subject} is written in: its sections, how each looks, and its length.` : `No guide applies to this ${subject}, so there is no template to choose.`}
+        {guide ? `The format this ${subject} is written in, inside the ${guide} guide: its sections, how each looks, and its length.` : `No guide applies to this ${subject}, so there is no template to choose.`}
         {current ? ` Now: ${current.name}. ` : ' Now: none. '}
         {templateWhy(current, chosen, assistant, subject)}
       </p>
