@@ -38,6 +38,8 @@ export type { ConsoleGuidesOptions, ConsoleTemplatesOptions } from './useConsole
 export { tuningFor, useConsolePrefs } from './useConsolePrefs';
 export type { ConsolePrefsOptions } from './useConsolePrefs';
 export { useConsoleHost } from './useConsoleHost';
+export { ConsoleHost, useConsoleOpen } from './ConsoleHost';
+export type { ConsoleHostProps } from './ConsoleHost';
 export { shortenAsk } from './consoleHostPorts';
 export type { ConsoleAskMode, ConsoleHostOptions, ConsoleRunner, ConsoleRunState, ConsoleSubject, ConsoleTarget } from './consoleHostPorts';
 export type * from './types';
