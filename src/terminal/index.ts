@@ -31,4 +31,8 @@ export { TERMINAL_ZOOMS, stepZoom } from './zoom';
 export { useTerminalKeys } from './useTerminalKeys';
 export { createConsoleApi } from './consoleApi';
 export type { ConsoleApi, ConsoleApiOptions, ConsoleCheckpoint, ConsoleFetcher, ConsoleFetchOptions, ConsoleSpecializations, ConsoleTemplates } from './consoleApi';
+export { useConsoleData } from './useConsoleData';
+export type { ConsoleAskExtras, ConsoleAskMeta, ConsoleData } from './useConsoleData';
+export { useConsoleGuides, useConsoleTemplates } from './useConsoleGuides';
+export type { ConsoleGuidesOptions, ConsoleTemplatesOptions } from './useConsoleGuides';
 export type * from './types';
