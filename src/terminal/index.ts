@@ -29,4 +29,6 @@ export type { ToLinesOptions } from './transcript';
 export { TERMINAL_DEFAULT_WIDTH, TERMINAL_MIN_WIDTH, clampTerminalWidth, useTerminalDock } from './useTerminalDock';
 export { TERMINAL_ZOOMS, stepZoom } from './zoom';
 export { useTerminalKeys } from './useTerminalKeys';
+export { createConsoleApi } from './consoleApi';
+export type { ConsoleApi, ConsoleApiOptions, ConsoleCheckpoint, ConsoleFetcher, ConsoleFetchOptions, ConsoleSpecializations, ConsoleTemplates } from './consoleApi';
 export type * from './types';
