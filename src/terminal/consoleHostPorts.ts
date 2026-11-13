@@ -14,7 +14,7 @@ export type ConsoleAskMode = 'build' | 'plan' | 'brainstorm' | 'compare';
 /** A run under way, as the console draws it. A product's run state may carry more; the console reads only this. */
 export interface ConsoleRunState {
   startedAt: number;
-  steps?: { kind: TerminalStep['kind']; text: string; ms?: number; detail?: string }[];
+  steps?: TerminalStep[];
   thinking?: string | null;
   stopping?: boolean;
 }
