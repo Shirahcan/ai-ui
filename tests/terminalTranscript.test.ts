@@ -34,6 +34,14 @@ describe('toLines', () => {
     expect(outcomeLine({ changed: true, elements: 3, conflicts: 2 }).text).toBe('Changed 3 elements, kept your version of 2 elements you changed meanwhile');
   });
 
+  it('says a proposal is waiting to be applied, never that nothing changed (1.61.1)', () => {
+    const proposal = { title: 'The new version', fields: [{ key: 'body_html', label: 'The email', value: '<p>Hi</p>', format: 'html' as const }] };
+
+    expect(outcomeLine({ changed: false, proposal })).toEqual({ tone: 'none', text: 'Proposed below, not saved until you apply it' });
+    // A refusal still reads as one, proposal or not.
+    expect(outcomeLine({ changed: false, proposal, reason: 'The check failed.' }).tone).toBe('fail');
+  });
+
   it('grows a live ask step by step without re-keying the lines already drawn', () => {
     const turns = [ask('a1', 'First'), answer('b1', { outcome: { changed: true } })];
     const live = { startedAt: 5, ask: { text: 'Add a FAQ', mode: 'build' }, steps: [{ kind: 'read', text: 'Reading the page' }], verb: null, queued: null };

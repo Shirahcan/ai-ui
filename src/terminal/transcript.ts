@@ -58,6 +58,9 @@ export function outcomeLine(outcome: TerminalOutcome | undefined): { tone: 'ok' 
   // A stop the person chose is not a failure: no "Could not finish", no retry one level up.
   if (outcome?.stopped) return { tone: 'none', text: reason !== '' ? reason : 'Stopped' };
 
+  // A proposal waiting for the person (1.61.1): "Nothing changed" read as if the ask had failed (owner 2026-11-14).
+  if (reason === '' && (outcome?.proposal?.fields?.length ?? 0) > 0) return { tone: 'none', text: 'Proposed below, not saved until you apply it' };
+
   return reason !== '' ? { tone: 'fail', text: `Could not finish: ${reason}` } : { tone: 'none', text: 'Nothing changed' };
 }
 
