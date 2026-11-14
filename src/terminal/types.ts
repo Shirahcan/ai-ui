@@ -48,7 +48,11 @@ export interface TerminalOutcome {
 /** Drafted values for the page's own record (a blog post's answer, a landing page's headline). */
 export interface TerminalProposal {
   title: string;
-  fields: { key: string; label: string; value: string }[];
+  /**
+   * `format: 'html'` (1.61.0): the value is rich text (an email body, a post) and is drawn as a document the way the
+   * editor shows it, from an allowlist (ProposalHtml). Absent or 'text': plain words, as before.
+   */
+  fields: { key: string; label: string; value: string; format?: 'text' | 'html' }[];
 }
 
 /**

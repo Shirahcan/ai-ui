@@ -2,6 +2,7 @@ import React from 'react';
 
 import { LEVEL_LABELS } from './transcript';
 import { TerminalQuestionLog } from './TerminalQuestion';
+import { ProposalHtml } from './ProposalHtml';
 import type { TerminalChange, TerminalEffort, TerminalLevel, TerminalLine } from './types';
 
 /**
@@ -259,7 +260,11 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
                     {line.fields.map((field) => (
                       <div key={field.key}>
                         <dt className="text-[var(--term-dim)]">{field.label}</dt>
-                        <dd className="whitespace-pre-line text-[var(--term-text)]">{field.value}</dd>
+                        {field.format === 'html' ? (
+                          <dd className="mt-1"><ProposalHtml html={field.value} label={field.label} /></dd>
+                        ) : (
+                          <dd className="whitespace-pre-line text-[var(--term-text)]">{field.value}</dd>
+                        )}
                       </div>
                     ))}
                   </dl>
