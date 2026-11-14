@@ -146,6 +146,14 @@ describe('useConsoleHost', () => {
     await waitFor(() => expect(onError).toHaveBeenCalledWith(refused));
   });
 
+  it('offers only the modes the surface supports (1.60.1)', () => {
+    const { result } = renderHook(() =>
+      useConsoleHost({ api: {} as never, kind: 'email', id: 'e1', console: consoleData() as never, runner: runner(), target, subject: subject(), verbFor: () => 'Writing', assistantName: 'Porter', onError: vi.fn(), modes: ['build'] }),
+    );
+
+    expect(result.current.modes).toEqual(['build']);
+  });
+
   it('offers no Compare without both a capture and an upload', () => {
     const { result } = host({ subject: subject({ capture: vi.fn(async () => null) }) });
 

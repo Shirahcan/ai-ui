@@ -29,6 +29,7 @@ export function useConsoleHost<K extends string, D, S extends ConsoleRunState>({
   extraProps,
   answered,
   onError,
+  modes,
 }: ConsoleHostOptions<K, D, S>): Omit<AssistantTerminalProps, 'open' | 'onClose' | 'composer' | 'className'> {
   const { noun: subjectNoun, nodes, labelFor, restoreDesign, showElement, flashChanges, capture, upload } = subject;
   const [value, setValue] = useState('');
@@ -305,7 +306,7 @@ export function useConsoleHost<K extends string, D, S extends ConsoleRunState>({
     history: [...asked, ...(data.data?.history ?? []).filter((h) => !asked.includes(h))],
     loading: data.loading,
     mode,
-    modes: ['build', 'plan', 'brainstorm'],
+    modes: modes ?? ['build', 'plan', 'brainstorm'],
     onModeChange: (next) => {
       porter.setPlanFirst(next === 'plan');
       porter.setBrainstorm(next === 'brainstorm');

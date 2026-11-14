@@ -2,7 +2,7 @@ import type { AttachmentChip } from '../types';
 import type { AssistantTerminalProps } from './AssistantTerminal';
 import type { ConsoleApi, ConsoleCheckpoint } from './consoleApi';
 import type { ConsoleData } from './useConsoleData';
-import type { TerminalAnswer, TerminalEffort, TerminalLevel, TerminalStep } from './types';
+import type { TerminalAnswer, TerminalEffort, TerminalLevel, TerminalMode, TerminalStep } from './types';
 
 /**
  * The ports a product implements to mount the console (shared console C4c): the RUNNER that asks and builds, the
@@ -86,6 +86,8 @@ export interface ConsoleHostOptions<K extends string, D, S extends ConsoleRunSta
   answered?: (line: string | null) => void;
   /** A failure that is not an HTTP answer (a refused upload): the product's error surface. */
   onError: (error: unknown) => void;
+  /** The modes this surface offers (1.60.1). A surface whose engine only builds passes ['build']. */
+  modes?: TerminalMode[];
 }
 
 /** What an ask carries besides its words: its own mode or level (a retry, "Do this"), and answers. */
