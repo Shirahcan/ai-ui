@@ -430,7 +430,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
       case 'resume':
         return <ResumeView sessions={sessions?.list ?? null} currentId={session?.id ?? null} subject={subjectNoun} onBack={closeView} onOpen={(id) => { closeView(); sessions?.onOpen(id); }} />;
       case 'help':
-        return <HelpView words={words} hidden={hidden} onBack={closeView} />;
+        return <HelpView words={words} hidden={hidden} canAim={mentions !== undefined} canSwitchMode={modes.length > 1} onBack={closeView} />;
       case 'tuning':
         return <TuningView assistant={assistantName} levels={levels} level={level} onLevel={onLevelChange} efforts={efforts} effort={effort} onEffort={onEffortChange} onBack={closeView} />;
       case 'settings':
@@ -535,7 +535,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             {!loading && lines.length === 0 ? (
               <div className="text-[var(--term-dim)]">
                 <p className="text-[var(--term-text)]">Describe what you want on this {subjectNoun}, and {assistantName} will build it.</p>
-                <p className="mt-2">/ commands · @ aim at an element · ↑ earlier asks · ? shortcuts{modes.length > 1 ? ` · alt+m ${modes.includes('brainstorm') ? 'plan first or brainstorm' : 'plan first'}` : ''}</p>
+                <p className="mt-2">/ commands{mentions ? ' · @ aim at an element' : ''} · ↑ earlier asks · ? shortcuts{modes.length > 1 ? ` · alt+m ${modes.includes('brainstorm') ? 'plan first or brainstorm' : 'plan first'}` : ''}</p>
                 {brief ? <p className="mt-2">Brief: <span className="text-[var(--term-text)]">{brief.text}</span></p> : null}
               </div>
             ) : null}

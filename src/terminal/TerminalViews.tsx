@@ -116,7 +116,13 @@ export function ResumeView({ sessions, currentId, subject, onOpen, onBack }: { s
   );
 }
 
-export function HelpView({ words, hidden = [], onBack }: { words: { assistant: string; subject: string }; hidden?: readonly TerminalCommandName[]; onBack: () => void }): React.JSX.Element {
+/**
+ * The "?" view. `canAim` / `canSwitchMode` (1.60.4): a console whose subject has no elements (an email) or only one
+ * mode does not list "@" or Alt+M, so the help never promises a key that does nothing.
+ */
+export function HelpView({ words, hidden = [], canAim = true, canSwitchMode = true, onBack }: { words: { assistant: string; subject: string }; hidden?: readonly TerminalCommandName[]; canAim?: boolean; canSwitchMode?: boolean; onBack: () => void }): React.JSX.Element {
+  const keys = TERMINAL_KEYS.filter((k) => (canAim || k.keys !== '@') && (canSwitchMode || k.keys !== 'Alt+M'));
+
   return (
     <TerminalView title="Commands and shortcuts" onBack={onBack}>
       <table className="w-full text-[12px]">
@@ -133,7 +139,7 @@ export function HelpView({ words, hidden = [], onBack }: { words: { assistant: s
       <table className="mt-4 w-full text-[12px]">
         <caption className="mb-1 text-left font-semibold text-[var(--term-text)]">Keys</caption>
         <tbody>
-          {TERMINAL_KEYS.map((k) => (
+          {keys.map((k) => (
             <tr key={k.keys} className="align-top">
               <th scope="row" className="whitespace-nowrap py-0.5 pr-3 text-left font-normal text-[var(--term-accent)]"><kbd>{k.keys}</kbd></th>
               <td className="py-0.5 text-[var(--term-dim)]">{fillWords(k.does, words)}</td>

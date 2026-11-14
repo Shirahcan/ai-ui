@@ -351,7 +351,8 @@ export function useConsoleHost<K extends string, D, S extends ConsoleRunState>({
     value,
     onChange: setValue,
     onAsk: (text, files) => void ask(text, files),
-    mentions: {
+    // "@" aims at an element; a subject with none (an email) offers no "@" at all (1.60.4).
+    mentions: nodes.length === 0 ? undefined : {
       search: async (query: string) =>
         elementsOf(nodes, labelFor)
           .filter((e) => e.label.toLowerCase().includes(query.toLowerCase()))
