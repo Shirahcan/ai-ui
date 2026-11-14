@@ -17,6 +17,7 @@ export function TerminalStatus({
   stopping,
   mode,
   onToggleMode,
+  canSwitchMode = true,
   target,
   size,
   onContext,
@@ -29,6 +30,8 @@ export function TerminalStatus({
   stopping?: boolean;
   mode: TerminalMode;
   onToggleMode: () => void;
+  /** False on a surface with one mode (1.60.2): the chip names it and offers no Alt+M. */
+  canSwitchMode?: boolean;
   target: { label: string; onClear: () => void } | null;
   size: TerminalSize | null;
   onContext: () => void;
@@ -58,6 +61,8 @@ export function TerminalStatus({
           <span role="status" aria-live="polite" className="truncate text-[var(--term-text)]">{stopping ? 'Stopping' : (verb ?? 'Working')}…</span>
           <span aria-hidden="true" className="shrink-0 tabular-nums text-[var(--term-dim)]">({secs}s · esc to stop)</span>
         </p>
+      ) : !canSwitchMode ? (
+        <p className="min-w-0 flex-1 truncate text-[var(--term-dim)]"><span className="text-[var(--term-accent)]">⏵⏵ build</span></p>
       ) : (
         <button type="button" onClick={onToggleMode} className="min-w-0 flex-1 truncate text-left text-[var(--term-dim)] outline-none hover:text-[var(--term-text)] focus-visible:text-[var(--term-text)]">
           {mode === 'plan' ? (

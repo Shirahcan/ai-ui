@@ -228,6 +228,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     if (!onLevelChange) out.push('level');
     if (!onEffortChange) out.push('effort');
     if (!modes.includes('brainstorm')) out.push('brainstorm');
+    if (!modes.includes('plan')) out.push('plan');
     if (!onUsage) out.push('cost');
     if (!onCompare) out.push('compare');
     if (!onSavedCommandsChange) out.push('save');
@@ -534,7 +535,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             {!loading && lines.length === 0 ? (
               <div className="text-[var(--term-dim)]">
                 <p className="text-[var(--term-text)]">Describe what you want on this {subjectNoun}, and {assistantName} will build it.</p>
-                <p className="mt-2">/ commands · @ aim at an element · ↑ earlier asks · ? shortcuts · alt+m {modes.includes('brainstorm') ? 'plan first or brainstorm' : 'plan first'}</p>
+                <p className="mt-2">/ commands · @ aim at an element · ↑ earlier asks · ? shortcuts{modes.length > 1 ? ` · alt+m ${modes.includes('brainstorm') ? 'plan first or brainstorm' : 'plan first'}` : ''}</p>
                 {brief ? <p className="mt-2">Brief: <span className="text-[var(--term-text)]">{brief.text}</span></p> : null}
               </div>
             ) : null}
@@ -569,6 +570,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
         stopping={live?.stopping}
         mode={mode}
         onToggleMode={() => onModeChange(nextMode())}
+        canSwitchMode={modes.length > 1}
         target={target}
         size={size}
         onContext={() => openView('context')}
