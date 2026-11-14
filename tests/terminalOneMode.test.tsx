@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { AssistantTerminal } from '../src/terminal/AssistantTerminal';
+import { AssistantTerminal, type AssistantTerminalProps } from '../src/terminal/AssistantTerminal';
 
 /**
  * A surface with ONE mode (1.60.2, shared console C6f: the email console only builds): the chip names the mode and
@@ -26,7 +26,7 @@ describe('AssistantTerminal with one mode', () => {
     value: '',
     onChange: () => undefined,
     onAsk: () => undefined,
-  };
+  } as unknown as AssistantTerminalProps;
 
   it('names Build without offering to switch', () => {
     const { container } = render(<AssistantTerminal {...props} modes={['build']} />);

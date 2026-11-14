@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 
 import { AssistantTerminal, type AssistantTerminalProps } from './AssistantTerminal';
+import { useConsolePlacement } from './consolePlacement';
 import type { TerminalComposerOptions } from './TerminalInput';
 
 function storedOpen(key: string): boolean {
@@ -81,10 +82,13 @@ const DEFAULT_OFFSET = { top: '12px', height: 'h-[calc(100dvh-var(--shell-top-ba
  * page scrolls; a tab on the canvas edge while it is closed; Ctrl+~ from anywhere on the page except inside an
  * area that opts out (`[data-ai-shortcut-off]`, a code pane).
  *
- * The console is viewport-bounded by construction: its height is the viewport less the top bar and a margin, and
- * AssistantTerminal scrolls its transcript inside, so the composer stays reachable on a short screen.
+ * It sits at the top-left corner of the region that scrolls WHEREVER the host mounts it, and its height ends a margin
+ * above the bottom of the viewport (useConsolePlacement); AssistantTerminal scrolls its transcript inside, so the
+ * composer stays reachable on a short screen.
  */
 export function ConsoleHost({ open, onOpenChange, terminal, composer, assistantName, working, offset = DEFAULT_OFFSET }: ConsoleHostProps): React.JSX.Element {
+  const { anchor, frame, box } = useConsolePlacement(open);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       // Ctrl+~: `~` is Shift+` on most layouts, so the key's own name or the backquote key with Shift.
@@ -101,29 +105,34 @@ export function ConsoleHost({ open, onOpenChange, terminal, composer, assistantN
   }, [open, onOpenChange]);
 
   return (
-    <div className="pointer-events-none sticky z-30 h-0" style={{ top: offset.top }}>
-      {!open ? (
-        <button
-          type="button"
-          onClick={() => onOpenChange(true)}
-          title={`Open the ${assistantName} console (Ctrl+~)`}
-          className="pointer-events-auto absolute left-0 top-16 flex items-center gap-2 whitespace-nowrap rounded-r-xl bg-[#0b1020] px-1.5 py-3 text-[11px] font-semibold text-[#e5e9f2] shadow-lg outline-none [writing-mode:vertical-rl] hover:bg-[#111831] focus-visible:ring-2 focus-visible:ring-[#8b9bff]"
-        >
-          {working ? <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#8b9bff] motion-safe:animate-pulse" /> : null}
-          <span className="font-mono">
-            ❯_ {assistantName}
-            {working ? `: ${working}` : ' console'}
-          </span>
-        </button>
-      ) : null}
-      <AssistantTerminal
-        {...terminal}
-        open={open}
-        onClose={() => onOpenChange(false)}
-        composer={composer}
-        // Position and height are the host's: the window under the top bar, less a margin.
-        className={`pointer-events-auto absolute left-3 top-0 max-w-[calc(100vw-1.5rem)] ${offset.height}`}
-      />
+    <div ref={anchor} className="pointer-events-none sticky z-30 h-0" style={{ top: offset.top }}>
+      <div ref={frame} className="absolute left-0 top-0">
+        {!open ? (
+          <button
+            type="button"
+            onClick={() => onOpenChange(true)}
+            title={`Open the ${assistantName} console (Ctrl+~)`}
+            className="pointer-events-auto absolute left-0 top-16 flex items-center gap-2 whitespace-nowrap rounded-r-xl bg-[#0b1020] px-1.5 py-3 text-[11px] font-semibold text-[#e5e9f2] shadow-lg outline-none [writing-mode:vertical-rl] hover:bg-[#111831] focus-visible:ring-2 focus-visible:ring-[#8b9bff]"
+          >
+            {working ? <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#8b9bff] motion-safe:animate-pulse" /> : null}
+            <span className="font-mono">
+              ❯_ {assistantName}
+              {working ? `: ${working}` : ' console'}
+            </span>
+          </button>
+        ) : null}
+        {/* The height is the host's (the window under the top bar, less a margin), capped where the viewport ends. */}
+        <div ref={box} data-console-box="" className={`absolute left-3 top-0 flex flex-col ${offset.height}`}>
+          <AssistantTerminal
+            {...terminal}
+            open={open}
+            onClose={() => onOpenChange(false)}
+            composer={composer}
+            // A flex child, so the box's capped height (not its uncapped one) is what the console fills.
+            className="pointer-events-auto min-h-0 flex-1 max-w-[calc(100vw-1.5rem)]"
+          />
+        </div>
+      </div>
     </div>
   );
 }
