@@ -457,6 +457,33 @@ The prop is required for that reason.
 and success were stored as one "completed" mark, so a re-mounted card said "Done." about an
 action that never ran. `outcome` has three states and they are not interchangeable.
 
+## The rich text editor: `@shirahcan/ai-ui/editor` (1.62)
+
+One editor for every product and every shared screen that writes formatted text (moved from Portify, owner
+2026-11-16). TipTap is an optional peer: install `@tiptap/core`, `@tiptap/pm`, `@tiptap/react`,
+`@tiptap/starter-kit`, `@tiptap/extension-placeholder`, `@tiptap/extension-image` and `@tiptap/extension-table`
+only if you import this entry.
+
+```tsx
+import { RichTextEditor } from '@shirahcan/ai-ui/editor';
+
+<RichTextEditor value={html} onChange={setHtml} controls={['format', 'headings', 'lists', 'link']} />
+<RichTextEditor variant="email" value={body} onChange={setBody} controls={['format', 'lists', 'link', 'table', 'blocks']} />
+```
+
+* `variant="email"` writes semantic HTML with no `class` and no `style` (styled at send time), and links with no
+  `target` / `rel`. Run `canonicaliseEmailBody()` on it before storing.
+* `controls` must match what the server keeps: a control whose output is stripped on save is silent data loss.
+* A product with its own format passes `extensions={(placeholder) => [...basicEditorExtensions({ placeholder }), MyNode]}`
+  and its buttons through `formatTools={(editor, disabled) => <ToolbarButton ... />}`, never a fork.
+* Use the SAME `basicEditorExtensions()` / `emailEditorExtensions()` in your round-trip tests: TipTap silently drops
+  any node it has no extension for, so only the real list proves a stored document survives an edit.
+* ⚠ Never wrap it in a `<label>` (a click becomes Bold). The link prompt is a bar inside the editor, so it works
+  inside your own modals.
+* Colours: `--ai-editor-border`, `--ai-editor-bg`, `--ai-editor-toolbar`, `--ai-editor-hover`, `--ai-editor-active`,
+  `--ai-editor-fg`, `--ai-editor-muted`, plus `--ai-accent` / `--ai-accent-fg` for the Save link button. Each falls
+  back to a finished grey-and-white editor.
+
 ## Testing
 
 `readSseFrames` and `parseFrame` are exported because the three lessons in them are the
