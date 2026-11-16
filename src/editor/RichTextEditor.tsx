@@ -26,7 +26,7 @@ export interface RichTextEditorProps {
   onChange?: (html: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  /** Classes on the frame (e.g. `rounded-2xl`). */
+  /** Classes on the frame (e.g. `rounded-2xl`); a rounding, border colour or background here replaces the default. */
   className?: string;
   /**
    * Extra classes for the editable area (e.g. a taller `min-h-[480px]`). A size or padding given here REPLACES the
@@ -76,6 +76,26 @@ export function editorContentClass(extra?: string): string {
   });
 
   return [...kept, ...given].join(' ');
+}
+
+const FRAME_DEFAULT = 'rounded-lg border border-[var(--ai-editor-border,#d1d5db)] bg-[var(--ai-editor-bg,#ffffff)]';
+
+/** Which of the frame's defaults a class replaces: its rounding, its border COLOUR (not width) or its background. */
+function frameKind(token: string): string | null {
+  const t = token.replace(/^[a-z0-9-]+:/, '');
+  if (/^rounded(-|$)/.test(t)) return 'rounded';
+  if (/^bg-/.test(t)) return 'bg';
+  if (/^border-/.test(t) && !/^border-(([xytblrse])(-|$)|\d|\[\d|px$|solid|dashed|dotted|double|none|hidden|collapse|separate|spacing)/.test(t)) return 'border-color';
+
+  return null;
+}
+
+/** The frame's default classes, minus any whose kind the caller set (`rounded-2xl`, `border-slate-200`, `bg-white/70`). */
+export function editorFrameClass(extra?: string): string {
+  const given = (extra ?? '').split(/\s+/).filter(Boolean);
+  const overridden = new Set(given.map(frameKind).filter((k): k is string => k !== null));
+
+  return [...FRAME_DEFAULT.split(' ').filter((token) => !overridden.has(frameKind(token) ?? '')), ...given].join(' ');
 }
 
 /** One toolbar button, exported so a product's `formatTools` look exactly like the rest. */
@@ -189,7 +209,7 @@ export function RichTextEditor({
   );
 
   return (
-    <div className={`rounded-lg border border-[var(--ai-editor-border,#d1d5db)] bg-[var(--ai-editor-bg,#ffffff)] ${className}`}>
+    <div className={editorFrameClass(className)}>
       <div className="flex flex-wrap items-center gap-1 border-b border-[var(--ai-editor-border,#e5e7eb)] bg-[var(--ai-editor-toolbar,#f9fafb)] px-2 py-1">
         {shows('format') ? (
           <>

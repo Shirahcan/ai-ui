@@ -2,7 +2,7 @@ import { Editor } from '@tiptap/core';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { RichTextEditor, ToolbarButton, basicEditorExtensions, canonicaliseEmailBody, editorContentClass, emailEditorExtensions } from '../src/editor';
+import { RichTextEditor, ToolbarButton, basicEditorExtensions, canonicaliseEmailBody, editorContentClass, editorFrameClass, emailEditorExtensions } from '../src/editor';
 
 /** The estate's rich text editor (1.62.0, moved from Portify, owner 2026-11-16). */
 const editors: Editor[] = [];
@@ -42,6 +42,14 @@ describe('editorContentClass', () => {
     expect(editorContentClass('min-h-[480px]')).toBe('prose prose-sm max-w-none focus:outline-none px-3 py-2 min-h-[480px]');
     expect(editorContentClass('p-0')).toBe('prose prose-sm max-w-none focus:outline-none min-h-[200px] p-0');
     expect(editorContentClass()).toBe('prose prose-sm max-w-none focus:outline-none min-h-[200px] px-3 py-2');
+  });
+});
+
+describe('editorFrameClass', () => {
+  it('a caller rounding, border colour or background replaces the default; a border width or layout class does not', () => {
+    expect(editorFrameClass('overflow-hidden rounded-2xl border-slate-200')).toBe('border bg-[var(--ai-editor-bg,#ffffff)] overflow-hidden rounded-2xl border-slate-200');
+    expect(editorFrameClass('border-2 mt-2')).toBe('rounded-lg border border-[var(--ai-editor-border,#d1d5db)] bg-[var(--ai-editor-bg,#ffffff)] border-2 mt-2');
+    expect(editorFrameClass()).toBe('rounded-lg border border-[var(--ai-editor-border,#d1d5db)] bg-[var(--ai-editor-bg,#ffffff)]');
   });
 });
 
