@@ -1,6 +1,8 @@
 import { Mark, Node, mergeAttributes, type Extensions } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
+// ⚠ NAMED imports only: the CJS bundle (a product's jest) interops in Node mode, where a default import is the
+// whole module, so `StarterKit.configure` was undefined there (1.62.2). tests/editorImports.test.ts holds the line.
+import { StarterKit } from '@tiptap/starter-kit';
+import { Image } from '@tiptap/extension-image';
 import { TableKit } from '@tiptap/extension-table';
 import { MarkdownPaste } from './MarkdownPaste';
 

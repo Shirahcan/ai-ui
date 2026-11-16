@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type MutableRefObject, type ReactNode } from 'react';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
-import Placeholder from '@tiptap/extension-placeholder';
+import { Placeholder } from '@tiptap/extension-placeholder'; // named, never default: see extensions.ts
 import type { Extensions } from '@tiptap/core';
 import { basicEditorExtensions, emailEditorExtensions } from './extensions';
 import { EditorIcon, type EditorIconName } from './editorIcons';
