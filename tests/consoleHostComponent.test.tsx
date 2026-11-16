@@ -44,6 +44,26 @@ describe('ConsoleHost', () => {
   });
 });
 
+describe('two consoles on one page', () => {
+  beforeAll(() => Object.defineProperty(Element.prototype, 'scrollTo', { value: vi.fn(), configurable: true }));
+
+  it('only the console in front answers Ctrl+~, and the one behind takes it back when the front one goes', () => {
+    const behind = vi.fn();
+    const front = vi.fn();
+    const page = render(<ConsoleHost open={false} onOpenChange={behind} terminal={terminal} composer={{} as never} assistantName="Porter" working={null} />);
+    const card = render(<ConsoleHost open onOpenChange={front} terminal={terminal} composer={{} as never} assistantName="Porter" working={null} />);
+
+    fireEvent.keyDown(window, { key: '~', ctrlKey: true });
+    expect(front).toHaveBeenCalledWith(false);
+    expect(behind).not.toHaveBeenCalled();
+
+    card.unmount();
+    fireEvent.keyDown(window, { key: '~', ctrlKey: true });
+    expect(behind).toHaveBeenCalledWith(true);
+    page.unmount();
+  });
+});
+
 describe('useConsoleOpen', () => {
   beforeEach(() => window.localStorage.clear());
 

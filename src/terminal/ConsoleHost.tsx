@@ -77,6 +77,13 @@ export interface ConsoleHostProps {
 const DEFAULT_OFFSET = { top: '12px', height: 'h-[calc(100dvh-var(--shell-top-bar-h,0px)-24px)]' };
 
 /**
+ * The hosts mounted on the page, oldest first. Only the NEWEST answers Ctrl+~: a console opened in front of another
+ * (a share card's console over its page's) owns the shortcut, and the one behind gets it back when the front one
+ * goes. Before this, both listened on window and one key press toggled both, the hidden one included.
+ */
+const mountedHosts: symbol[] = [];
+
+/**
  * The console on a product's screen (shared console C4d, moved from Portify's PorterConsole): AssistantTerminal
  * floating over the LEFT of the canvas (the canvas keeps its full width), held under the product's top bar as the
  * page scrolls; a tab on the canvas edge while it is closed; Ctrl+~ from anywhere on the page except inside an
@@ -88,12 +95,24 @@ const DEFAULT_OFFSET = { top: '12px', height: 'h-[calc(100dvh-var(--shell-top-ba
  */
 export function ConsoleHost({ open, onOpenChange, terminal, composer, assistantName, working, offset = DEFAULT_OFFSET }: ConsoleHostProps): React.JSX.Element {
   const { anchor, frame, box } = useConsolePlacement(open);
+  const [me] = useState(() => Symbol('console-host'));
+
+  useEffect(() => {
+    mountedHosts.push(me);
+
+    return () => {
+      const at = mountedHosts.lastIndexOf(me);
+      if (at >= 0) mountedHosts.splice(at, 1);
+    };
+  }, [me]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       // Ctrl+~: `~` is Shift+` on most layouts, so the key's own name or the backquote key with Shift.
       if (!event.ctrlKey || event.altKey || event.metaKey || !(event.key === '~' || (event.shiftKey && event.code === 'Backquote'))) return;
       if (event.target instanceof Element && event.target.closest('[data-ai-shortcut-off]')) return;
+      // A console in front of this one owns the shortcut.
+      if (mountedHosts[mountedHosts.length - 1] !== me) return;
 
       event.preventDefault();
       onOpenChange(!open);
@@ -102,7 +121,7 @@ export function ConsoleHost({ open, onOpenChange, terminal, composer, assistantN
     window.addEventListener('keydown', onKey);
 
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onOpenChange]);
+  }, [open, onOpenChange, me]);
 
   return (
     <div ref={anchor} className="pointer-events-none sticky z-30 h-0" style={{ top: offset.top }}>
