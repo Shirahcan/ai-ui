@@ -135,6 +135,38 @@ describe('useStudioConsole', () => {
   });
 });
 
+describe("the composer's tools (1.66.0)", () => {
+  beforeAll(() => Object.defineProperty(Element.prototype, 'scrollTo', { value: vi.fn(), configurable: true }));
+  beforeEach(() => window.localStorage.clear());
+
+  it('offers the files and dictation the product gives, and an ask with a file sends it as its reference', async () => {
+    const { api, runs } = fakeApi([]);
+    const s = subject(api);
+    const attachments = { accept: ['application/pdf'], onUpload: vi.fn() } as never;
+    const dictation = { transcribe: vi.fn() } as never;
+    const answered = vi.fn();
+    const { result } = renderHook(() => useStudioConsole(s, { ...options, composer: { attachments, dictation }, answered }));
+    await waitFor(() => expect(result.current.host.terminal.loading).toBe(false));
+
+    // The kit's own controls stay the kit's: Send's label, busy and Stop.
+    expect(result.current.host.composer).toMatchObject({ attachments, dictation, sendLabel: 'Change', busy: false });
+
+    await act(async () => result.current.host.terminal.onAsk('Use this brochure for the intro', [{ id: 'f-1', name: 'brochure.pdf', mime: 'application/pdf', size: 10 }]));
+
+    await waitFor(() => expect(runs.startRun).toHaveBeenCalledWith('p1', expect.objectContaining({ instruction: 'Use this brochure for the intro', reference_ids: ['f-1'] })));
+    await waitFor(() => expect(answered).toHaveBeenCalledWith('I rewrote the intro.'));
+  });
+
+  it('without them the composer takes words only, as before', async () => {
+    const { api } = fakeApi([]);
+    const { result } = renderHook(() => useStudioConsole(subject(api), options));
+    await waitFor(() => expect(result.current.host.terminal.loading).toBe(false));
+
+    expect(result.current.host.composer.attachments).toBeUndefined();
+    expect(result.current.host.composer.dictation).toBeUndefined();
+  });
+});
+
 describe('a run outlives its tab (1.65.0)', () => {
   beforeAll(() => Object.defineProperty(Element.prototype, 'scrollTo', { value: vi.fn(), configurable: true }));
   beforeEach(() => window.localStorage.clear());

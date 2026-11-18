@@ -223,6 +223,7 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
     modes: ['build'],
     extraProps: { ...options.extraProps, onProposal, proposalState },
     onError,
+    answered: options.answered,
   });
 
   // Rule 1: a handed-over document is asked about ONCE, through the composer's own ask, exactly like a typed ask with
@@ -271,7 +272,7 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
       open,
       onOpenChange: setOpen,
       terminal,
-      composer: { sendLabel: options.sendLabel ?? 'Change', busy: runner.asking, onStop: runner.stop },
+      composer: { ...options.composer, sendLabel: options.sendLabel ?? 'Change', busy: runner.asking, onStop: runner.stop },
       assistantName: options.assistantName,
       working,
       ...(options.offset ? { offset: options.offset } : {}),

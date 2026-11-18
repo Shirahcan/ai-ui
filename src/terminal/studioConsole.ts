@@ -1,6 +1,7 @@
 import type { AssistantTerminalProps } from './AssistantTerminal';
 import type { ConsoleHostProps } from './ConsoleHost';
 import type { ConsoleApi } from './consoleApi';
+import type { TerminalComposerOptions } from './TerminalInput';
 import type { TerminalCardOutcome, TerminalTurn } from './types';
 import type { WorkerRun, WorkerRunApi } from './useWorkerConsoleRunner';
 
@@ -92,6 +93,14 @@ export interface StudioConsoleOptions {
   offset?: ConsoleHostProps['offset'];
   /** What the run is doing once it has steps, before the noun ("Designing" the card); default "Working on". */
   workingVerb?: string;
+  /**
+   * What the composer offers beyond the words (1.66.0): files attached to an ask (sent as its `reference_ids`), dictation
+   * and hands-free, exactly as the product's other consoles offer them. Without it the composer takes words only, which
+   * is what every Studio console did until now (Portify 2026-11-18: "missing tools it had before, attachments, voice").
+   */
+  composer?: Pick<TerminalComposerOptions, 'attachments' | 'dictation' | 'handsFree'>;
+  /** The answer's line once an ask has landed (hands-free reads it aloud), or null when it was refused or stopped. */
+  answered?: (line: string | null) => void;
 }
 
 /** The element at a path, or null. */

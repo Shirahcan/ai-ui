@@ -48,6 +48,10 @@ the assistant". Or call `useStudioConsole(subject, options)` and render `<Consol
   console remembers it under `openKey`.
 - `offset`: where the console sits below the host's header row. `workingVerb`: "Designing" the card (default
   "Working on").
+- `composer` (1.66.0): the composer's tools beyond the words, `{ attachments, dictation, handsFree }`, the same shapes
+  the product's other consoles pass. A file attached to an ask goes with it as `reference_ids`. Send's label, busy and
+  Stop stay the kit's. Without it the composer takes words only. `answered(line)`: the answer's line once an ask lands
+  (hands-free reads it aloud).
 
 ## The four mount rules (each a defect already paid for)
 
