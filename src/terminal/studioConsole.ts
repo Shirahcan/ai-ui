@@ -1,4 +1,5 @@
 import type { AssistantTerminalProps } from './AssistantTerminal';
+import type { ConsoleHostProps } from './ConsoleHost';
 import type { ConsoleApi } from './consoleApi';
 import type { TerminalCardOutcome, TerminalTurn } from './types';
 import type { WorkerRun, WorkerRunApi } from './useWorkerConsoleRunner';
@@ -14,11 +15,14 @@ import type { WorkerRun, WorkerRunApi } from './useWorkerConsoleRunner';
 /** Any element of a design: the console only walks `children`. */
 export type StudioNode = { children?: unknown };
 
-/** The console's routes (the kit's TerminalRoutes) and the subject's run routes, in one client. */
-export type StudioConsoleApi<K extends string, N, R = unknown> = ConsoleApi<K, N[]> & WorkerRunApi<R>;
+/**
+ * The console's routes (the kit's TerminalRoutes) and the subject's run routes, in one client. `D` is what a rewind point
+ * holds: a design's elements by default, or the subject's own shape (a share card's `{ source, nodes, alt }`, 1.64.0).
+ */
+export type StudioConsoleApi<K extends string, N, R = unknown, D = N[]> = ConsoleApi<K, D> & WorkerRunApi<R>;
 
-export interface StudioConsoleSubject<K extends string, N extends StudioNode, R = unknown> {
-  api: StudioConsoleApi<K, N, R>;
+export interface StudioConsoleSubject<K extends string, N extends StudioNode, R = unknown, D = N[]> {
+  api: StudioConsoleApi<K, N, R, D>;
   /** The console subject's kind (`growth_post`, `email_template_design`). */
   kind: K;
   id: string;
@@ -29,8 +33,8 @@ export interface StudioConsoleSubject<K extends string, N extends StudioNode, R 
   flush: () => Promise<boolean>;
   /** Land a finished run: the product puts its result in its tree, aimed at `path`, or the whole document. */
   land: (run: WorkerRun<R>, path: number[] | null) => void;
-  /** Put the design back as a rewind point had it. */
-  restore: (design: N[]) => void;
+  /** Put the design back as a rewind point had it (in the subject's own shape, `D`). */
+  restore: (design: D) => void;
   /** A block's name for "@" and the transcript; empty leaves it out of "@". */
   labelFor: (path: number[]) => string;
   /** Whether an ask may be aimed at this block: ONE authority (the profile's rule), never a copy of the server's. */
@@ -78,6 +82,16 @@ export interface StudioConsoleOptions {
   sendLabel?: string;
   /** Props the product adds to the terminal (guides, templates). */
   extraProps?: Partial<AssistantTerminalProps>;
+  /**
+   * The host owns whether the console is open (1.64.0; a share card's designer opens it from its own button). Both, or
+   * neither: without them the console keeps its own open state under `openKey`.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Where the console sits below the host's own header row (passed to ConsoleHost). */
+  offset?: ConsoleHostProps['offset'];
+  /** What the run is doing once it has steps, before the noun ("Designing" the card); default "Working on". */
+  workingVerb?: string;
 }
 
 /** The element at a path, or null. */

@@ -40,6 +40,15 @@ const subject: StudioConsoleSubject<'growth_post', PmlNode, PostRunData> = {
 `handOffRef.current({ text, path, label })` is the canvas's way in: a block's AI action or a pinned comment's "send to
 the assistant". Or call `useStudioConsole(subject, options)` and render `<ConsoleHost {...studio.host} />` yourself.
 
+### Options a host may add (1.64.0)
+
+- A design that is not a list of elements: give the subject a fourth type, `StudioConsoleSubject<K, N, R, D>`; its
+  rewind points arrive in that shape (`restore(design: D)`). A share card's is `{ source, nodes, alt }`.
+- `open` + `onOpenChange`: the host owns whether the console is open (a card designer's own button); without them the
+  console remembers it under `openKey`.
+- `offset`: where the console sits below the host's header row. `workingVerb`: "Designing" the card (default
+  "Working on").
+
 ## The four mount rules (each a defect already paid for)
 
 1. **Every programmatic ask goes through the composer's own ask.** A hand-off or a prepare calls the terminal's

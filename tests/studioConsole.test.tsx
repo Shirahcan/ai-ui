@@ -135,6 +135,48 @@ describe('useStudioConsole', () => {
   });
 });
 
+describe('a subject with its own design shape and a host that owns the open state (1.64.0)', () => {
+  beforeEach(() => window.localStorage.clear());
+
+  type CardDesign = { source: string; nodes: Node[]; alt: string | null };
+
+  it("restores a share card's rewind point in the card's own shape, opens through the host, and names its own verb", async () => {
+    const design: CardDesign = { source: 'designed', nodes: [{ primitive: 'heading', uid: 'h1' }], alt: 'Our checklist' };
+    const turns: TerminalTurn[] = [
+      { id: 'u1', role: 'user', body: 'Shorten the headline', structured: null, rewound: false, at: null },
+      { ...answer('a1', 'r1'), structured: { run_id: 'r1', checkpoint_id: 'cp1', outcome: { changed: true } as never } },
+    ];
+    const console = () => ({ subject: { ref: 'site_page_card:p1', label: 'Card' }, session, turns, brief: null, size: { design_chars: 100, budget_tokens: 1000 } as never, history: [] });
+    const fetcher: ConsoleFetcher = {
+      get: vi.fn(async (url: string) => (url === '/x/cp' ? { checkpoint: { id: 'cp1', design, created_at: null } } : console()) as never),
+      post: vi.fn(async () => console() as never),
+      put: vi.fn(async () => ({}) as never),
+    };
+    const api = { ...createConsoleApi<'site_page_card', CardDesign>({ base, checkpointUrl: () => '/x/cp', fetcher }), startRun: vi.fn(), getRun: vi.fn(), stopRun: vi.fn() };
+    const restore = vi.fn();
+    const onOpenChange = vi.fn();
+    const subject: StudioConsoleSubject<'site_page_card', Node, unknown, CardDesign> = {
+      api, kind: 'site_page_card', id: 'p1', noun: 'card', nodes: [], flush: async () => true, land: vi.fn(), restore,
+      labelFor: () => '', canAim: () => false,
+    };
+    const { result } = renderHook(() =>
+      useStudioConsole(subject, { ...options, open: false, onOpenChange, offset: { top: '76px', height: 'h-[calc(100dvh-88px)]' }, workingVerb: 'Designing' }),
+    );
+    await waitFor(() => expect(result.current.host.terminal.turns).toHaveLength(2));
+
+    // The host's own state, not the console's memory; a hand-off asks the host to open it.
+    expect(result.current.host.open).toBe(false);
+    expect(result.current.host.offset).toEqual({ top: '76px', height: 'h-[calc(100dvh-88px)]' });
+    act(() => result.current.handOff({ text: 'Make it bolder', path: null }));
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+
+    await act(async () => result.current.host.terminal.onRewind?.('u1', 'design'));
+    expect(restore).toHaveBeenCalledWith(design);
+    // A card has no elements to aim at: no "@" at all.
+    expect(result.current.host.terminal.mentions).toBeUndefined();
+  });
+});
+
 describe('the tree helpers', () => {
   it('find and replace an element by its path, leaving the rest as it was', () => {
     expect(nodeAtPath(NODES, [1, 0])?.uid).toBe('h1');

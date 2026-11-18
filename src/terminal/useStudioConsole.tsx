@@ -32,10 +32,13 @@ export interface StudioConsoleHandle {
  *      recounts ("Changed 19 elements" for one heading).
  *   4. What can be aimed is the subject's `canAim`, ONE authority (the profile), never a client copy of a server rule.
  */
-export function useStudioConsole<K extends string, N extends StudioNode, R = unknown>(subject: StudioConsoleSubject<K, N, R>, options: StudioConsoleOptions): StudioConsoleHandle {
+export function useStudioConsole<K extends string, N extends StudioNode, R = unknown, D = N[]>(subject: StudioConsoleSubject<K, N, R, D>, options: StudioConsoleOptions): StudioConsoleHandle {
   const { api, kind, id, noun } = subject;
   const { onError, onBusyChange, prepare = null, onPrepareSent, onApplied } = options;
-  const [open, setOpen] = useConsoleOpen(prepare !== null, options.openKey);
+  const [ownOpen, setOwnOpen] = useConsoleOpen(prepare !== null, options.openKey);
+  // A host that owns the open state (a share card's designer) decides it; otherwise the console remembers it.
+  const open = options.open ?? ownOpen;
+  const setOpen = options.onOpenChange ?? setOwnOpen;
   const data = useConsoleData(api, kind, id, true);
   const subjectRef = useRef(subject);
   const pending = useRef<Record<string, unknown> | null>(null);
@@ -57,9 +60,9 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
       if (run.stopping) return 'Stopping';
       if (run.thinking) return 'Thinking';
 
-      return (run.steps?.length ?? 0) > 0 ? `Working on the ${noun}` : `Reading the ${noun}`;
+      return (run.steps?.length ?? 0) > 0 ? `${options.workingVerb ?? 'Working on'} the ${noun}` : `Reading the ${noun}`;
     },
-    [noun],
+    [noun, options.workingVerb],
   );
 
   const runApi = useMemo<WorkerRunApi<R>>(
@@ -143,8 +146,9 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
     [aim, canAim, nameOf, subject.nodes],
   );
 
-  const restoreDesign = useCallback((checkpoint: ConsoleCheckpoint<N[]>) => {
-    if (Array.isArray(checkpoint.design)) subjectRef.current.restore(checkpoint.design);
+  // The rewind point as the subject stores it (a list of elements, or a card's own shape); a point with no design is skipped.
+  const restoreDesign = useCallback((checkpoint: ConsoleCheckpoint<D>) => {
+    if (checkpoint.design !== null && checkpoint.design !== undefined) subjectRef.current.restore(checkpoint.design);
   }, []);
 
   const terminal = useConsoleHost({
@@ -212,6 +216,7 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
       composer: { sendLabel: options.sendLabel ?? 'Change', busy: runner.asking, onStop: runner.stop },
       assistantName: options.assistantName,
       working,
+      ...(options.offset ? { offset: options.offset } : {}),
     },
     handOff,
     busy: runner.building !== null,
@@ -222,12 +227,12 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
  * The console docked on a Studio, for a product that needs nothing between the hook and the host. `handOffRef` is
  * filled with the console's hand-off, for the canvas's AI actions and a pinned comment's "send to the assistant".
  */
-export function StudioConsole<K extends string, N extends StudioNode, R = unknown>({
+export function StudioConsole<K extends string, N extends StudioNode, R = unknown, D = N[]>({
   subject,
   options,
   handOffRef,
 }: {
-  subject: StudioConsoleSubject<K, N, R>;
+  subject: StudioConsoleSubject<K, N, R, D>;
   options: StudioConsoleOptions;
   handOffRef?: React.MutableRefObject<((ask: StudioHandOff) => void) | null>;
 }): React.JSX.Element {
