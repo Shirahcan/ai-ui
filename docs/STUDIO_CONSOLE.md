@@ -64,8 +64,21 @@ the assistant". Or call `useStudioConsole(subject, options)` and render `<Consol
 
 `tests/studioConsole.test.tsx` holds one test per rule.
 
+## A run outlives its tab (1.65.0)
+
+The product's worker keeps a Build's result as the subject's draft, so a tab that closes or reloads mid-run loses
+nothing. The console makes the reopened tab see it: while it waits on a run it keeps `{ run, path, at }` in this
+browser (`<storagePrefix>:live-run:<kind>:<id>`, localStorage, wrapped in try/catch), and forgets it when the run
+lands, fails or stops. A console that mounts with an entry, whose session's LAST turn is still the ask (no answer
+recorded yet) and whose run is younger than `WORKER_GIVE_UP_MS`, follows that run (`runner.resume(runId)`: its steps
+so far, then its end), lands it through the subject's `land(run, path)` at the run's own path, and reads the session
+again. Otherwise the entry is dropped: the design the subject loaded already holds the result. Another device, or a
+browser with storage blocked, sees the result on its next open, as before.
+
 ## Also exported
 
-- `useWorkerConsoleRunner(api, id, extras, onLanded, { onError, onRefused })`: the Build-only runner on a worker. A
-  refused ask (409 / 422 with the server's sentence) is said in the console through `onRefused`.
+- `useWorkerConsoleRunner(api, id, extras, onLanded, { onError, onRefused, onRunChange })`: the Build-only runner on a
+  worker. A refused ask (409 / 422 with the server's sentence) is said in the console through `onRefused`;
+  `onRunChange(runId | null)` reports the run it waits on as it starts and ends, and `resume(runId)` follows a run this
+  tab did not start (1.65.0).
 - `waitForWorkerRun`, `refusalOf`, `nodeAtPath`, `replaceAtPath`, `runOfTurn`, `proposalStateOf`, `mimeOfName`.

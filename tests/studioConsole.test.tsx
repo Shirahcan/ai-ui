@@ -135,6 +135,67 @@ describe('useStudioConsole', () => {
   });
 });
 
+describe('a run outlives its tab (1.65.0)', () => {
+  beforeAll(() => Object.defineProperty(Element.prototype, 'scrollTo', { value: vi.fn(), configurable: true }));
+  beforeEach(() => window.localStorage.clear());
+
+  const KEY = 'porter-console:live-run:growth_post:p1';
+  const ask = (): TerminalTurn => ({ id: 'u1', role: 'user', body: 'Rewrite this section', structured: null, rewound: false, at: null });
+
+  it('remembers the run it waits on, and forgets it once the run has landed', async () => {
+    const { api, runs, finished } = fakeApi([]);
+    let seen: string | null = null;
+    runs.getRun.mockImplementation(async () => {
+      seen = window.localStorage.getItem(KEY);
+
+      return finished;
+    });
+    const s = subject(api);
+    const { result } = renderHook(() => useStudioConsole(s, options));
+    await waitFor(() => expect(result.current.host.terminal.loading).toBe(false));
+
+    act(() => result.current.handOff({ text: 'Rewrite this section', path: [1], label: 'Intro' }));
+
+    await waitFor(() => expect(s.land).toHaveBeenCalledWith(finished, [1]));
+    expect(JSON.parse(seen ?? '{}')).toMatchObject({ run: 'r9', path: [1] });
+    expect(window.localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it('a reopened console follows a run left under way and lands it at its own path, then reads the session again', async () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ run: 'r7', path: [1], at: Date.now() }));
+    const { api, calls, runs, finished } = fakeApi([ask()]);
+    const s = subject(api);
+    renderHook(() => useStudioConsole(s, options));
+
+    await waitFor(() => expect(s.land).toHaveBeenCalledWith(finished, [1]));
+    expect(runs.getRun).toHaveBeenCalledWith('r7', 0, 0);
+    expect(runs.startRun).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(KEY)).toBeNull();
+    // The answer the worker recorded is read, so the ask no longer stands without one.
+    await waitFor(() => expect(calls.filter((c) => c.method === 'GET' && c.url === '/x/console/growth_post/p1/sessions/s1').length).toBeGreaterThan(0));
+  });
+
+  it('follows nothing when the answer is already recorded (the design holds the result) or the run is too old', async () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ run: 'r7', path: null, at: Date.now() }));
+    const done = fakeApi([ask(), answer('a1', 'r7')]);
+    const first = subject(done.api);
+    const { result, unmount } = renderHook(() => useStudioConsole(first, options));
+    await waitFor(() => expect(result.current.host.terminal.turns).toHaveLength(2));
+    await waitFor(() => expect(window.localStorage.getItem(KEY)).toBeNull());
+    expect(done.runs.getRun).not.toHaveBeenCalled();
+    expect(first.land).not.toHaveBeenCalled();
+    unmount();
+
+    window.localStorage.setItem(KEY, JSON.stringify({ run: 'r8', path: null, at: Date.now() - 11 * 60 * 1000 }));
+    const old = fakeApi([ask()]);
+    const second = subject(old.api);
+    const again = renderHook(() => useStudioConsole(second, options));
+    await waitFor(() => expect(again.result.current.host.terminal.loading).toBe(false));
+    await waitFor(() => expect(window.localStorage.getItem(KEY)).toBeNull());
+    expect(old.runs.getRun).not.toHaveBeenCalled();
+  });
+});
+
 describe('a subject with its own design shape and a host that owns the open state (1.64.0)', () => {
   beforeEach(() => window.localStorage.clear());
 

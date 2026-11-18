@@ -9,7 +9,36 @@ import { mimeOfName, nodeAtPath, proposalStateOf, runOfTurn, type StudioConsoleO
 import type { TerminalCardOutcome } from './types';
 import { useConsoleData } from './useConsoleData';
 import { useConsoleHost } from './useConsoleHost';
-import { useWorkerConsoleRunner, type WorkerRun, type WorkerRunApi, type WorkerRunState } from './useWorkerConsoleRunner';
+import { WORKER_GIVE_UP_MS, useWorkerConsoleRunner, type WorkerRun, type WorkerRunApi, type WorkerRunState } from './useWorkerConsoleRunner';
+
+/** The run a subject's console was waiting on when the tab closed or reloaded, kept per viewer in this browser. */
+interface LiveRun {
+  run: string;
+  path: number[] | null;
+  at: number;
+}
+
+function readLiveRun(key: string): LiveRun | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    const parsed = raw ? (JSON.parse(raw) as Partial<LiveRun>) : null;
+
+    return parsed && typeof parsed.run === 'string' && typeof parsed.at === 'number'
+      ? { run: parsed.run, path: Array.isArray(parsed.path) ? parsed.path.filter((step): step is number => typeof step === 'number') : null, at: parsed.at }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLiveRun(key: string, live: LiveRun | null): void {
+  try {
+    if (live) window.localStorage.setItem(key, JSON.stringify(live));
+    else window.localStorage.removeItem(key);
+  } catch {
+    // Storage blocked (a private window): a reload mid-run then shows the result on the next open, as before.
+  }
+}
 
 export interface StudioConsoleHandle {
   /** Spread into `<ConsoleHost>` (or render `<StudioConsole>`). */
@@ -31,6 +60,10 @@ export interface StudioConsoleHandle {
  *   3. "Changed N elements" is the outcome the server recorded from the nodes the run returned; the console never
  *      recounts ("Changed 19 elements" for one heading).
  *   4. What can be aimed is the subject's `canAim`, ONE authority (the profile), never a client copy of a server rule.
+ *
+ * And a run outlives its tab (1.65.0): the worker keeps the result as the subject's draft, so a reload mid-run loses
+ * nothing; the console remembers the run it is waiting on (this browser only) and the reopened console follows it to
+ * the end and lands it, instead of showing the ask with no answer over the design as it was before.
  */
 export function useStudioConsole<K extends string, N extends StudioNode, R = unknown, D = N[]>(subject: StudioConsoleSubject<K, N, R, D>, options: StudioConsoleOptions): StudioConsoleHandle {
   const { api, kind, id, noun } = subject;
@@ -88,7 +121,32 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
   const { note } = data;
   // A refused ask is said in the console, as a failure note after the last turn, in the server's own words.
   const onRefused = useCallback((message: string) => note(message, 'fail'), [note]);
-  const runner = useWorkerConsoleRunner<R>(runApi, id, data.extras as () => Record<string, unknown>, onLanded, { onError, onRefused });
+  const liveKey = `${options.storagePrefix ?? 'porter-console'}:live-run:${kind}:${id}`;
+  const onRunChange = useCallback(
+    (run: string | null) => writeLiveRun(liveKey, run ? { run, path: runPath.current, at: Date.now() } : null),
+    [liveKey],
+  );
+  const runner = useWorkerConsoleRunner<R>(runApi, id, data.extras as () => Record<string, unknown>, onLanded, { onError, onRefused, onRunChange });
+
+  // A run still under way when this tab closed or reloaded: follow it to the end, once, when the session has been read.
+  // Only while its ask is still the last turn (no answer recorded yet); otherwise the design already holds the result.
+  const resumed = useRef(false);
+  const { resume } = runner;
+  const { refresh: refreshSession } = data;
+  useEffect(() => {
+    if (resumed.current || !data.data) return;
+    resumed.current = true;
+    const live = readLiveRun(liveKey);
+    if (!live) return;
+    const last = data.data.turns?.at(-1);
+    if (Date.now() - live.at > WORKER_GIVE_UP_MS || !last || last.role === 'assistant') {
+      writeLiveRun(liveKey, null);
+
+      return;
+    }
+    runPath.current = live.path;
+    void resume(live.run).then(() => refreshSession());
+  }, [data.data, liveKey, refreshSession, resume]);
 
   useEffect(() => {
     onBusyChange?.(runner.building !== null);

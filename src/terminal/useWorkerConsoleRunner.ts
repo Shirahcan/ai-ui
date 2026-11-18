@@ -44,6 +44,11 @@ export interface WorkerRunnerOptions {
   onError: (error: unknown) => void;
   /** Say the server's refusal of an ask in the console (its `data.note`); without it, the refusal goes to `onError`. */
   onRefused?: (message: string) => void;
+  /**
+   * The run this console is waiting on, as it starts (its id) and as it ends (null), so a host can remember it across a
+   * reload and {@link WorkerConsoleRunner.resume} it (1.65.0: the worker keeps the result; the reopened tab follows it).
+   */
+  onRunChange?: (runId: string | null) => void;
   /** Overrides for tests: how long to wait between looks, and the clock. */
   pollMs?: number;
   giveUpMs?: number;
@@ -105,6 +110,15 @@ export function refusalOf(error: unknown): string | null {
   return typeof message === 'string' && message.trim() !== '' && !/^Request failed with status code/i.test(message) ? message.trim() : null;
 }
 
+/** The worker runner: the console's runner, plus following a run this tab did not start (a reload mid-run). */
+export interface WorkerConsoleRunner extends ConsoleRunner<WorkerRunState> {
+  /**
+   * Follow a run that is already under way (started before a reload): the console shows it working with its steps
+   * so far, `onLanded` runs once it finishes, as for an ask made here. Resolves with its summary, or null.
+   */
+  resume: (runId: string) => Promise<string | null>;
+}
+
 /**
  * The runner. `extras()` is what every ask carries besides its words (the console session, from useConsoleData), read
  * at ask time; `onLanded` runs once with the finished run, so the product lands its result (or reloads what the server
@@ -115,14 +129,44 @@ export function useWorkerConsoleRunner<D = unknown>(
   id: string,
   extras: () => Record<string, unknown>,
   onLanded: (run: WorkerRun<D>) => void,
-  { onError, onRefused, pollMs, giveUpMs, sleep }: WorkerRunnerOptions,
-): ConsoleRunner<WorkerRunState> {
+  { onError, onRefused, onRunChange, pollMs, giveUpMs, sleep }: WorkerRunnerOptions,
+): WorkerConsoleRunner {
   const [building, setBuilding] = useState<WorkerRunState | null>(null);
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const busy = useRef(false);
   const runId = useRef<string | null>(null);
   const stopping = useRef(false);
+
+  /** Wait for a run to finish, drawing its steps, then land it. Shared by an ask made here and a resumed one. */
+  const follow = useCallback(
+    async (followed: string): Promise<string> => {
+      runId.current = followed;
+      onRunChange?.(followed);
+      const done = await waitForWorkerRun(
+        api,
+        followed,
+        (progress) =>
+          setBuilding((current) => (current ? { ...current, steps: [...(current.steps ?? []), ...(progress.steps ?? [])], thinking: progress.thinking ?? null } : current)),
+        { pollMs, giveUpMs, sleep },
+      );
+
+      setAnswer(done.summary);
+      onLanded(done);
+
+      return done.summary ?? '';
+    },
+    [api, giveUpMs, onLanded, onRunChange, pollMs, sleep],
+  );
+
+  /** The end of any run this console followed: whatever happened, it is no longer waited on. */
+  const settle = useCallback(() => {
+    busy.current = false;
+    if (runId.current !== null) onRunChange?.(null);
+    runId.current = null;
+    setAsking(false);
+    setBuilding(null);
+  }, [onRunChange]);
 
   const ask = useCallback(
     async (text: string, _target?: number[] | null, fileIds?: string[]): Promise<string | null> => {
@@ -135,19 +179,8 @@ export function useWorkerConsoleRunner<D = unknown>(
       try {
         // Files attached in the composer go with the ask as references.
         const { run } = await api.startRun(id, { instruction: text, ...extras(), ...(fileIds && fileIds.length > 0 ? { reference_ids: fileIds } : {}) });
-        runId.current = run.id;
-        const done = await waitForWorkerRun(
-          api,
-          run.id,
-          (progress) =>
-            setBuilding((current) => (current ? { ...current, steps: [...(current.steps ?? []), ...(progress.steps ?? [])], thinking: progress.thinking ?? null } : current)),
-          { pollMs, giveUpMs, sleep },
-        );
 
-        setAnswer(done.summary);
-        onLanded(done);
-
-        return done.summary ?? '';
+        return await follow(run.id);
       } catch (error) {
         if (stopping.current) return null;
         // A REFUSAL (409 / 422 with the server's own sentence) is the answer to the ask, said in the console: the
@@ -164,13 +197,32 @@ export function useWorkerConsoleRunner<D = unknown>(
 
         return null;
       } finally {
-        busy.current = false;
-        runId.current = null;
-        setAsking(false);
-        setBuilding(null);
+        settle();
       }
     },
-    [api, extras, giveUpMs, id, onError, onLanded, onRefused, pollMs, sleep],
+    [api, extras, follow, id, onError, onRefused, settle],
+  );
+
+  const resume = useCallback(
+    async (existing: string): Promise<string | null> => {
+      if (busy.current) return null;
+      busy.current = true;
+      stopping.current = false;
+      setAsking(true);
+      setBuilding({ startedAt: Date.now(), steps: [], thinking: null });
+
+      try {
+        return await follow(existing);
+      } catch (error) {
+        // A run that failed says so in its own words, as an ask made here would; a Stop is not a failure.
+        if (!stopping.current) onError(error);
+
+        return null;
+      } finally {
+        settle();
+      }
+    },
+    [follow, onError, settle],
   );
 
   const stop = useCallback(() => {
@@ -183,7 +235,7 @@ export function useWorkerConsoleRunner<D = unknown>(
     api.stopRun(current).catch(noop);
   }, [api]);
 
-  return useMemo<ConsoleRunner<WorkerRunState>>(
+  return useMemo<WorkerConsoleRunner>(
     () => ({
       building,
       queued: null,
@@ -199,7 +251,8 @@ export function useWorkerConsoleRunner<D = unknown>(
       stop,
       setPlanFirst: noop,
       setBrainstorm: noop,
+      resume,
     }),
-    [answer, ask, asking, building, stop],
+    [answer, ask, asking, building, resume, stop],
   );
 }

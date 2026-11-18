@@ -45,6 +45,41 @@ describe('useWorkerConsoleRunner', () => {
     expect(result.current.building).toBeNull();
   });
 
+  it('follows a run it did not start (a reload mid-run): steps from the start, lands once, and reports the run as it starts and ends', async () => {
+    const finished: WorkerRun = { id: 'r5', status: 'succeeded', summary: 'I shortened the answer.', data: { applied: true } };
+    const getRun = vi.fn().mockResolvedValueOnce({ id: 'r5', status: 'running', summary: null, progress: { steps: [{ kind: 'read', text: 'Reading the element' }] } }).mockResolvedValueOnce(finished);
+    const startRun = vi.fn();
+    const onLanded = vi.fn();
+    const onRunChange = vi.fn();
+    const { result } = renderHook(() => useWorkerConsoleRunner(api(startRun, getRun), 'p1', () => ({}), onLanded, { onError: vi.fn(), onRunChange, sleep: instant }));
+
+    let line: string | null = null;
+    await act(async () => {
+      line = await result.current.resume('r5');
+    });
+
+    expect(line).toBe('I shortened the answer.');
+    expect(startRun).not.toHaveBeenCalled();
+    expect(getRun).toHaveBeenNthCalledWith(1, 'r5', 0, 0);
+    expect(onLanded).toHaveBeenCalledWith(finished);
+    expect(onRunChange.mock.calls).toEqual([['r5'], [null]]);
+    expect(result.current.building).toBeNull();
+  });
+
+  it('a resumed run that failed says so on the error surface and is forgotten', async () => {
+    const onError = vi.fn();
+    const onRunChange = vi.fn();
+    const getRun = vi.fn().mockResolvedValue({ id: 'r6', status: 'failed', summary: 'I could not finish that just now.' });
+    const { result } = renderHook(() => useWorkerConsoleRunner(api(vi.fn(), getRun), 'p1', () => ({}), vi.fn(), { onError, onRunChange, sleep: instant }));
+
+    await act(async () => {
+      await result.current.resume('r6');
+    });
+
+    expect(onError).toHaveBeenCalledWith(new Error('I could not finish that just now.'));
+    expect(onRunChange.mock.calls.at(-1)).toEqual([null]);
+  });
+
   it("says a 422's own sentence in the console and keeps the ask's words (returns null)", async () => {
     const onRefused = vi.fn();
     const onError = vi.fn();
