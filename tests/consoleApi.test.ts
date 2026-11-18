@@ -47,6 +47,19 @@ describe('createConsoleApi', () => {
     expect(calls[5]?.body).toEqual({ turn: 't9' });
   });
 
+  it("records a proposal card's decision on its turn (ai-client 1.74.0) and answers the turn's card state", async () => {
+    const url = '/product/console/page/p1/sessions/s1/turns/t2/card-state';
+    const { fetcher, calls } = fakeFetcher({ [url]: { card_state: { card: 'done', summary: 'Applied the title.', at: '2026-11-18T01:00:00Z' } } });
+    const api = createConsoleApi({ base, checkpointUrl, fetcher });
+
+    expect(await api.decide('page', 'p1', 's1', 't2', 'done', 'Applied the title.')).toEqual({ card: 'done', summary: 'Applied the title.', at: '2026-11-18T01:00:00Z' });
+    await api.decide('page', 'p1', 's1', 't2', 'cancelled');
+
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([`PUT ${url}`, `PUT ${url}`]);
+    expect(calls[0]?.body).toEqual({ card: 'done', summary: 'Applied the title.' });
+    expect(calls[1]?.body).toEqual({ card: 'cancelled' });
+  });
+
   it('keeps the recap and the cost quiet on a vanished session or a throttle', async () => {
     const { fetcher, calls } = fakeFetcher({ '/product/console/page/p1/sessions/s1/usage': { usage: null } });
     const api = createConsoleApi({ base, checkpointUrl, fetcher });

@@ -38,7 +38,13 @@ export type { ConsoleGuidesOptions, ConsoleTemplatesOptions } from './useConsole
 export { tuningFor, useConsolePrefs } from './useConsolePrefs';
 export type { ConsolePrefsOptions } from './useConsolePrefs';
 export { useConsoleHost } from './useConsoleHost';
+export { WORKER_GIVE_UP_MS, WORKER_POLL_MS, refusalOf, useWorkerConsoleRunner, waitForWorkerRun } from './useWorkerConsoleRunner';
+export type { WorkerRun, WorkerRunApi, WorkerRunProgress, WorkerRunState, WorkerRunnerOptions } from './useWorkerConsoleRunner';
 export { ConsoleHost, useConsoleOpen } from './ConsoleHost';
+export { StudioConsole, useStudioConsole } from './useStudioConsole';
+export type { StudioConsoleHandle } from './useStudioConsole';
+export { mimeOfName, nodeAtPath, proposalStateOf, replaceAtPath, runOfTurn } from './studioConsole';
+export type { StudioConsoleApi, StudioConsoleOptions, StudioConsoleSubject, StudioHandOff, StudioNode, StudioPrepare } from './studioConsole';
 export type { ConsoleHostProps } from './ConsoleHost';
 export { shortenAsk } from './consoleHostPorts';
 export type { ConsoleAskMode, ConsoleHostOptions, ConsoleRunner, ConsoleRunState, ConsoleSubject, ConsoleTarget } from './consoleHostPorts';

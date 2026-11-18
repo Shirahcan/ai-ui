@@ -1,6 +1,8 @@
 import type { TerminalSavedCommand } from './commands';
 import type {
   TerminalBrief,
+  TerminalCardOutcome,
+  TerminalCardState,
   TerminalConsoleData,
   TerminalSessionRow,
   TerminalSpecialization,
@@ -102,6 +104,12 @@ export function createConsoleApi<K extends string = string, D = unknown>({ base,
       (await put<{ commands: TerminalSavedCommand[] }>(`${base(kind, id)}/commands`, { commands })).commands ?? [],
     /** Rewind the conversation to before an ask (the product restores the design itself). */
     rewind: (kind: K, id: string, session: string, turn: string) => post<TerminalConsoleData & { rewound: number }>(`${base(kind, id)}/sessions/${session}/rewind`, { turn }),
+    /**
+     * Apply or Dismiss on an answer's proposal card (ai-client 1.74.0): kept on its turn as the chat card's own state,
+     * so a reload, or another device, shows it decided. The product applies the proposal first; this records it.
+     */
+    decide: async (kind: K, id: string, session: string, turn: string, card: TerminalCardOutcome, summary?: string): Promise<TerminalCardState> =>
+      (await put<{ card_state: TerminalCardState }>(`${base(kind, id)}/sessions/${session}/turns/${turn}/card-state`, summary ? { card, summary } : { card })).card_state,
     /** `/brief`: null text removes it. */
     saveBrief: async (kind: K, id: string, text: string | null): Promise<TerminalBrief | null> => (await put<{ brief: TerminalBrief | null }>(`${base(kind, id)}/brief`, { text })).brief,
     /** `/specialize`: a guide's key, 'none', or null to let the subject's own kind (or the assistant) decide. */

@@ -180,6 +180,16 @@ export interface TerminalTurnStructured {
   answers?: TerminalAnswer[];
 }
 
+/** What a person did with an answer's proposal card (ai-client 1.74.0): the chat card's own values. */
+export type TerminalCardOutcome = 'done' | 'cancelled';
+
+/** An answer's card as its turn keeps it: `done` (applied), `cancelled` (dismissed); a chat card may say `started`. */
+export interface TerminalCardState {
+  card: TerminalCardOutcome | 'started' | string;
+  summary?: string;
+  at?: string;
+}
+
 export interface TerminalTurn {
   id: string;
   role: 'user' | 'assistant' | string;
@@ -187,6 +197,8 @@ export interface TerminalTurn {
   structured: TerminalTurnStructured | null;
   /** Rewound: kept on screen, dimmed, left out of the context. */
   rewound: boolean;
+  /** What became of the answer's proposal card, read back from its turn (1.63.0); null or absent while undecided. */
+  card_state?: TerminalCardState | null;
   at: string | null;
 }
 
