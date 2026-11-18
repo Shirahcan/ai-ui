@@ -534,7 +534,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             {loading ? <p className="text-[var(--term-dim)]">Opening the session…</p> : null}
             {!loading && lines.length === 0 ? (
               <div className="text-[var(--term-dim)]">
-                <p className="text-[var(--term-text)]">Describe what you want on this {subjectNoun}, and {assistantName} will build it.</p>
+                <p className="text-[var(--term-text)]">Describe what you want on this {subjectNoun}, and I will build it.</p>
                 <p className="mt-2">/ commands{mentions ? ' · @ aim at an element' : ''} · ↑ earlier asks · ? shortcuts{modes.length > 1 ? ` · alt+m ${modes.includes('brainstorm') ? 'plan first or brainstorm' : 'plan first'}` : ''}</p>
                 {brief ? <p className="mt-2">Brief: <span className="text-[var(--term-text)]">{brief.text}</span></p> : null}
               </div>

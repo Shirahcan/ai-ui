@@ -100,7 +100,8 @@ export function TerminalInput({ value, onChange, onAsk, onCommand, history, word
       <Composer
         id="terminal-input"
         name="terminal-input"
-        placeholder={`Describe what you want, and ${words.assistant} will build it`}
+        // The assistant's own composer speaks in the first person (Portify's first-person rule, 2026-11-09).
+        placeholder="Describe what you want, and I will build it"
         {...composer}
         value={value}
         onChange={change}
