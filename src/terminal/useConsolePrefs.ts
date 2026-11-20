@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import type { AssistantTerminalProps } from './AssistantTerminal';
 import type { TerminalEffort, TerminalLevel, TerminalNote } from './types';
+import { DEFAULT_TERMINAL_THEME } from './terminalThemes';
 import { TERMINAL_ZOOMS } from './zoom';
 
 const LEVELS: TerminalLevel[] = ['normal', 'pro', 'expert'];
@@ -47,7 +48,9 @@ export interface ConsolePrefsOptions {
  */
 export function useConsolePrefs({ storagePrefix = 'ai-console', note }: ConsolePrefsOptions) {
   const key = (name: string) => `${storagePrefix}:${name}`;
-  const [theme, setTheme] = useState(() => stored(key('theme')) ?? 'dark');
+  // The shared default until the person picks another (owner 2026-11-20: "Porter console should use the light theme by
+  // default"). A theme someone chose is stored and kept; only an unchosen console changes.
+  const [theme, setTheme] = useState(() => stored(key('theme')) ?? DEFAULT_TERMINAL_THEME);
   // Text size: in (Ctrl +) bigger text, out (Ctrl -) smaller text.
   const [zoom, setZoom] = useState(() => {
     const value = Number(stored(key('zoom')));

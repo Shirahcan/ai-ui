@@ -98,7 +98,8 @@ export const TERMINAL_THEMES: TerminalTheme[] = [
   },
 ];
 
-export const DEFAULT_TERMINAL_THEME = 'dark';
+/** The theme a console opens in until the person picks one (owner 2026-11-20: light by default). */
+export const DEFAULT_TERMINAL_THEME = 'light';
 
 /** The theme for a key, falling back to the default (a stored key from an older release still opens). */
 export function terminalTheme(key: string | null | undefined, themes: TerminalTheme[] = TERMINAL_THEMES): TerminalTheme {
