@@ -271,7 +271,8 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
     host: {
       open,
       onOpenChange: setOpen,
-      terminal,
+      // Every hand-off puts the cursor in the composer, the console open or not ("Add to Porter" waits for words there).
+      terminal: { ...terminal, focusRequest: handOffs },
       composer: { ...options.composer, sendLabel: options.sendLabel ?? 'Change', busy: runner.asking, onStop: runner.stop },
       assistantName: options.assistantName,
       working,

@@ -41,6 +41,12 @@ const MONO = 'ui-monospace, "JetBrains Mono", "Cascadia Code", "SF Mono", Menlo,
 export interface AssistantTerminalProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * Bump it to put the cursor in the composer while the console is ALREADY open: a canvas hand-off ("Add to Porter" on
+   * an element) aims an open console and waits for the person's words. Opening the console focuses it anyway; before
+   * this, a hand-off to an open console aimed it and left the cursor on the page (Portify, 2026-11-20).
+   */
+  focusRequest?: number;
   /** "Porter". */
   assistantName: string;
   /** What the console works on, as a person names it ("Home page") and as a noun ("page"). */
@@ -183,7 +189,7 @@ export interface AssistantTerminalProps {
  */
 export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Element {
   const {
-    open, onClose, assistantName, subjectLabel, subjectNoun = 'page', title, session, turns, live = null, notes = [], size = null, brief = null,
+    open, onClose, focusRequest, assistantName, subjectLabel, subjectNoun = 'page', title, session, turns, live = null, notes = [], size = null, brief = null,
     history = [], loading = false, mode, onModeChange, modes = ['build', 'plan'], target = null, value, onChange, onAsk, composer, mentions, onStop, onCommand, onRewind,
     onBuildPlan, onDismissPlan, sessions, onSaveBrief, onClearDraft, theme, themes = TERMINAL_THEMES, onThemeChange, width, onWidthChange, onError, className = '',
     level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion, onElement, onUsage, savedCommands = [], onSavedCommandsChange, onCompare, zoom = 1, onZoomChange,
@@ -270,6 +276,14 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
   useEffect(() => {
     if (open) inputWrap.current?.querySelector<HTMLElement>('textarea, [data-ai-question] [data-row]')?.focus();
   }, [open]);
+
+  // A hand-off to the console while it is open does the same (`focusRequest`): only on a NEW request, never on a render.
+  const lastFocusRequest = useRef(focusRequest);
+  useEffect(() => {
+    if (focusRequest === lastFocusRequest.current) return;
+    lastFocusRequest.current = focusRequest;
+    if (open) inputWrap.current?.querySelector<HTMLElement>('textarea, [data-ai-question] [data-row]')?.focus();
+  }, [focusRequest, open]);
 
   // The questions answered (or set aside), the cursor goes back to the composer, as Claude Code returns
   // to its prompt (1.47.2). The picker held the focus, and when it left, the focus fell to the page: the

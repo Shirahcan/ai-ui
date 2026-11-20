@@ -135,6 +135,36 @@ describe('useStudioConsole', () => {
   });
 });
 
+describe('a hand-off to an open console (1.67.0)', () => {
+  beforeAll(() => Object.defineProperty(Element.prototype, 'scrollTo', { value: vi.fn(), configurable: true }));
+  beforeEach(() => window.localStorage.clear());
+
+  it('puts the cursor in the composer, aimed, even though the console was already open ("Add to Porter")', async () => {
+    window.localStorage.setItem('test-console:open', '1');
+    const { api } = fakeApi([]);
+    const handOffRef: { current: ((ask: { text: string; path: number[] | null; label?: string | null }) => void) | null } = { current: null };
+    const page = document.createElement('input');
+    page.setAttribute('aria-label', 'Somewhere on the page');
+    document.body.appendChild(page);
+
+    render(<StudioConsole subject={subject(api)} options={options} handOffRef={handOffRef} />);
+    const box = await waitFor(() => {
+      const found = document.querySelector('[data-ai-terminal] textarea');
+      expect(found).toBeTruthy();
+
+      return found as HTMLTextAreaElement;
+    });
+    page.focus();
+    expect(document.activeElement).toBe(page);
+
+    act(() => handOffRef.current?.({ text: '', path: [1], label: 'Intro' }));
+
+    await waitFor(() => expect(document.activeElement).toBe(box));
+    expect(screen.getByText(/@Intro/)).toBeTruthy();
+    page.remove();
+  });
+});
+
 describe("the composer's tools (1.66.0)", () => {
   beforeAll(() => Object.defineProperty(Element.prototype, 'scrollTo', { value: vi.fn(), configurable: true }));
   beforeEach(() => window.localStorage.clear());

@@ -40,6 +40,10 @@ const subject: StudioConsoleSubject<'growth_post', PmlNode, PostRunData> = {
 `handOffRef.current({ text, path, label })` is the canvas's way in: a block's AI action or a pinned comment's "send to
 the assistant". Or call `useStudioConsole(subject, options)` and render `<ConsoleHost {...studio.host} />` yourself.
 
+Every hand-off puts the cursor in the composer, the console open or not (1.67.0): an aim with no words (`text: ''`,
+"Add to Porter" on an element) then waits for the person's words there. `AssistantTerminal`'s `focusRequest` does it;
+the hook bumps it, so a host passes nothing.
+
 ### Options a host may add (1.64.0)
 
 - A design that is not a list of elements: give the subject a fourth type, `StudioConsoleSubject<K, N, R, D>`; its
