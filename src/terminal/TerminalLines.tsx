@@ -432,18 +432,21 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
               </div>
             );
 
+          // One faint, italic paragraph after a `※ recap:` mark, as Claude Code draws it (1.68.0, owner 2026-11-23:
+          // "a brief summary similar to Claude Code - italicised and faint color"). It used to be a dashed box headed
+          // "Recap" with a line per point. A host's older recap that still holds several lines reads as one paragraph.
           case 'recap':
             return (
-              <div key={line.key} role="note" aria-label="Recap" className="my-3 rounded-md border border-dashed border-[var(--term-border)] px-3 py-2">
-                <p className="text-[11px] font-semibold text-[var(--term-accent)]">Recap</p>
-                {line.lines.map((text) => (
-                  <p key={text} className={`break-words ${line.pending ? 'text-[var(--term-dim)]' : 'text-[var(--term-text)]'}`}>{text}</p>
-                ))}
-                {line.pending ? (
-                  <p role="status" className="mt-1 text-[11px] text-[var(--term-dim)]">
-                    <span aria-hidden="true" className="motion-safe:animate-pulse">✻ </span>Writing the recap…
-                  </p>
-                ) : null}
+              <div key={line.key} role="note" aria-label="Recap" className="my-3 flex gap-2 text-[var(--term-dim)]">
+                <span aria-hidden="true" className={MARK}>※</span>
+                <p className={`min-w-0 break-words ${line.pending ? 'opacity-70' : ''}`.trim()}>
+                  <span className="font-semibold">recap:</span> <em className="italic">{line.lines.join(' ')}</em>
+                  {line.pending ? (
+                    <span role="status" className="ml-2 whitespace-nowrap text-[11px]">
+                      <span aria-hidden="true" className="motion-safe:animate-pulse">✻ </span>Writing the recap…
+                    </span>
+                  ) : null}
+                </p>
               </div>
             );
 

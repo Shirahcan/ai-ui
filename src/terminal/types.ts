@@ -43,6 +43,13 @@ export interface TerminalOutcome {
    * "also draft these fields"): the person applies or dismisses them; nothing is saved until they do.
    */
   proposal?: TerminalProposal | null;
+  /**
+   * The record's details the assistant SAVED in this answer, by the names the details panel gives them ("Summary",
+   * "Search title") (1.68.0, owner 2026-11-23: an ask that only saved a post's details ended "Nothing changed"). A
+   * details save is not a design change: `changed` stays false and no rewind is offered, since a rewind restores the
+   * design only.
+   */
+  details?: string[];
 }
 
 /** Drafted values for the page's own record (a blog post's answer, a landing page's headline). */

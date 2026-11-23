@@ -42,6 +42,24 @@ describe('toLines', () => {
     expect(outcomeLine({ changed: false, proposal, reason: 'The check failed.' }).tone).toBe('fail');
   });
 
+  it('names the details an answer saved, never "Nothing changed" (1.68.0, owner 2026-11-23)', () => {
+    expect(outcomeLine({ changed: false, details: ['Summary', 'Search title'] })).toEqual({ tone: 'ok', text: 'Updated: Summary, Search title' });
+    // Blanks and repeats are dropped; nothing left reads as before.
+    expect(outcomeLine({ changed: false, details: [' ', 'Summary', 'Summary'] }).text).toBe('Updated: Summary');
+    expect(outcomeLine({ changed: false, details: [] })).toEqual({ tone: 'none', text: 'Nothing changed' });
+    // With a design change the details follow it; beside a proposal, the proposal still waits.
+    expect(outcomeLine({ changed: true, elements: 2, details: ['Title'] }).text).toBe('Changed 2 elements; updated: Title');
+    const proposal = { title: 'Search settings to apply', fields: [{ key: 'canonical_url', label: 'Canonical address', value: 'https://x.test' }] };
+    expect(outcomeLine({ changed: false, details: ['Title'], proposal })).toEqual({ tone: 'ok', text: 'Updated: Title; more proposed below, not saved until you apply it' });
+    // A failure is still one, whatever the details say.
+    expect(outcomeLine({ changed: false, details: ['Title'], reason: 'The save failed.' }).tone).toBe('fail');
+    // A details save offers no rewind: the rewind restores the design only.
+    const lines = toLines([ask('a1', 'Write the summary'), answer('b1', { outcome: { changed: false, details: ['Summary'] } })]);
+    const outcome = lines.find((l) => l.kind === 'outcome') as { canRewind: boolean; text: string };
+    expect(outcome.text).toBe('Updated: Summary');
+    expect(outcome.canRewind).toBe(false);
+  });
+
   it('grows a live ask step by step without re-keying the lines already drawn', () => {
     const turns = [ask('a1', 'First'), answer('b1', { outcome: { changed: true } })];
     const live = { startedAt: 5, ask: { text: 'Add a FAQ', mode: 'build' }, steps: [{ kind: 'read', text: 'Reading the page' }], verb: null, queued: null };

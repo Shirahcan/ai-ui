@@ -192,7 +192,7 @@ describe('/config', () => {
     openSettings();
     fireEvent.click(screen.getByRole('button', { name: /show a recap now/i }));
 
-    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('1 ask in this session: 1 changed the page.');
+    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('and I changed 1 element.');
   });
 });
 
@@ -256,13 +256,13 @@ describe('the recap the assistant writes (1.51.0)', () => {
     const note = () => screen.getByRole('note', { name: 'Recap' }).textContent ?? '';
 
     expect(onRecap).toHaveBeenCalledWith(null);
-    expect(note()).toContain('1 ask in this session');
+    expect(note()).toContain('and I changed 1 element');
     expect(note()).toContain('Writing the recap…');
 
     await act(async () => resolve(['You are reworking the hero; I made it darker.', 'Next, you could warm up the headline.']));
 
     expect(note()).toContain('You are reworking the hero; I made it darker.');
-    expect(note()).not.toContain('1 ask in this session');
+    expect(note()).not.toContain('and I changed 1 element');
     expect(note()).not.toContain('Writing the recap…');
   });
 
@@ -271,7 +271,7 @@ describe('the recap the assistant writes (1.51.0)', () => {
     askRecap();
     await act(async () => {});
 
-    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('1 ask in this session');
+    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('and I changed 1 element');
     expect(screen.getByRole('note', { name: 'Recap' }).textContent).not.toContain('Writing the recap…');
   });
 
@@ -280,7 +280,7 @@ describe('the recap the assistant writes (1.51.0)', () => {
     askRecap();
     await act(async () => {});
 
-    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('1 ask in this session');
+    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('and I changed 1 element');
     expect(screen.getByRole('note', { name: 'Recap' }).textContent).not.toContain('Writing the recap…');
   });
 

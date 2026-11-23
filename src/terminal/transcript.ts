@@ -40,8 +40,22 @@ export function levelPhrase(asked: string | null | undefined, served: string | n
   return served === asked ? `by ${LEVEL_LABELS[asked]}` : `${LEVEL_LABELS[asked]} unavailable, ${LEVEL_LABELS[served]} answered`;
 }
 
+/** The details an answer saved (1.68.0), by the panel's own names, blanks and repeats dropped. */
+function savedDetails(outcome: TerminalOutcome | undefined): string[] {
+  const names = (outcome?.details ?? []).map((d) => (typeof d === 'string' ? d.trim() : '')).filter((d) => d !== '');
+
+  return [...new Set(names)];
+}
+
+/** "Updated: Summary, Search title": the names exactly as the details panel says them. */
+function updatedText(details: string[]): string {
+  return `Updated: ${details.join(', ')}`;
+}
+
 /** What came of an answer, as the person reads it. */
 export function outcomeLine(outcome: TerminalOutcome | undefined): { tone: 'ok' | 'none' | 'fail'; text: string } {
+  const details = savedDetails(outcome);
+
   if (outcome?.changed) {
     const n = Number(outcome.elements ?? 0);
     let text = n > 0 ? `Changed ${plural(n, 'element', 'elements')}` : 'Changed the design';
@@ -49,6 +63,7 @@ export function outcomeLine(outcome: TerminalOutcome | undefined): { tone: 'ok' 
 
     if (conflicts > 0) text += `, kept your version of ${plural(conflicts, 'element', 'elements')} you changed meanwhile`;
     else if (Number(outcome.kept ?? 0) > 0) text += ', kept the edits you made meanwhile';
+    if (details.length > 0) text += `; updated: ${details.join(', ')}`;
 
     return { tone: 'ok', text };
   }
@@ -58,8 +73,16 @@ export function outcomeLine(outcome: TerminalOutcome | undefined): { tone: 'ok' 
   // A stop the person chose is not a failure: no "Could not finish", no retry one level up.
   if (outcome?.stopped) return { tone: 'none', text: reason !== '' ? reason : 'Stopped' };
 
+  const proposed = (outcome?.proposal?.fields?.length ?? 0) > 0;
+
+  // Details saved without a design change (1.68.0, owner 2026-11-23: "The console says 'Nothing changed' when something
+  // did change"): the save IS the outcome. A proposal beside it waits for the person as before.
+  if (reason === '' && details.length > 0) {
+    return { tone: 'ok', text: proposed ? `${updatedText(details)}; more proposed below, not saved until you apply it` : updatedText(details) };
+  }
+
   // A proposal waiting for the person (1.61.1): "Nothing changed" read as if the ask had failed (owner 2026-11-14).
-  if (reason === '' && (outcome?.proposal?.fields?.length ?? 0) > 0) return { tone: 'none', text: 'Proposed below, not saved until you apply it' };
+  if (reason === '' && proposed) return { tone: 'none', text: 'Proposed below, not saved until you apply it' };
 
   return reason !== '' ? { tone: 'fail', text: `Could not finish: ${reason}` } : { tone: 'none', text: 'Nothing changed' };
 }
@@ -329,9 +352,34 @@ function quote(text: string, max = 70): string {
   return `${(space > max * 0.5 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
+/** What came of one answer, as a clause that follows "and" in the recap ("and I changed 3 elements"). */
+function recapClause(answer: TerminalTurn | null): string {
+  const s = answer?.structured;
+
+  if (!answer) return 'no answer was recorded';
+  if (s?.plan) return 'I drafted a plan, not built yet';
+  if (s?.questions?.length) return `I asked you ${plural(s.questions.length, 'question', 'questions')}`;
+  if (s?.ideas?.length || s?.recommendation) return 'I offered ideas';
+
+  const outcome = s?.outcome;
+  const line = outcomeLine(outcome);
+
+  if (outcome?.stopped) return 'you stopped it';
+  if (line.tone === 'fail') return `I could not finish (${(outcome?.reason ?? '').trim().replace(/[.!?…]+$/u, '')})`;
+  if (line.tone === 'ok') return `I ${line.text.charAt(0).toLowerCase()}${line.text.slice(1)}`;
+  if ((outcome?.proposal?.fields?.length ?? 0) > 0) return 'I proposed details for you to apply';
+
+  return 'nothing changed';
+}
+
 /**
- * Where the session stands, in three or four lines, for a person coming back after a break (1.45.0,
- * owner 2026-11-09: "session recap after a set idle duration"). Drawn from the turns alone: no AI call.
+ * Where the session stands, as ONE short paragraph for a person coming back after a break (1.45.0, owner 2026-11-09:
+ * "session recap after a set idle duration"; one paragraph since 1.68.0, owner 2026-11-23: "a brief summary similar to
+ * Claude Code"): what was asked and what came of it, then "Next, ..." when something waits on the person. Drawn from
+ * the turns alone, no AI call; the assistant's own recap replaces it when the host can write one. In the first person:
+ * these are the assistant's words.
+ *
+ * Returned as a list (one item) so a host's recap, which may still hold several lines, draws the same way.
  */
 export function recapLines(turns: TerminalTurn[], words: { assistant: string; subject: string }): string[] {
   const live = turns.filter((t) => !t.rewound);
@@ -340,41 +388,28 @@ export function recapLines(turns: TerminalTurn[], words: { assistant: string; su
 
   if (asks.length === 0) return [];
 
-  const changed = answers.filter((t) => t.structured?.outcome?.changed).length;
+  const changed = answers.filter((t) => t.structured?.outcome?.changed || savedDetails(t.structured?.outcome).length > 0).length;
   const failed = answers.filter((t) => outcomeLine(t.structured?.outcome).tone === 'fail' && !t.structured?.plan && !t.structured?.questions?.length).length;
-  const out = [`${plural(asks.length, 'ask', 'asks')} in this session: ${changed} changed the ${words.subject}${failed > 0 ? `, ${failed} could not finish` : ''}.`];
   const lastAsk = asks.at(-1);
   const lastTurn = live.at(-1);
+  const lastAnswer = lastTurn?.role === 'assistant' ? lastTurn : null;
+  const parts: string[] = [];
 
-  if (lastAsk) {
-    const lastAnswer = lastTurn?.role === 'assistant' ? lastTurn : null;
-    const result = lastAnswer
-      ? lastAnswer.structured?.plan
-        ? 'a plan, not built yet'
-        : lastAnswer.structured?.questions?.length
-          ? `${words.assistant} asked you a question`
-          : lastAnswer.structured?.ideas?.length || lastAnswer.structured?.recommendation
-            ? `${words.assistant} offered ideas`
-            : outcomeLine(lastAnswer.structured?.outcome).text
-      : 'no answer was recorded';
-
-    // An outcome reads mid-sentence in lower case ("changed the design"); a name keeps its capital.
-    const named = result.startsWith(words.assistant);
-    // The sentence ends once (1.50.1): an outcome that already ends with a stop ("Stopped. Nothing has
-    // changed.") drew "changed.." on the test box.
-    const said = (named ? result : `${result.charAt(0).toLowerCase()}${result.slice(1)}`).replace(/[.!?…]+$/u, '');
-
-    out.push(`Last: “${quote(lastAsk.body ?? '')}”, ${said}.`);
+  if (asks.length > 1) {
+    parts.push(`You asked for ${asks.length} things here; ${changed} changed the ${words.subject}${failed > 0 ? ` and ${failed} could not finish` : ''}.`);
   }
 
-  const open = lastTurn?.role === 'assistant' ? lastTurn.structured : null;
+  // The sentence ends once (1.50.1): a reason that already ends with a stop drew "changed.." on the test box.
+  parts.push(`${asks.length > 1 ? 'Last, you' : 'You'} asked “${quote(lastAsk?.body ?? '')}”, and ${recapClause(lastAnswer).replace(/[.!?…]+$/u, '')}.`);
 
-  if (open?.plan) out.push('Waiting on you: the plan above, to build or dismiss.');
-  else if (open?.questions?.length) out.push(`Waiting on you: ${plural(open.questions.length, 'question', 'questions')} above.`);
-  else if (open?.recommendation) out.push('Waiting on you: build the recommendation above, or ask for something else.');
-  else if (open && outcomeLine(open.outcome).tone === 'fail') out.push('Nothing changed. Try again at a higher level, or ask differently.');
+  const open = lastAnswer?.structured ?? null;
 
-  return out;
+  if (open?.plan) parts.push('Next, build the plan above or dismiss it.');
+  else if (open?.questions?.length) parts.push(`Next, answer the ${open.questions.length === 1 ? 'question' : 'questions'} above.`);
+  else if (open?.recommendation) parts.push('Next, build the recommendation above, or ask for something else.');
+  else if (open && outcomeLine(open.outcome).tone === 'fail' && !open.outcome?.stopped) parts.push('Next, try again at a higher level, or ask differently.');
+
+  return [parts.join(' ')];
 }
 
 const MARK: Record<string, string> = { ask: '>', step: '●', thinking: '✻', detail: '  ⎿', reply: '◆', finding: '  ⎿', plan: '▸', system: '—', queued: '> next:' };
@@ -415,7 +450,7 @@ export function toMarkdown(title: string, lines: TerminalLine[]): string {
         out.push(...line.ideas.map((idea) => `- ${idea.title}${idea.why ? `: ${idea.why}` : ''}`), ...(line.recommendation ? [`Recommended: ${line.recommendation}`] : []));
         break;
       case 'recap':
-        out.push(...line.lines.map((l) => `— ${l}`));
+        out.push('', `※ recap: *${line.lines.join(' ')}*`);
         break;
       case 'proposal':
         out.push(`◆ ${line.title}`, ...line.fields.map((f) => `   ${f.label}: ${f.value}`));

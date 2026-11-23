@@ -134,13 +134,18 @@ describe('recap', () => {
     ];
     const lines = recapLines(turns, { assistant: 'Porter', subject: 'page' });
 
-    expect(lines[0]).toBe('2 asks in this session: 1 changed the page, 1 could not finish.');
-    expect(lines[1]).toContain('could not finish: The site refused the visit.');
-    expect(lines[2]).toMatch(/try again at a higher level/i);
+    // ONE paragraph, as Claude Code writes it (1.68.0, owner 2026-11-23): where it stands, then "Next, ...".
+    expect(lines).toEqual([
+      'You asked for 2 things here; 1 changed the page and 1 could not finish. Last, you asked “Rebuild the whole page from vanhack.com”, and I could not finish (The site refused the visit). Next, try again at a higher level, or ask differently.',
+    ]);
     expect(recapLines([], { assistant: 'Porter', subject: 'page' })).toEqual([]);
-    // The assistant's name keeps its capital mid-sentence.
+    // In the first person: the recap is the assistant's own words.
     const ideas = recapLines([ask('a1', 'Ideas?', { mode: 'brainstorm' }), answer('b1', { ideas: [{ title: 'One' }], recommendation: 'Do one.' })], { assistant: 'Porter', subject: 'page' });
-    expect(ideas[1]).toContain(', Porter offered ideas.');
+    expect(ideas).toEqual(['You asked “Ideas?”, and I offered ideas. Next, build the recommendation above, or ask for something else.']);
+    expect(ideas[0]).not.toContain('Porter');
+    // Saved details count as a change.
+    const details = recapLines([ask('a1', 'Write the summary'), answer('b1', { outcome: { changed: false, details: ['Summary'] } })], { assistant: 'Porter', subject: 'post' });
+    expect(details).toEqual(['You asked “Write the summary”, and I updated: Summary.']);
   });
 });
 
@@ -410,7 +415,14 @@ describe('AssistantTerminal 1.45', () => {
     fireEvent.change(input(), { target: { value: '/recap' } });
     fireEvent.keyDown(input(), { key: 'Enter' });
 
-    expect(screen.getByRole('note', { name: 'Recap' }).textContent).toContain('1 ask in this session: 1 changed the page.');
+    const note = screen.getByRole('note', { name: 'Recap' });
+
+    expect(note.textContent).toContain('recap: You asked “Add a FAQ”, and I changed the design.');
+    // Faint and italic, after a ※ mark (owner 2026-11-23), never the old dashed box.
+    expect(note.textContent?.startsWith('※')).toBe(true);
+    expect(note.querySelector('em')?.textContent).toBe('You asked “Add a FAQ”, and I changed the design.');
+    expect(note.className).toContain('text-[var(--term-dim)]');
+    expect(note.className).not.toContain('border-dashed');
   });
 
   it('ends the recap sentence once when the outcome already ends with a stop', () => {
@@ -422,7 +434,7 @@ describe('AssistantTerminal 1.45', () => {
 
     const recap = screen.getByRole('note', { name: 'Recap' }).textContent ?? '';
 
-    expect(recap).toContain('Last: “Make the hero darker”, ');
+    expect(recap).toContain('You asked “Make the hero darker”, and you stopped it.');
     expect(recap).not.toMatch(/\.\./);
   });
 
