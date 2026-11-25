@@ -370,26 +370,30 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
                   )}
                   {line.level ? <span className="text-[11px] text-[var(--term-dim)]"> · {line.level}</span> : null}
                 </span>
-                {line.retry && line.turnId && onRetry ? (
-                  <button type="button" onClick={() => onRetry(line.turnId as string, line.retry as TerminalLevel)} className={TOGGLE}>
-                    Try again at {LEVEL_LABELS[line.retry]}
-                  </button>
-                ) : null}
-                {line.deeper && line.turnId && onRetry ? (
-                  <button type="button" onClick={() => onRetry(line.turnId as string, line.askedLevel ?? 'normal', line.deeper as TerminalEffort)} title={`Try again, thinking at ${line.deeper} effort`} className={TOGGLE}>
-                    Think harder
-                  </button>
-                ) : null}
-                {line.compare && onCompare ? (
-                  <button type="button" onClick={onCompare} className={TOGGLE}>
-                    Compare with the picture
-                  </button>
-                ) : null}
-                {line.canRewind && line.turnId && onRewind ? (
-                  <button type="button" onClick={() => onRewind(line.turnId as string)} className={TOGGLE}>
-                    Rewind to before this
-                  </button>
-                ) : null}
+                {/* A failed line's actions go on their own row below, right-aligned (owner 2026-11-25): beside a long
+                    reason they squeezed it into a narrow column. A short success line keeps them on its row. */}
+                <span className={line.tone === 'fail' ? 'flex w-full flex-wrap justify-end gap-x-2' : 'contents'}>
+                  {line.retry && line.turnId && onRetry ? (
+                    <button type="button" onClick={() => onRetry(line.turnId as string, line.retry as TerminalLevel)} className={TOGGLE}>
+                      Try again at {LEVEL_LABELS[line.retry]}
+                    </button>
+                  ) : null}
+                  {line.deeper && line.turnId && onRetry ? (
+                    <button type="button" onClick={() => onRetry(line.turnId as string, line.askedLevel ?? 'normal', line.deeper as TerminalEffort)} title={`Try again, thinking at ${line.deeper} effort`} className={TOGGLE}>
+                      Think harder
+                    </button>
+                  ) : null}
+                  {line.compare && onCompare ? (
+                    <button type="button" onClick={onCompare} className={TOGGLE}>
+                      Compare with the picture
+                    </button>
+                  ) : null}
+                  {line.canRewind && line.turnId && onRewind ? (
+                    <button type="button" onClick={() => onRewind(line.turnId as string)} className={TOGGLE}>
+                      Rewind to before this
+                    </button>
+                  ) : null}
+                </span>
                 {changes.length > 0 && line.open ? (
                   <ul aria-label="What changed" className="ml-6 mt-0.5 w-full space-y-0.5">
                     {changes.map((change, i) => (

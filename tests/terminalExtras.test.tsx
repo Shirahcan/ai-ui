@@ -232,6 +232,15 @@ describe('a failed answer offers a higher level and more thought', () => {
     expect(onRetry).toHaveBeenNthCalledWith(2, 'a1', 'normal', 'medium');
   });
 
+  it('puts the retries on their own row below the reason, never beside it (owner 2026-11-25)', () => {
+    render(<Harness turns={failed('low')} onRetry={() => {}} />);
+
+    const row = screen.getByRole('button', { name: 'Try again at Pro' }).parentElement as HTMLElement;
+    expect(row.className).toContain('w-full');
+    expect(row.className).toContain('justify-end');
+    expect(row.textContent).not.toContain('The draft still had something');
+  });
+
   it('stops offering more thought at high effort', () => {
     render(<Harness turns={failed('high')} onRetry={() => {}} />);
 
