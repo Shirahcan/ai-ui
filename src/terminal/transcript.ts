@@ -220,9 +220,12 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
 
       out.push(...stepLines(s.steps ?? [], turn.id, expanded, isOpen, muted, null));
 
-      // A plan's own summary is its reply: drawn once, in the plan.
-      if (turn.body && turn.body.trim() !== '' && turn.body.trim() !== s.plan?.summary?.trim()) {
-        out.push({ key: `${turn.id}:reply`, kind: 'reply', text: turn.body.trim(), open: isOpen(`${turn.id}:reply`), muted });
+      // A plan's own summary is its reply: drawn once, in the plan. A question's words likewise, in the question
+      // (Portify owner 2026-11-25: the same question showed as a reply line and again as the question).
+      const body = turn.body?.trim() ?? '';
+      const asksIt = (s.questions ?? []).some((q) => q.text.trim() === body);
+      if (body !== '' && body !== s.plan?.summary?.trim() && !asksIt) {
+        out.push({ key: `${turn.id}:reply`, kind: 'reply', text: body, open: isOpen(`${turn.id}:reply`), muted });
       }
 
       (s.findings ?? []).forEach((finding, i) => {

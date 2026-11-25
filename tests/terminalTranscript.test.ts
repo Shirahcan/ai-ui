@@ -22,6 +22,17 @@ describe('toLines', () => {
     expect(lines[6]).toMatchObject({ tone: 'ok', text: 'Changed 1 element, kept the edits you made meanwhile', turnId: 'a1', canRewind: true });
   });
 
+  it('draws a question once, in the question, never again as a reply line (Portify owner 2026-11-25)', () => {
+    const q = 'What does the cover photo show?';
+    const lines = toLines([ask('a1', 'Write the caption'), answer('b1', { questions: [{ text: q, options: [] }] }, q)]);
+
+    expect(lines.filter((l) => l.kind === 'reply')).toEqual([]);
+    expect(lines.filter((l) => l.kind === 'question')).toHaveLength(1);
+
+    const other = toLines([ask('a1', 'Write the caption'), answer('b1', { questions: [{ text: q, options: [] }] }, 'I need one detail first.')]);
+    expect(other.filter((l) => l.kind === 'reply')).toHaveLength(1);
+  });
+
   it('shows every detail when expanded (Ctrl+O)', () => {
     const lines = toLines([ask('a1', 'x'), answer('b1', { steps, outcome: { changed: true } })], { expanded: true });
 
