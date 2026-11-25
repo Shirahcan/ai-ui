@@ -14,7 +14,7 @@ import { AiVoiceEditor } from './AiVoiceEditor';
 import { LoadError, Loading } from './primitives';
 import { ProductPicker } from './ProductPicker';
 import { ConsoleSidebar, type ConsoleSidebarGroup } from './ConsoleSidebar';
-import { AiVault, AI_VAULT_SECTIONS, type AiVaultSectionKey } from './vault/AiVault';
+import { AiVault, AI_VAULT_CONTEXT_LIMITS_SECTION, AI_VAULT_SECTIONS, type AiVaultSectionKey } from './vault/AiVault';
 import type { ConsoleCapabilities } from './types';
 import { AlertTriangle, BookOpen, Bot, Clock, DollarSign, FileText, Gauge, KeyRound, Layers, ListIcon, MessageVoice, OctagonX, Route, ShieldCheck, ThumbsUp, Wallet } from './vault/icons';
 
@@ -35,6 +35,7 @@ const TAB_ICONS: Record<string, (p: { className?: string }) => React.ReactElemen
   'vault.prices': DollarSign,
   'vault.caps': Wallet,
   'vault.retention': Clock,
+  'vault.limits': Gauge,
   'vault.access': ShieldCheck,
   'vault.stop': OctagonX,
 };
@@ -126,7 +127,7 @@ function sectionBody(tab: AiConsoleTab): ReactNode {
       return <AiEstateOverview />;
     default:
       // `vault.<section>`: one part of the estate's AI vault.
-      return <AiVault section={tab.slice('vault.'.length) as AiVaultSectionKey} />;
+      return <AiVault section={tab.slice('vault.'.length) as AiVaultSectionKey} contextLimits={tab === 'vault.limits'} />;
   }
 }
 
@@ -137,12 +138,13 @@ function sectionBody(tab: AiConsoleTab): ReactNode {
 export function aiConsoleSidebarGroups(
   capabilities: ConsoleCapabilities | null,
   hrefFor: (tab: AiConsoleTab) => string,
-  options: { include?: ReadonlyArray<AiConsoleTab> } = {},
+  options: { include?: ReadonlyArray<AiConsoleTab>; vaultContextLimits?: boolean } = {},
 ): ConsoleSidebarGroup[] {
   const estate = capabilities?.can.estate === true;
   const main = AI_CONSOLE_TABS.filter((t) => (!t.estateOnly || estate) && (!t.optIn || (options.include ?? []).includes(t.key))).map((t) => ({ key: t.key, label: t.label, href: hrefFor(t.key), icon: tabIcon(t.key) }));
   if (!estate) return [{ items: main }];
-  const vault = AI_VAULT_SECTIONS.map((v) => {
+  // Context limits is opt-in (`vaultContextLimits`): only a product whose backend proxies it lists it (1.69.0).
+  const vault = [...AI_VAULT_SECTIONS, ...(options.vaultContextLimits ? [AI_VAULT_CONTEXT_LIMITS_SECTION] : [])].map((v) => {
     const key = `vault.${v.key}` as AiConsoleTab;
     return { key, label: v.label, href: hrefFor(key), icon: tabIcon(key) };
   });
