@@ -14,7 +14,7 @@ export type { AiConsoleProviderProps, ConsoleContextValue, ConsoleFetcher, Reque
 export { AiConsole, AiConsoleSection, AI_CONSOLE_TABS, aiConsoleSidebarGroups, useConsoleTabs } from './AiConsole';
 export { ConsoleSidebar } from './ConsoleSidebar';
 export type { ConsoleSidebarGroup, ConsoleSidebarItem, ConsoleSidebarProps } from './ConsoleSidebar';
-export { AiVault, AI_VAULT_SECTIONS } from './vault/AiVault';
+export { AiVault, AI_VAULT_SECTIONS, AI_VAULT_CONTEXT_LIMITS_SECTION } from './vault/AiVault';
 export type { AiVaultSectionKey } from './vault/AiVault';
 export type { AiConsoleTab } from './AiConsole';
 

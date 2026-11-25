@@ -364,3 +364,43 @@ export function toMicros(dollars: string): number | null {
   if (!Number.isFinite(value) || value < 0) return null;
   return Math.round(value * 1_000_000);
 }
+
+/** One product's value for one context limit (ai-service ContextLimits, 2026-11-25). */
+export interface VaultContextLimit {
+  product: string;
+  limit: string;
+  label: string;
+  tokens: number;
+  default_tokens: number;
+  configured: boolean;
+  clamped?: boolean;
+  set_by: string | null;
+  set_at: string | null;
+}
+
+/** What a limit is, its service default and the range an admin may choose from. */
+export interface VaultContextLimitSpec {
+  limit: string;
+  label: string;
+  explains: string;
+  default_tokens: number;
+  min: number;
+  max: number;
+}
+
+/**
+ * ⚠ READ ON ITS OWN, never inside getVault(): a product whose backend does not proxy `vault/context-limits` yet would
+ * otherwise lose its WHOLE vault to one 404. The panel is opt-in (`<AiVault contextLimits />`).
+ */
+export async function getVaultContextLimits(): Promise<{ context_limits: VaultContextLimit[]; limits: VaultContextLimitSpec[] }> {
+  const payload = await vault().request<{ context_limits?: VaultContextLimit[]; limits?: VaultContextLimitSpec[] }>('GET', 'vault/context-limits');
+  return { context_limits: payload.context_limits ?? [], limits: payload.limits ?? [] };
+}
+
+export async function setVaultContextLimit(payload: { product: string; limit: string; tokens: number }): Promise<{ context_limit: VaultContextLimit; previous_tokens: number | null }> {
+  return vault().request('PUT', 'vault/context-limits', { body: payload });
+}
+
+export async function resetVaultContextLimit(payload: { product: string; limit: string }): Promise<{ context_limit: VaultContextLimit; previous_tokens: number | null }> {
+  return vault().request('POST', 'vault/context-limits/reset', { body: payload });
+}

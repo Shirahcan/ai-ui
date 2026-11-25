@@ -6,6 +6,7 @@ import { bindVault } from './bridge';
 import { getVault, type VaultSnapshot } from './api';
 import { AddCredentialWizard } from './AddCredentialWizard';
 import { BudgetsPanel } from './BudgetsPanel';
+import { ContextLimitsPanel } from './ContextLimitsPanel';
 import { CredentialsPanel } from './CredentialsPanel';
 import { KillSwitchPanel } from './KillSwitchPanel';
 import { RatesPanel } from './RatesPanel';
@@ -22,7 +23,13 @@ import { TrustKeysPanel } from './TrustKeysPanel';
  * management draws the same vault. `section` renders one part, for a product that lists the
  * parts in its own sidebar; without it, the whole vault scrolls as one page.
  */
-export type AiVaultSectionKey = 'stop' | 'keys' | 'caps' | 'retention' | 'routing' | 'prices' | 'access';
+export type AiVaultSectionKey = 'stop' | 'keys' | 'caps' | 'retention' | 'routing' | 'prices' | 'access' | 'limits';
+
+/**
+ * The context limits section (2026-11-25), listed apart from AI_VAULT_SECTIONS because it is OPT-IN: a product shows it
+ * (`<AiVault contextLimits />`) once its backend proxies `vault/context-limits`, and adds this entry to its own sidebar.
+ */
+export const AI_VAULT_CONTEXT_LIMITS_SECTION: { key: AiVaultSectionKey; label: string } = { key: 'limits', label: 'Context limits' };
 
 export const AI_VAULT_SECTIONS: ReadonlyArray<{ key: AiVaultSectionKey; label: string }> = [
   { key: 'keys', label: 'Provider keys' },
@@ -34,7 +41,7 @@ export const AI_VAULT_SECTIONS: ReadonlyArray<{ key: AiVaultSectionKey; label: s
   { key: 'stop', label: 'Emergency stop' },
 ];
 
-export function AiVault({ section }: { section?: AiVaultSectionKey }) {
+export function AiVault({ section, contextLimits = false }: { section?: AiVaultSectionKey; contextLimits?: boolean }) {
   const { request, capabilities, notify, reportError } = useConsole();
   const [snapshot, setSnapshot] = useState<VaultSnapshot | null>(null);
   const [error, setError] = useState<ConsoleError | null>(null);
@@ -106,6 +113,7 @@ export function AiVault({ section }: { section?: AiVaultSectionKey }) {
         />
       ) : null}
       {show('prices') ? <RatesPanel rates={snapshot.rates ?? []} unpriced={snapshot.unpriced ?? []} onChanged={reload} /> : null}
+      {contextLimits && show('limits') ? <ContextLimitsPanel /> : null}
       {show('access') ? <TrustKeysPanel trustKeys={snapshot.trust_keys} products={snapshot.products} onChanged={reload} /> : null}
 
       <AddCredentialWizard open={adding} onClose={() => setAdding(false)} onAdded={reload} />
