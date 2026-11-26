@@ -37,7 +37,7 @@ export interface WorkerRunApi<D = unknown> {
    * the server records the plan (or the ideas and questions) in the console session, and **Build this** then builds it
    * through `startRun` with the agreed steps as `plan`. Without it the console offers Build only.
    */
-  startPlanRun?: (id: string, payload: { instruction: string; kind: 'plan' | 'brainstorm' } & Record<string, unknown>) => Promise<{ run: WorkerRun<D> }>;
+  startPlanRun?: (id: string, payload: { instruction: string; kind: 'plan' | 'brainstorm' | 'compare' } & Record<string, unknown>) => Promise<{ run: WorkerRun<D> }>;
 }
 
 /** A Build on a worker, as the console draws it while it runs. */
@@ -181,7 +181,7 @@ export function useWorkerConsoleRunner<D = unknown>(
 
   /** Start a run (a Build, or a plan when `kind` is set) and follow it; a refusal is said, anything else reported. */
   const run = useCallback(
-    async (text: string, fileIds: string[] | undefined, kind: 'plan' | 'brainstorm' | null, more: Record<string, unknown> = {}): Promise<string | null> => {
+    async (text: string, fileIds: string[] | undefined, kind: 'plan' | 'brainstorm' | 'compare' | null, more: Record<string, unknown> = {}): Promise<string | null> => {
       if (busy.current) return null;
       busy.current = true;
       stopping.current = false;
@@ -217,11 +217,16 @@ export function useWorkerConsoleRunner<D = unknown>(
     [api, extras, follow, id, onError, onRefused, settle],
   );
 
-  /** An ask: in Plan first or Brainstorm (or asked in one) it runs as a plan, when the product can plan; else a Build. */
+  /**
+   * An ask: in Plan first or Brainstorm (or asked in one) it runs as a plan, when the product can plan; a Compare (the
+   * design against the person's picture, 1.71.0) runs as one too and changes nothing; else a Build.
+   */
   const ask = useCallback(
     (text: string, _target?: number[] | null, fileIds?: string[], mode?: ConsoleAskMode): Promise<string | null> => {
       const as = mode ?? (brainstorm ? 'brainstorm' : planFirst ? 'plan' : 'build');
-      const kind = (as === 'plan' || as === 'brainstorm') && api.startPlanRun ? as : null;
+      const kind = (as === 'plan' || as === 'brainstorm' || as === 'compare') && api.startPlanRun ? as : null;
+      // A Compare never falls through to a Build: without a plan endpoint it does nothing.
+      if (as === 'compare' && kind === null) return Promise.resolve(null);
 
       return run(text, fileIds, kind);
     },

@@ -221,7 +221,14 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
     console: data,
     runner,
     target,
-    subject: { noun, nodes: subject.nodes, labelFor, restoreDesign },
+    // Compare with the picture (1.71.0): only with a picture, an upload and a plan endpoint, since it runs as a plan.
+    subject: {
+      noun,
+      nodes: subject.nodes,
+      labelFor,
+      restoreDesign,
+      ...(subject.capture && subject.upload && api.startPlanRun ? { capture: subject.capture, upload: subject.upload } : {}),
+    },
     verbFor,
     assistantName: options.assistantName,
     storagePrefix: options.storagePrefix ?? 'porter-console',

@@ -1,3 +1,4 @@
+import type { AttachmentChip } from '../types';
 import type { AssistantTerminalProps } from './AssistantTerminal';
 import type { ConsoleHostProps } from './ConsoleHost';
 import type { ConsoleApi } from './consoleApi';
@@ -44,6 +45,12 @@ export interface StudioConsoleSubject<K extends string, N extends StudioNode, R 
   applyProposal?: (run: WorkerRun<R>) => Promise<void>;
   /** Where the object's details are edited: a hand-off aimed at a block the assistant does not write opens it. */
   openDetails?: () => void;
+  /**
+   * "Compare with the picture" (1.71.0): the design as drawn, as an image, and the console's own upload for it. Both, and
+   * a product that can plan (`api.startPlanRun`), or no Compare. The compare runs as a plan and changes nothing.
+   */
+  capture?: () => Promise<File | null>;
+  upload?: (file: File) => Promise<AttachmentChip>;
 }
 
 /** A document handed over by a create flow ("Start from a document"), asked about once as the console's first ask. */

@@ -197,6 +197,42 @@ describe("the composer's tools (1.66.0)", () => {
   });
 });
 
+describe('Compare with the picture (1.71.0)', () => {
+  beforeAll(() => Object.defineProperty(Element.prototype, 'scrollTo', { value: vi.fn(), configurable: true }));
+  beforeEach(() => window.localStorage.clear());
+
+  it('captures the design, uploads it, and asks a compare as a plan, which changes nothing', async () => {
+    const { api, runs } = fakeApi([]);
+    const startPlanRun = vi.fn(async () => ({ run: { id: 'r9', status: 'queued' as const, summary: null } }));
+    const shot = new File(['x'], 'porter-render.jpg', { type: 'image/jpeg' });
+    const capture = vi.fn(async () => shot);
+    const upload = vi.fn(async () => ({ id: 'render-1', name: 'porter-render.jpg', mime: 'image/jpeg', size: 1 }));
+    const s = subject({ ...api, startPlanRun } as never, { capture, upload });
+    const { result } = renderHook(() => useStudioConsole(s, options));
+    await waitFor(() => expect(result.current.host.terminal.loading).toBe(false));
+
+    const onCompare = result.current.host.terminal.onCompare;
+    expect(onCompare).toBeTypeOf('function');
+    await act(async () => onCompare?.());
+
+    expect(upload).toHaveBeenCalledWith(shot);
+    await waitFor(() => expect(startPlanRun).toHaveBeenCalledWith('p1', expect.objectContaining({ kind: 'compare', reference_ids: ['render-1'] })));
+    expect(runs.startRun).not.toHaveBeenCalled();
+  });
+
+  it('is not offered without a plan endpoint, a picture or an upload, so a compare can never become a Build', async () => {
+    const { api } = fakeApi([]);
+    const capture = vi.fn(async () => null);
+    const upload = vi.fn();
+    for (const s of [subject(api, { capture, upload }), subject({ ...api, startPlanRun: vi.fn() } as never, { capture })]) {
+      const { result, unmount } = renderHook(() => useStudioConsole(s, options));
+      await waitFor(() => expect(result.current.host.terminal.loading).toBe(false));
+      expect(result.current.host.terminal.onCompare).toBeUndefined();
+      unmount();
+    }
+  });
+});
+
 describe('a run outlives its tab (1.65.0)', () => {
   beforeAll(() => Object.defineProperty(Element.prototype, 'scrollTo', { value: vi.fn(), configurable: true }));
   beforeEach(() => window.localStorage.clear());
