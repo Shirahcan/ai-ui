@@ -98,24 +98,29 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
     [noun, options.workingVerb],
   );
 
-  const runApi = useMemo<WorkerRunApi<R>>(
-    () => ({
-      startRun: async (runFor, payload) => {
-        // The run reads the SAVED design: send a waiting save first, and never start on one that did not save.
-        if (!(await subjectRef.current.flush())) throw new Error('Your latest change has not saved yet, so I did not start. Try again in a moment.');
-        const extra = pending.current;
-        pending.current = null;
-        // A prepare fills the whole document; any other ask aimed at one block revises only that block.
-        const path = extra ? null : aimPath.current;
-        runPath.current = path;
+  const runApi = useMemo<WorkerRunApi<R>>(() => {
+    /** What every run sends: the SAVED design (a waiting save goes first), and the block an ask is aimed at. */
+    const prepared = async (payload: Record<string, unknown>): Promise<Record<string, unknown>> => {
+      // The run reads the SAVED design: send a waiting save first, and never start on one that did not save.
+      if (!(await subjectRef.current.flush())) throw new Error('Your latest change has not saved yet, so I did not start. Try again in a moment.');
+      const extra = pending.current;
+      pending.current = null;
+      // A prepare fills the whole document; any other ask aimed at one block revises only that block.
+      const path = extra ? null : aimPath.current;
+      runPath.current = path;
 
-        return api.startRun(runFor, { ...payload, ...(extra ?? {}), ...(path ? { path } : {}) });
-      },
+      return { ...payload, ...(extra ?? {}), ...(path ? { path } : {}) };
+    };
+    const startPlanRun = api.startPlanRun;
+
+    return {
+      startRun: async (runFor, payload) => api.startRun(runFor, (await prepared(payload)) as typeof payload),
       getRun: api.getRun,
       stopRun: api.stopRun,
-    }),
-    [api],
-  );
+      // Plan first and Brainstorm (1.70.0): only when the product can plan; the plan reads the same saved design.
+      ...(startPlanRun ? { startPlanRun: async (runFor: string, payload: Parameters<typeof startPlanRun>[1]) => startPlanRun(runFor, (await prepared(payload)) as typeof payload) } : {}),
+    };
+  }, [api]);
 
   const onLanded = useCallback((run: WorkerRun<R>) => subjectRef.current.land(run, runPath.current), []);
   const { note } = data;
@@ -220,7 +225,8 @@ export function useStudioConsole<K extends string, N extends StudioNode, R = unk
     verbFor,
     assistantName: options.assistantName,
     storagePrefix: options.storagePrefix ?? 'porter-console',
-    modes: ['build'],
+    // Plan first and Brainstorm are offered only when the product can plan (`api.startPlanRun`, 1.70.0).
+    modes: api.startPlanRun ? ['build', 'plan', 'brainstorm'] : ['build'],
     extraProps: { ...options.extraProps, onProposal, proposalState },
     onError,
     answered: options.answered,

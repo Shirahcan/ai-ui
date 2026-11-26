@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import type { ConsoleRunner, ConsoleRunState } from './consoleHostPorts';
+import type { ConsoleAskMode, ConsoleRunner, ConsoleRunState } from './consoleHostPorts';
 import type { TerminalStep } from './types';
 
 /**
- * A console whose only mode is Build, on a WORKER (1.63.0, shared Studio P4a2; moved from Portify's
+ * A console on a WORKER (Plan first and Brainstorm since 1.70.0, when the product hands in `startPlanRun`) (1.63.0, shared Studio P4a2; moved from Portify's
  * `useWorkerConsoleRunner`, where a share card, a blog post, a newsletter and an email template already used it).
  * An ask starts the subject's Build as a background run, the console polls it, and Stop asks the worker to drop it
  * before anything is saved. Nothing here names a product: the product hands in its run routes, its error surface
@@ -32,6 +32,12 @@ export interface WorkerRunApi<D = unknown> {
   startRun: (id: string, payload: { instruction: string } & Record<string, unknown>) => Promise<{ run: WorkerRun<D> }>;
   getRun: (id: string, from?: number, stepsFrom?: number) => Promise<WorkerRun<D>>;
   stopRun: (id: string) => Promise<unknown>;
+  /**
+   * Plan first and Brainstorm (1.70.0): start the subject's plan or brainstorm as a background run. It changes nothing:
+   * the server records the plan (or the ideas and questions) in the console session, and **Build this** then builds it
+   * through `startRun` with the agreed steps as `plan`. Without it the console offers Build only.
+   */
+  startPlanRun?: (id: string, payload: { instruction: string; kind: 'plan' | 'brainstorm' } & Record<string, unknown>) => Promise<{ run: WorkerRun<D> }>;
 }
 
 /** A Build on a worker, as the console draws it while it runs. */
@@ -134,15 +140,19 @@ export function useWorkerConsoleRunner<D = unknown>(
   const [building, setBuilding] = useState<WorkerRunState | null>(null);
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  const [planFirst, setPlanFirstState] = useState(false);
+  const [brainstorm, setBrainstormState] = useState(false);
   const busy = useRef(false);
   const runId = useRef<string | null>(null);
   const stopping = useRef(false);
+  const remembered = useRef(false);
 
   /** Wait for a run to finish, drawing its steps, then land it. Shared by an ask made here and a resumed one. */
   const follow = useCallback(
-    async (followed: string): Promise<string> => {
+    async (followed: string, land = true): Promise<string> => {
       runId.current = followed;
-      onRunChange?.(followed);
+      // Only a Build is remembered across a reload: a plan lands nothing, and the session already holds its answer.
+      if (land) onRunChange?.(followed);
       const done = await waitForWorkerRun(
         api,
         followed,
@@ -152,7 +162,7 @@ export function useWorkerConsoleRunner<D = unknown>(
       );
 
       setAnswer(done.summary);
-      onLanded(done);
+      if (land) onLanded(done);
 
       return done.summary ?? '';
     },
@@ -162,14 +172,16 @@ export function useWorkerConsoleRunner<D = unknown>(
   /** The end of any run this console followed: whatever happened, it is no longer waited on. */
   const settle = useCallback(() => {
     busy.current = false;
-    if (runId.current !== null) onRunChange?.(null);
+    if (runId.current !== null && remembered.current) onRunChange?.(null);
+    remembered.current = false;
     runId.current = null;
     setAsking(false);
     setBuilding(null);
   }, [onRunChange]);
 
-  const ask = useCallback(
-    async (text: string, _target?: number[] | null, fileIds?: string[]): Promise<string | null> => {
+  /** Start a run (a Build, or a plan when `kind` is set) and follow it; a refusal is said, anything else reported. */
+  const run = useCallback(
+    async (text: string, fileIds: string[] | undefined, kind: 'plan' | 'brainstorm' | null, more: Record<string, unknown> = {}): Promise<string | null> => {
       if (busy.current) return null;
       busy.current = true;
       stopping.current = false;
@@ -178,9 +190,11 @@ export function useWorkerConsoleRunner<D = unknown>(
 
       try {
         // Files attached in the composer go with the ask as references.
-        const { run } = await api.startRun(id, { instruction: text, ...extras(), ...(fileIds && fileIds.length > 0 ? { reference_ids: fileIds } : {}) });
+        const payload = { instruction: text, ...extras(), ...more, ...(fileIds && fileIds.length > 0 ? { reference_ids: fileIds } : {}) };
+        const started = kind !== null && api.startPlanRun ? await api.startPlanRun(id, { ...payload, kind }) : await api.startRun(id, payload);
+        remembered.current = kind === null;
 
-        return await follow(run.id);
+        return await follow(started.run.id, kind === null);
       } catch (error) {
         if (stopping.current) return null;
         // A REFUSAL (409 / 422 with the server's own sentence) is the answer to the ask, said in the console: the
@@ -203,11 +217,35 @@ export function useWorkerConsoleRunner<D = unknown>(
     [api, extras, follow, id, onError, onRefused, settle],
   );
 
+  /** An ask: in Plan first or Brainstorm (or asked in one) it runs as a plan, when the product can plan; else a Build. */
+  const ask = useCallback(
+    (text: string, _target?: number[] | null, fileIds?: string[], mode?: ConsoleAskMode): Promise<string | null> => {
+      const as = mode ?? (brainstorm ? 'brainstorm' : planFirst ? 'plan' : 'build');
+      const kind = (as === 'plan' || as === 'brainstorm') && api.startPlanRun ? as : null;
+
+      return run(text, fileIds, kind);
+    },
+    [api.startPlanRun, brainstorm, planFirst, run],
+  );
+
+  /** **Build this** on a plan in the session: the ask it answered, built with the steps it set out. */
+  const buildAgreed = useCallback((instruction: string, steps: string[]) => run(instruction, undefined, null, { plan: steps }), [run]);
+
+  const setPlanFirst = useCallback((on: boolean) => {
+    setPlanFirstState(on);
+    if (on) setBrainstormState(false);
+  }, []);
+  const setBrainstorm = useCallback((on: boolean) => {
+    setBrainstormState(on);
+    if (on) setPlanFirstState(false);
+  }, []);
+
   const resume = useCallback(
     async (existing: string): Promise<string | null> => {
       if (busy.current) return null;
       busy.current = true;
       stopping.current = false;
+      remembered.current = true;
       setAsking(true);
       setBuilding({ startedAt: Date.now(), steps: [], thinking: null });
 
@@ -242,17 +280,17 @@ export function useWorkerConsoleRunner<D = unknown>(
       asking,
       answer,
       plan: null,
-      planFirst: false,
-      brainstorm: false,
+      planFirst,
+      brainstorm,
       ask,
       buildPlan: nothing,
-      buildAgreed: nothing,
+      buildAgreed,
       dismissPlan: noop,
       stop,
-      setPlanFirst: noop,
-      setBrainstorm: noop,
+      setPlanFirst,
+      setBrainstorm,
       resume,
     }),
-    [answer, ask, asking, building, resume, stop],
+    [answer, ask, asking, brainstorm, buildAgreed, building, planFirst, resume, setBrainstorm, setPlanFirst, stop],
   );
 }

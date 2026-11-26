@@ -123,6 +123,81 @@ describe('useWorkerConsoleRunner', () => {
   });
 });
 
+describe('useWorkerConsoleRunner: Plan first and Brainstorm (1.70.0)', () => {
+  const planned: WorkerRun = { id: 'p1', status: 'succeeded', summary: 'I would warm up the headline.', data: { kind: 'plan' } };
+
+  it('in Plan first an ask starts a plan run, lands nothing and is not remembered across a reload', async () => {
+    const startRun = vi.fn();
+    const startPlanRun = vi.fn().mockResolvedValue({ run: { id: 'p1', status: 'queued', summary: null } });
+    const getRun = vi.fn().mockResolvedValue(planned);
+    const onLanded = vi.fn();
+    const onRunChange = vi.fn();
+    const { result } = renderHook(() =>
+      useWorkerConsoleRunner({ ...api(startRun, getRun), startPlanRun }, 'pg', () => ({ session_id: 's1' }), onLanded, { onError: vi.fn(), onRunChange, sleep: instant }),
+    );
+
+    act(() => result.current.setPlanFirst(true));
+    expect(result.current.planFirst).toBe(true);
+
+    let line: string | null = null;
+    await act(async () => {
+      line = await result.current.ask('Warm up the headline', null);
+    });
+
+    expect(line).toBe('I would warm up the headline.');
+    expect(startPlanRun).toHaveBeenCalledWith('pg', { instruction: 'Warm up the headline', session_id: 's1', kind: 'plan' });
+    expect(startRun).not.toHaveBeenCalled();
+    expect(onLanded).not.toHaveBeenCalled();
+    expect(onRunChange).not.toHaveBeenCalled();
+  });
+
+  it('Brainstorm and Plan first switch each other off, and an ask asked in a mode runs in it', async () => {
+    const startPlanRun = vi.fn().mockResolvedValue({ run: { id: 'p1', status: 'queued', summary: null } });
+    const { result } = renderHook(() =>
+      useWorkerConsoleRunner({ ...api(vi.fn(), vi.fn().mockResolvedValue(planned)), startPlanRun }, 'pg', () => ({}), vi.fn(), { onError: vi.fn(), sleep: instant }),
+    );
+
+    act(() => result.current.setPlanFirst(true));
+    act(() => result.current.setBrainstorm(true));
+    expect([result.current.planFirst, result.current.brainstorm]).toEqual([false, true]);
+
+    await act(async () => {
+      await result.current.ask('What would help a reader?', null);
+    });
+    expect(startPlanRun).toHaveBeenLastCalledWith('pg', { instruction: 'What would help a reader?', kind: 'brainstorm' });
+  });
+
+  it('Build this builds the plan from the session with its steps, and lands it like any Build', async () => {
+    const built: WorkerRun = { id: 'b1', status: 'succeeded', summary: 'I warmed up the headline.', data: { nodes: [] } };
+    const startRun = vi.fn().mockResolvedValue({ run: { id: 'b1', status: 'queued', summary: null } });
+    const onLanded = vi.fn();
+    const { result } = renderHook(() =>
+      useWorkerConsoleRunner({ ...api(startRun, vi.fn().mockResolvedValue(built)), startPlanRun: vi.fn() }, 'pg', () => ({}), onLanded, { onError: vi.fn(), sleep: instant }),
+    );
+
+    await act(async () => {
+      await result.current.buildAgreed('Warm up the headline', ['Rewrite the headline.']);
+    });
+
+    expect(startRun).toHaveBeenCalledWith('pg', { instruction: 'Warm up the headline', plan: ['Rewrite the headline.'] });
+    expect(onLanded).toHaveBeenCalledWith(built);
+  });
+
+  it('a product that cannot plan builds every ask, whatever the mode says', async () => {
+    const startRun = vi.fn().mockResolvedValue({ run: { id: 'b2', status: 'queued', summary: null } });
+    const { result } = renderHook(() =>
+      useWorkerConsoleRunner(api(startRun, vi.fn().mockResolvedValue({ id: 'b2', status: 'succeeded', summary: 'Done.' })), 'pg', () => ({}), vi.fn(), { onError: vi.fn(), sleep: instant }),
+    );
+
+    act(() => result.current.setPlanFirst(true));
+    await act(async () => {
+      await result.current.ask('Warm up the headline', null);
+    });
+
+    expect(startRun).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('waitForWorkerRun', () => {
   it("throws a failed run's own words", async () => {
     const getRun = vi.fn().mockResolvedValue({ id: 'r1', status: 'failed', summary: 'I could not open the email.' });
