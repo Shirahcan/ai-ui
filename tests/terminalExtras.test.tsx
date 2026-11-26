@@ -247,6 +247,18 @@ describe('a failed answer offers a higher level and more thought', () => {
     expect(screen.queryByRole('button', { name: 'Think harder' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Try again at Pro' })).toBeTruthy();
   });
+
+  it('offers neither after a refusal: nothing stronger can supply what is missing (1.71.1)', () => {
+    const refused: TerminalTurn[] = [
+      { id: 'a1', role: 'user', body: 'Compare the page with my picture', structured: null, rewound: false, at: null },
+      { id: 'b1', role: 'assistant', body: null, structured: { level: 'normal', effort: 'low', outcome: { changed: false, refused: true, reason: 'There is no picture in this session to compare with.' } }, rewound: false, at: null },
+    ];
+    render(<Harness turns={refused} onRetry={() => {}} />);
+
+    expect(screen.getByText(/There is no picture in this session/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Try again at Pro' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Think harder' })).toBeNull();
+  });
 });
 
 describe('zoom', () => {

@@ -25,7 +25,15 @@ export interface WorkerRun<D = unknown> {
   summary: string | null;
   data?: D | null;
   progress?: WorkerRunProgress | null;
+  /**
+   * A failed run the server REFUSED (1.71.1): its reason is a sentence the person can act on, already recorded in the
+   * session's answer, so it is neither raised as an error nor offered again at another level.
+   */
+  refused?: boolean;
 }
+
+/** A refused run (1.71.1): the session already says why, so the console raises nothing else. */
+export class WorkerRunRefused extends Error {}
 
 /** How the console reaches the subject's runs. `getRun`'s cursors are how many elements and steps it has seen. */
 export interface WorkerRunApi<D = unknown> {
@@ -95,7 +103,7 @@ export async function waitForWorkerRun<D>(
     }
 
     if (FINISHED.has(run.status)) {
-      if (run.status === 'failed') throw new Error(run.summary ?? UNAVAILABLE);
+      if (run.status === 'failed') throw run.refused === true ? new WorkerRunRefused(run.summary ?? UNAVAILABLE) : new Error(run.summary ?? UNAVAILABLE);
 
       return run;
     }
@@ -197,6 +205,9 @@ export function useWorkerConsoleRunner<D = unknown>(
         return await follow(started.run.id, kind === null);
       } catch (error) {
         if (stopping.current) return null;
+        // A refused RUN was answered in the session already ("There is no picture in this session..."): reporting it
+        // again drew a second, error-styled copy beside the console's own line (Portify 2026-11-26).
+        if (error instanceof WorkerRunRefused) return null;
         // A REFUSAL (409 / 422 with the server's own sentence) is the answer to the ask, said in the console: the
         // console only draws answers the server recorded, and a refused ask never is (Portify N1h-3, 2026-11-18).
         // Anything else goes to the product's error surface. The ask's words stay in the box either way.

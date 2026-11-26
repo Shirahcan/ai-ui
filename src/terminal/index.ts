@@ -38,7 +38,7 @@ export type { ConsoleGuidesOptions, ConsoleTemplatesOptions } from './useConsole
 export { tuningFor, useConsolePrefs } from './useConsolePrefs';
 export type { ConsolePrefsOptions } from './useConsolePrefs';
 export { useConsoleHost } from './useConsoleHost';
-export { WORKER_GIVE_UP_MS, WORKER_POLL_MS, refusalOf, useWorkerConsoleRunner, waitForWorkerRun } from './useWorkerConsoleRunner';
+export { WORKER_GIVE_UP_MS, WORKER_POLL_MS, WorkerRunRefused, refusalOf, useWorkerConsoleRunner, waitForWorkerRun } from './useWorkerConsoleRunner';
 export type { WorkerConsoleRunner, WorkerRun, WorkerRunApi, WorkerRunProgress, WorkerRunState, WorkerRunnerOptions } from './useWorkerConsoleRunner';
 export { ConsoleHost, useConsoleOpen } from './ConsoleHost';
 export { StudioConsole, useStudioConsole } from './useStudioConsole';

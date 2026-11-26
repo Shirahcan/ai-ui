@@ -220,6 +220,24 @@ describe('Compare with the picture (1.71.0)', () => {
     expect(runs.startRun).not.toHaveBeenCalled();
   });
 
+  it('a refused run is said once, by the session, never also raised as an error (1.71.1)', async () => {
+    const { api } = fakeApi([]);
+    const startPlanRun = vi.fn(async () => ({ run: { id: 'r9', status: 'queued' as const, summary: null } }));
+    const getRun = vi.fn(async () => ({ id: 'r9', status: 'failed', summary: 'There is no picture in this session to compare with.', refused: true }));
+    const onError = vi.fn();
+    const capture = vi.fn(async () => new File(['x'], 'porter-render.jpg', { type: 'image/jpeg' }));
+    const upload = vi.fn(async () => ({ id: 'render-1', name: 'porter-render.jpg', mime: 'image/jpeg', size: 1 }));
+    const s = subject({ ...api, startPlanRun, getRun } as never, { capture, upload });
+    const { result } = renderHook(() => useStudioConsole(s, { ...options, onError }));
+    await waitFor(() => expect(result.current.host.terminal.loading).toBe(false));
+
+    await act(async () => result.current.host.terminal.onCompare?.());
+
+    await waitFor(() => expect(getRun).toHaveBeenCalled());
+    await waitFor(() => expect(result.current.host.composer.busy).toBe(false));
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it('is not offered without a plan endpoint, a picture or an upload, so a compare can never become a Build', async () => {
     const { api } = fakeApi([]);
     const capture = vi.fn(async () => null);

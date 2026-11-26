@@ -39,6 +39,11 @@ export interface TerminalOutcome {
    */
   stopped?: boolean;
   /**
+   * The ask was refused (1.71.1): the reason is something the person must supply or change, so no other level or
+   * effort could do it, and no "Try again at Pro" or "Think harder" is offered.
+   */
+  refused?: boolean;
+  /**
    * Fields the assistant drafted for the record the page belongs to (1.55.0, a specialization's
    * "also draft these fields"): the person applies or dismisses them; nothing is saved until they do.
    */

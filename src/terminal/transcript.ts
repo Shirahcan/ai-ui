@@ -253,10 +253,12 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
         out.push({ key: `${turn.id}:plan`, kind: 'plan', summary: s.plan.summary, steps: s.plan.steps ?? [], turnId: askId, open: last, level: levelPhrase(asked, s.served_level), muted });
       } else if (questions.length === 0 && !(s.ideas?.length || s.recommendation)) {
         const outcome = outcomeLine(s.outcome);
-        const retry = outcome.tone === 'fail' && last ? nextLevel(asked) : null;
+        // A refusal is not a weakness of the level: nothing stronger could supply what is missing (1.71.1).
+        const retriable = outcome.tone === 'fail' && last && s.outcome?.refused !== true;
+        const retry = retriable ? nextLevel(asked) : null;
         // A failed answer is also offered more thought at the same level (owner 2026-11-10: "offering to
         // retry with a higher level and/or deeper thought if attempts fail"). Never after a Stop.
-        const deeper = outcome.tone === 'fail' && last ? nextEffort(s.effort) : null;
+        const deeper = retriable ? nextEffort(s.effort) : null;
         const changes = s.outcome?.changed ? (s.outcome.changes ?? []) : [];
         // Built from a picture just now: offered a check against it (1.53.0, "Compare with the picture").
         const before = index > 0 ? turns[index - 1] : undefined;
