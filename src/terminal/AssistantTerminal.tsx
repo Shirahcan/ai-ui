@@ -53,6 +53,17 @@ export interface AssistantTerminalProps {
   /** What the console works on, as a person names it ("Home page") and as a noun ("page"). */
   subjectLabel: string;
   subjectNoun?: string;
+  /**
+   * The composer's placeholder (1.73.2). Default "Describe what you want, and I will build it", right for a console
+   * that builds a design and wrong for one that does not (a test round's console sets up data). A `composer.placeholder`
+   * still wins over it. Written in the assistant's first person.
+   */
+  placeholder?: string;
+  /**
+   * The line an empty session opens with (1.73.2). Default "Describe what you want on this {subjectNoun}, and I will
+   * build it." First person, like the placeholder.
+   */
+  intro?: string;
   /** Header title. Default "{assistant} console". */
   title?: string;
 
@@ -199,7 +210,7 @@ export interface AssistantTerminalProps {
  */
 export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Element {
   const {
-    open, onClose, focusRequest, assistantName, subjectLabel, subjectNoun = 'page', title, session, turns, live = null, notes = [], size = null, brief = null,
+    open, onClose, focusRequest, assistantName, subjectLabel, subjectNoun = 'page', placeholder, intro, title, session, turns, live = null, notes = [], size = null, brief = null,
     history = [], loading = false, mode, onModeChange, modes = ['build', 'plan'], target = null, value, onChange, onAsk, composer, mentions, onStop, onCommand, onRewind,
     onBuildPlan, onDismissPlan, sessions, onSaveBrief, onClearDraft, theme, themes = TERMINAL_THEMES, onThemeChange, width, onWidthChange, onError, className = '',
     level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion, onElement, onUsage, savedCommands = [], onSavedCommandsChange, onCompare, zoom = 1, onZoomChange,
@@ -565,7 +576,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             {loading ? <p className="text-[var(--term-dim)]">Opening the session…</p> : null}
             {!loading && lines.length === 0 ? (
               <div className="text-[var(--term-dim)]">
-                <p className="text-[var(--term-text)]">Describe what you want on this {subjectNoun}, and I will build it.</p>
+                <p className="text-[var(--term-text)]">{intro ?? `Describe what you want on this ${subjectNoun}, and I will build it.`}</p>
                 <p className="mt-2">/ commands{mentions ? ' · @ aim at an element' : ''} · ↑ earlier asks · ? shortcuts{modes.length > 1 ? ` · alt+m ${modes.includes('brainstorm') ? 'plan first or brainstorm' : 'plan first'}` : ''}</p>
                 {brief ? <p className="mt-2">Brief: <span className="text-[var(--term-text)]">{brief.text}</span></p> : null}
               </div>
@@ -654,6 +665,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
           />
         ) : (
           <TerminalInput
+            placeholder={placeholder}
             value={value}
             onChange={onChange}
             onAsk={(text, files, input) => {

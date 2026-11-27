@@ -135,6 +135,13 @@ describe('the operation card', () => {
     expect(screen.getByRole('textbox', { name: /describe what you want/i })).toBeTruthy();
   });
 
+  it('says what this console is for when the host gives its own words (1.73.2)', () => {
+    render(<Harness turns={[]} session={null} placeholder="Ask me to set up or change test data" intro="Tell me who and what you need to test, and I will set it up." />);
+    expect(screen.getByPlaceholderText('Ask me to set up or change test data')).toBeTruthy();
+    expect(screen.getByText('Tell me who and what you need to test, and I will set it up.')).toBeTruthy();
+    expect(screen.queryByText(/I will build it/)).toBeNull();
+  });
+
   it('asks nothing once decided, or without a host to run it', () => {
     const { unmount } = render(<Harness onOperation={vi.fn()} turns={turnsWith({ card: 'done', summary: 'Stopped at step 2 of 3: no package matches.', partial: true })} />);
     expect(screen.queryByRole('dialog', { name: /Approve:/ })).toBeNull();

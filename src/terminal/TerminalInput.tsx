@@ -29,6 +29,8 @@ export interface TerminalInputProps {
   saved?: readonly TerminalSavedCommand[];
   mentions?: TerminalMentions;
   composer?: TerminalComposerOptions;
+  /** The box's placeholder (1.73.2); `composer.placeholder` wins over it. Default: the build console's wording. */
+  placeholder?: string;
   /** Ctrl+R: the reverse search row is open. */
   searching: boolean;
   onSearchClose: () => void;
@@ -38,7 +40,7 @@ export interface TerminalInputProps {
  * The console's input: the ONE shared `Composer` (never a copy: its docblock says why), with the up-arrow
  * history, the "/" commands run here instead of sent, "@" aiming at an element, and Ctrl+R search.
  */
-export function TerminalInput({ value, onChange, onAsk, onCommand, history, words, hiddenCommands, saved = [], mentions, composer, searching, onSearchClose }: TerminalInputProps): React.JSX.Element {
+export function TerminalInput({ value, onChange, onAsk, onCommand, history, words, hiddenCommands, saved = [], mentions, composer, placeholder, searching, onSearchClose }: TerminalInputProps): React.JSX.Element {
   const picked = useRef(new Map<string, string>());
   // A command with nothing to add runs the moment it is picked; one that takes words fills the box. The
   // person's own fill the box too, so words can be added before Enter sends them.
@@ -101,7 +103,7 @@ export function TerminalInput({ value, onChange, onAsk, onCommand, history, word
         id="terminal-input"
         name="terminal-input"
         // The assistant's own composer speaks in the first person (Portify's first-person rule, 2026-11-09).
-        placeholder="Describe what you want, and I will build it"
+        placeholder={placeholder ?? 'Describe what you want, and I will build it'}
         {...composer}
         value={value}
         onChange={change}
