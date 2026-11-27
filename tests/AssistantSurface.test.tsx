@@ -130,3 +130,31 @@ describe('AssistantSurface', () => {
     expect(container.querySelector('header')?.className).toContain('shrink-0');
   });
 });
+
+describe('inline (1.72.0)', () => {
+  it('fills its container as a named region, with no fixed panel size and no corner radius', () => {
+    render(
+      <AssistantSurface title="Porter" inline onClose={() => {}}>
+        <p>body</p>
+      </AssistantSurface>,
+    );
+    const region = screen.getByRole('region', { name: 'Porter' });
+    expect(region.style.width).toBe('100%');
+    expect(region.style.height).toBe('100%');
+    expect(['0', '0px']).toContain(region.style.borderRadius);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('floats at the panel size by default', () => {
+    render(<AssistantSurface title="Porter">body</AssistantSurface>);
+    expect(screen.getByRole('dialog', { name: 'Porter' }).style.width).toBe('34rem');
+  });
+});
+
+describe('inline header (1.72.0)', () => {
+  it('keeps the title for screen readers only, since the container already shows it', () => {
+    render(<AssistantSurface title="Porter" inline leading={<button type="button">Menu</button>}>body</AssistantSurface>);
+    expect(screen.getByText('Porter').closest('.sr-only')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Menu' })).toBeTruthy();
+  });
+});

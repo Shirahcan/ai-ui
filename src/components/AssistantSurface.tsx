@@ -70,6 +70,12 @@ export interface AssistantSurfaceProps {
    * or a long answer has room. The body still scrolls inside and the composer stays pinned.
    */
   expanded?: boolean;
+  /**
+   * Fill the container instead of floating at the panel size (1.72.0): for a panel that lives INSIDE
+   * another surface (a video call's side panel). No corner radius, and a named region rather than a
+   * dialog, because the container already is the thing a keyboard user landed in.
+   */
+  inline?: boolean;
 }
 
 /**
@@ -105,6 +111,9 @@ export type AssistantSurfaceAttributes = {
   [key: `data-${string}`]: string | undefined;
 };
 
+/** Inside another surface: as big as the container gives, square (that container has the corners). */
+const INLINE_SIZE = { width: '100%', height: '100%', minHeight: 0, borderRadius: 0 } as const;
+
 export function AssistantSurface({
   title,
   leading,
@@ -121,6 +130,7 @@ export function AssistantSurface({
   closeClassName,
   style,
   expanded = false,
+  inline = false,
   ...rest
 }: AssistantSurfaceProps & AssistantSurfaceAttributes) {
   return (
@@ -138,8 +148,8 @@ export function AssistantSurface({
        */
       style={{
         ...style,
-        ...ASSISTANT_PANEL_SIZE,
-        ...(expanded ? EXPANDED : {}),
+        ...(inline ? INLINE_SIZE : ASSISTANT_PANEL_SIZE),
+        ...(expanded && !inline ? EXPANDED : {}),
         background: aiVar('--ai-surface'),
         color: aiVar('--ai-fg'),
       }}
@@ -148,7 +158,7 @@ export function AssistantSurface({
        * user lands in from nowhere. Without the name a screen reader announces
        * "dialog" and nothing else.
        */
-      role="dialog"
+      role={inline ? 'region' : 'dialog'}
       aria-label={label ?? (typeof title === 'string' ? title : 'Assistant')}
       {...rest}
     >
@@ -160,7 +170,8 @@ export function AssistantSurface({
       >
         <div className="flex min-w-0 shrink-0 items-center gap-2">
           {leading}
-          <div className="min-w-0">
+          {/* Inline, the container's own header already names the panel: only the menu stays. */}
+          <div className={inline ? 'sr-only' : 'min-w-0'}>
           <p className={`${ASSISTANT_GEOMETRY.headerTitle} ${titleClassName ?? ''}`}>{title}</p>
           {subtitle ? (
             <p

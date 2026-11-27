@@ -310,6 +310,8 @@ export interface AssistantChatProps {
    * unless `expanded` is passed; `onExpandedChange` hears every change either way.
    */
   expandable?: boolean;
+  /** AssistantSurface `inline` (1.72.0): fill a container; no close button and no large view. */
+  inline?: boolean;
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
 
@@ -400,7 +402,8 @@ export function AssistantChat({
   onClientError,
   exportable = true,
   extras,
-  expandable = false,
+  expandable: expandableProp = false,
+  inline = false,
   expanded: expandedProp,
   onExpandedChange,
   overlay,
@@ -414,6 +417,8 @@ export function AssistantChat({
   const [menuOpen, setMenuOpen] = useState(false);
   // The large view (1.37.0): controlled when the product passes `expanded`, else kept here.
   const [expandedState, setExpandedState] = useState(false);
+  // Inline there is no larger view to grow into: the container decides the size.
+  const expandable = expandableProp && !inline;
   const isExpanded = expandable && (expandedProp ?? expandedState);
   const setExpanded = (next: boolean) => {
     setExpandedState(next);
@@ -609,9 +614,10 @@ export function AssistantChat({
       title={title}
       subtitle={subtitle}
       label={label ?? (typeof title === 'string' ? title : undefined)}
-      onClose={onClose}
+      onClose={inline ? undefined : onClose}
       closeLabel={closeLabel}
-      className={theme.card}
+      inline={inline}
+      className={inline ? undefined : theme.card}
       // The card's look comes from the theme's named `panel`, never from `card` (1.49.0).
       style={{ ...themeToVars(theme), ...panelLookStyle(theme) }}
       leading={

@@ -115,6 +115,8 @@ export interface AssistantSpacePanelProps {
   closeLabel?: string;
   /** Attributes on the panel's root (Porter's `data-porter-ui`, which its screen snapshot excludes). */
   rootAttributes?: Record<`data-${string}`, string>;
+  /** Fill the container (a call's side panel) instead of floating (AssistantChat `inline`, 1.72.0). */
+  inline?: boolean;
   /**
    * The screen the person is on: every turn carries it (`page_context.route`) and suggested questions
    * follow it. Default: the browser's path (at send time for a turn, at mount for the questions).
@@ -146,7 +148,7 @@ export function AssistantSpacePanel(props: AssistantSpacePanelProps) {
   return <SpacePanel key={props.accountKey} {...props} />;
 }
 
-function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose, closeLabel, rootAttributes, route }: AssistantSpacePanelProps) {
+function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose, closeLabel, rootAttributes, route, inline = false }: AssistantSpacePanelProps) {
   const adapterRef = useRef(adapter);
   adapterRef.current = adapter;
   const routeRef = useRef(route);
@@ -340,6 +342,7 @@ function SpacePanel({ client, accountKey, assistantName, theme, adapter, onClose
         title={assistantName}
         label={assistantName}
         onClose={onClose}
+        inline={inline}
         closeLabel={closeLabel ?? `Close ${assistantName}`}
         onClientError={(error) => adapter.onError(error)}
         {...(rootAttributes ?? {})}
