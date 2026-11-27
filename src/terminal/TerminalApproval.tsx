@@ -9,7 +9,7 @@ import type { AssistantOperation } from '../messages/kinds';
  *
  * The rows: one "Yes" per reason the card offers (the reason goes in the audit), "Yes, with my own reason", and
  * "No, tell {assistant} what to change". Up and Down move, Enter picks, 1-9 pick by number, Esc is the "No" row: the
- * composer comes back and the card stays waiting in the transcript.
+ * composer comes back, and the host records the card declined (`onDeclineOperation`; without one it stays waiting).
  *
  * ⚠ A REFUSAL KEEPS THE BLOCK. The sentence is shown in the fail colour and the rows stay, so the person can pick
  * another reason or decline; nothing is retried on their behalf.
@@ -112,7 +112,9 @@ export function TerminalApprovalBlock({
       className="mt-2 max-h-[55vh] overflow-y-auto rounded-md border border-[var(--term-accent)] bg-[var(--term-bg)] px-3 py-2 outline-none"
     >
       <p className="mb-1 break-words font-semibold text-[var(--term-text)]">
-        {operation.verb && operation.verb !== operation.title ? `${operation.verb}?` : 'Run this?'}
+        {/* Always the same question (1.73.1): the card's verb is a button's label, often the title clipped ("Test client
+            Amara Okafor with spousal..."), and read as a question it was nonsense. What runs is the card above. */}
+        Run this?
         <span className="ml-2 font-normal text-[12px] text-[var(--term-dim)]">the reason goes in the audit</span>
       </p>
       {operation.consequential && !operation.undoable ? (

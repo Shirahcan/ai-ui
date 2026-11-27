@@ -92,7 +92,7 @@ describe('the operation card', () => {
 
     const block = screen.getByRole('dialog', { name: /Approve: A test family for Maria Okafor/ });
     expect(screen.queryByRole('textbox', { name: /describe what you want/i })).toBeNull();
-    expect(screen.getByText('Run the plan?')).toBeTruthy();
+    expect(screen.getByText('Run this?')).toBeTruthy();
     expect(screen.getByText('Approve or decline below.')).toBeTruthy();
     expect(screen.getByText('1. Create the test person Maria Okafor')).toBeTruthy();
 
