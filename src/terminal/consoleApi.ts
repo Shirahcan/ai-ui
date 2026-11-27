@@ -108,8 +108,9 @@ export function createConsoleApi<K extends string = string, D = unknown>({ base,
      * Apply or Dismiss on an answer's proposal card (ai-client 1.74.0): kept on its turn as the chat card's own state,
      * so a reload, or another device, shows it decided. The product applies the proposal first; this records it.
      */
-    decide: async (kind: K, id: string, session: string, turn: string, card: TerminalCardOutcome, summary?: string): Promise<TerminalCardState> =>
-      (await put<{ card_state: TerminalCardState }>(`${base(kind, id)}/sessions/${session}/turns/${turn}/card-state`, summary ? { card, summary } : { card })).card_state,
+    decide: async (kind: K, id: string, session: string, turn: string, card: TerminalCardOutcome, summary?: string, partial = false): Promise<TerminalCardState> =>
+      // `partial` (ai-client 1.82.1): a change that ran only part of the way, decided but not a success.
+      (await put<{ card_state: TerminalCardState }>(`${base(kind, id)}/sessions/${session}/turns/${turn}/card-state`, { card, ...(summary ? { summary } : {}), ...(partial ? { partial: true } : {}) })).card_state,
     /** `/brief`: null text removes it. */
     saveBrief: async (kind: K, id: string, text: string | null): Promise<TerminalBrief | null> => (await put<{ brief: TerminalBrief | null }>(`${base(kind, id)}/brief`, { text })).brief,
     /** `/specialize`: a guide's key, 'none', or null to let the subject's own kind (or the assistant) decide. */

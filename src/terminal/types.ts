@@ -1,3 +1,5 @@
+import type { AssistantOperation } from '../messages/kinds';
+
 /**
  * The console's data, as the kit's `TerminalRoutes` (shirahcan/ai-client >= 1.58) returns it, plus the
  * live state of an ask while it runs. Neutral: no product's words or fields.
@@ -55,6 +57,12 @@ export interface TerminalOutcome {
    * design only.
    */
   details?: string[];
+  /**
+   * A change the assistant proposed for the person to approve in the console (1.73.0, ai-client 1.82.0): the chat
+   * card's own bag (`operation`, `params`, `preview`, `reason_options`, `verb`), read with `readOperation`. Nothing has
+   * run until the person approves it; what became of it is the turn's `card_state`.
+   */
+  operation?: Record<string, unknown> | null;
 }
 
 /** Drafted values for the page's own record (a blog post's answer, a landing page's headline). */
@@ -200,6 +208,8 @@ export interface TerminalCardState {
   card: TerminalCardOutcome | 'started' | string;
   summary?: string;
   at?: string;
+  /** A change that ran only part of the way (ai-client 1.82.1: a plan stopped at a refused step): decided, not a success. */
+  partial?: boolean;
 }
 
 export interface TerminalTurn {
@@ -292,6 +302,9 @@ type Muted = { muted?: 'rewound' | 'folded' };
  * with "+N lines" until it is open. A rewound turn folds whole into its ask line (`folded` = the lines
  * it holds, `foldKey` opens it).
  */
+/** Where an operation card stands: waiting, running after approval, done, or declined. */
+export type TerminalOperationState = 'open' | 'running' | 'done' | 'cancelled';
+
 export type TerminalLine =
   | ({ key: string; kind: 'ask'; text: string; chips: string[]; turnId: string | null; answers?: TerminalAnswer[]; folded?: number; foldKey?: string; answering?: boolean } & Muted)
   | ({ key: string; kind: 'step'; text: string; ms: number | null; live: boolean; stepKind: string } & Muted)
@@ -307,6 +320,11 @@ export type TerminalLine =
   | ({ key: string; kind: 'plan'; summary: string; steps: string[]; turnId: string | null; open: boolean; level?: string | null } & Muted)
   /** Fields drafted for the page's record (1.55.0): Apply or Dismiss while `state` is open. */
   | ({ key: string; kind: 'proposal'; turnId: string; title: string; fields: TerminalProposal['fields']; state: 'open' | 'applied' | 'dismissed'; actionable: boolean } & Muted)
+  /**
+   * A change waiting for the person's approval, or decided (1.73.0). `steps` lists a plan's operations in order; a single
+   * operation lists its `changes` (before and after). `state` is the card's: open, running, done, cancelled.
+   */
+  | ({ key: string; kind: 'operation'; turnId: string; operation: AssistantOperation; state: TerminalOperationState; summary: string | null; partial: boolean; actionable: boolean; open: boolean } & Muted)
   | { key: string; kind: 'system'; text: string; tone: 'system' | 'fail' | 'ok' }
   /** `pending` (1.51.0): the assistant is writing its own recap; these lines stand until it arrives. */
   | { key: string; kind: 'recap'; lines: string[]; pending?: boolean }

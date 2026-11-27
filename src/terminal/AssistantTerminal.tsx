@@ -9,6 +9,7 @@ import { TerminalInput, type TerminalComposerOptions, type TerminalMentions } fr
 import { TerminalLines } from './TerminalLines';
 import { TerminalMenu, type TerminalMenuItem } from './TerminalMenu';
 import { TerminalQuestionBlock, type TerminalQuestionDraft } from './TerminalQuestion';
+import { TerminalApprovalBlock } from './TerminalApproval';
 import { TerminalRewind, type TerminalRewindChoice } from './TerminalRewind';
 import { SettingsView } from './TerminalSettings';
 import { TerminalStatus } from './TerminalStatus';
@@ -89,6 +90,15 @@ export interface AssistantTerminalProps {
   /** Apply or dismiss fields drafted for the page's record (1.55.0); `proposalState` is what was done. */
   onProposal?: (turnId: string, action: 'apply' | 'dismiss') => void;
   proposalState?: (turnId: string) => 'applied' | 'dismissed' | null;
+  /**
+   * Approve an answer's proposed change (1.73.0) with the reason picked in the approval block. The host runs it and
+   * records the card (`decide`); throw with a plain sentence to report a refusal, and the block stays.
+   */
+  onOperation?: (turnId: string, run: { operation: string; params: Record<string, unknown>; reason: string }) => Promise<void>;
+  /** "No, tell ... what to change" (and Esc) on the approval block: the host records the card declined. */
+  onDeclineOperation?: (turnId: string) => void;
+  /** Where an answer's operation card stands while the host holds it (running, then its result). */
+  operationState?: (turnId: string) => { state: 'open' | 'running' | 'done' | 'cancelled'; summary: string | null; partial?: boolean } | null;
   history?: string[];
   /** Loading the console, or its history could not be read: a line says so. */
   loading?: boolean;
@@ -194,7 +204,7 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
     onBuildPlan, onDismissPlan, sessions, onSaveBrief, onClearDraft, theme, themes = TERMINAL_THEMES, onThemeChange, width, onWidthChange, onError, className = '',
     level = 'normal', levels = ALL_LEVELS, onLevelChange, effort = 'low', efforts = ALL_EFFORTS, onEffortChange, onRetry, onAnswer, onSuggestion, onElement, onUsage, savedCommands = [], onSavedCommandsChange, onCompare, zoom = 1, onZoomChange,
     recapAfterMinutes = 30, onRecapChange, onRecap, notifyWhenDone = true, onNotifyWhenDoneChange,
-    specialization = null, specializations = [], specializationChoice = null, onSpecializationChange, manageSpecializationsHref = null, onProposal, proposalState,
+    specialization = null, specializations = [], specializationChoice = null, onSpecializationChange, manageSpecializationsHref = null, onProposal, proposalState, onOperation, onDeclineOperation, operationState,
     template = null, templates = [], templateChoice = null, onTemplateChange, starter = null,
   } = props;
   const [view, setView] = useState<View | null>(null);
@@ -214,8 +224,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
   const recaps = useTerminalRecap({ turns, words, afterMinutes: recapAfterMinutes, working, loading, sessionId: session?.id ?? null, fetchRecap: onRecap });
   const recap = recaps.recap;
   const lines = useMemo(
-    () => toLines(turns, { session, live, expanded, opened, notes, recap, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName, proposalState }),
-    [turns, session, live, expanded, opened, notes, recap, clearedThrough, assistantName, proposalState],
+    () => toLines(turns, { session, live, expanded, opened, notes, recap, clearedThrough: clearedThrough && turns.some((t) => t.id === clearedThrough) ? clearedThrough : null, assistantName, proposalState, operationState }),
+    [turns, session, live, expanded, opened, notes, recap, clearedThrough, assistantName, proposalState, operationState],
   );
   // The assistant's last word asked questions and nothing has run since: they take the composer's place
   // (Claude Code), unless the person chose "Chat about this" for them (`aside`, by their line key).
@@ -228,6 +238,13 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
       ? { key: `${lastTurn.id}:question`, turnId: lastTurn.id, questions: lastTurn.structured?.questions ?? [] }
       : null;
   const asking = openQuestions && aside !== openQuestions.key && view === null ? openQuestions : null;
+  // The last answer's change waiting for approval takes the composer's place the same way (1.73.0); questions first.
+  const waitingCard = useMemo(() => {
+    const last = [...lines].reverse().find((l) => l.kind === 'operation');
+
+    return last && last.kind === 'operation' && last.state === 'open' && last.actionable && lastTurn?.id === last.turnId ? last : null;
+  }, [lines, lastTurn?.id]);
+  const approving = onOperation && !asking && !working && view === null && waitingCard && aside !== waitingCard.key ? waitingCard : null;
   const hidden = useMemo(() => {
     const out: TerminalCommandName[] = [];
 
@@ -566,6 +583,8 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
               onElement={onElement}
               onCompare={onCompare}
               onProposal={onProposal}
+              approving={approving?.key ?? null}
+              onReopenOperation={onOperation ? () => { setAside(null); } : undefined}
             />
             </div>
           </div>
@@ -618,6 +637,18 @@ export function AssistantTerminal(props: AssistantTerminalProps): React.JSX.Elem
             onChat={() => {
               setAside(asking.key);
               // The draft the person had is still theirs: the composer comes back holding it.
+              requestAnimationFrame(focusComposer);
+            }}
+          />
+        ) : approving && onOperation ? (
+          <TerminalApprovalBlock
+            key={approving.key}
+            operation={approving.operation}
+            assistantName={assistantName}
+            onApprove={(reason) => onOperation(approving.turnId, { operation: approving.operation.operation, params: approving.operation.params, reason })}
+            onDecline={() => {
+              setAside(approving.key);
+              onDeclineOperation?.(approving.turnId);
               requestAnimationFrame(focusComposer);
             }}
           />

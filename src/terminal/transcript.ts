@@ -1,4 +1,5 @@
-import type { TerminalEffort, TerminalLevel, TerminalLine, TerminalLive, TerminalNote, TerminalOutcome, TerminalSessionRow, TerminalStep, TerminalTurn } from './types';
+import { readOperation, type AssistantMeta, type AssistantOperation } from '../messages/kinds';
+import type { TerminalEffort, TerminalLevel, TerminalLine, TerminalLive, TerminalNote, TerminalOperationState, TerminalOutcome, TerminalSessionRow, TerminalStep, TerminalTurn } from './types';
 
 /** Steps whose detail is shown even when details are collapsed: the ones a person acts on. */
 const ALWAYS_DETAILED = new Set(['gather', 'repair', 'check', 'merge']);
@@ -148,6 +149,11 @@ export interface ToLinesOptions {
   recap?: { key: string; lines: string[]; pending?: boolean } | null;
   /** What the person did with a turn's drafted fields (1.55.0), by the assistant turn's id; the host keeps it. */
   proposalState?: (turnId: string) => 'applied' | 'dismissed' | null;
+  /**
+   * Where an answer's operation card stands while this page holds it (1.73.0): `running` between the approval and its
+   * result, then the result. Absent, the turn's own `card_state` decides, so a reload shows the card as it was left.
+   */
+  operationState?: (turnId: string) => { state: TerminalOperationState; summary: string | null; partial?: boolean } | null;
 }
 
 /**
@@ -159,7 +165,7 @@ export interface ToLinesOptions {
  * fold is a key in `opened`, so it survives every redraw too.
  */
 export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): TerminalLine[] {
-  const { session = null, live = null, expanded = false, opened, notes = [], clearedThrough = null, assistantName = 'the assistant', recap = null, proposalState } = options;
+  const { session = null, live = null, expanded = false, opened, notes = [], clearedThrough = null, assistantName = 'the assistant', recap = null, proposalState, operationState } = options;
   const isOpen: IsOpen = (key) => expanded || (opened?.has(key) ?? false);
   const folded = new Set(session?.summary?.folded ?? []);
   const lines: TerminalLine[] = [];
@@ -297,6 +303,28 @@ export function toLines(turns: TerminalTurn[], options: ToLinesOptions = {}): Te
             muted,
           });
         }
+
+        // A change waiting for the person's approval (1.73.0): drawn in the console's own marks, approved over the
+        // composer (TerminalApprovalBlock). The page's state wins while it holds one; else the turn's card_state.
+        const operation = s.outcome?.operation ? readOperation(s.outcome.operation as AssistantMeta) : null;
+        if (operation) {
+          const held = operationState?.(turn.id) ?? null;
+          const kept = turn.card_state?.card;
+          const state: TerminalOperationState = held?.state ?? (kept === 'done' ? 'done' : kept === 'cancelled' ? 'cancelled' : kept === 'started' ? 'running' : 'open');
+          out.push({
+            key: `${turn.id}:operation`,
+            kind: 'operation',
+            turnId: turn.id,
+            operation,
+            state,
+            summary: held?.summary ?? turn.card_state?.summary ?? null,
+            partial: held?.partial ?? turn.card_state?.partial === true,
+            actionable: !turn.rewound,
+            // Waiting, it shows in full; decided, it folds to its result line until opened.
+            open: state === 'open' || state === 'running' || isOpen(`${turn.id}:operation`),
+            muted,
+          });
+        }
       }
 
       if (collapsed !== null) {
@@ -421,6 +449,24 @@ const MARK: Record<string, string> = { ask: '>', step: '●', thinking: '✻', d
 const OUTCOME_MARK = { ok: '✓', none: '○', fail: '✗' } as const;
 
 /** The transcript as Markdown for `/export`: the same marks, so it reads like the screen. */
+/**
+ * An operation card's rows as text (1.73.0): a plan's steps in order (`run_plan` previews them as "Step N" changes),
+ * else each change as `label: before → after` (`label: after` when there was nothing before).
+ */
+export function operationRows(op: AssistantOperation): string[] {
+  return op.changes.map((c) => (/^Step \d+$/.test(c.label) ? `${c.label.slice(5)}. ${c.after}` : c.before !== '' ? `${c.label}: ${c.before} → ${c.after}` : `${c.label}: ${c.after}`));
+}
+
+/** The line a decided card folds to, and the state line of one still waiting or running. */
+export function operationResult(state: TerminalOperationState, summary: string | null, partial = false): string {
+  if (state === 'done' && partial) return summary ? `! ${summary}` : '! Ran part of the way';
+  if (state === 'done') return summary ? `✓ ${summary}` : '✓ Done';
+  if (state === 'cancelled') return '– Declined; nothing ran';
+  if (state === 'running') return '… Running';
+
+  return 'Waiting for your approval';
+}
+
 export function toMarkdown(title: string, lines: TerminalLine[]): string {
   const out = [`# ${title}`, ''];
 
@@ -459,6 +505,9 @@ export function toMarkdown(title: string, lines: TerminalLine[]): string {
         break;
       case 'proposal':
         out.push(`◆ ${line.title}`, ...line.fields.map((f) => `   ${f.label}: ${f.value}`));
+        break;
+      case 'operation':
+        out.push(`◆ ${line.operation.title}`, ...operationRows(line.operation).map((r) => `   ${r}`), `   ${operationResult(line.state, line.summary, line.partial)}`);
         break;
       default:
         out.push(`${MARK[line.kind]} ${line.text}`);

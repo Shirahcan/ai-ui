@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { LEVEL_LABELS } from './transcript';
+import { LEVEL_LABELS, operationResult, operationRows } from './transcript';
 import { TerminalQuestionLog } from './TerminalQuestion';
 import { ProposalHtml } from './ProposalHtml';
 import type { TerminalChange, TerminalEffort, TerminalLevel, TerminalLine } from './types';
@@ -120,6 +120,10 @@ export interface TerminalLinesProps {
   onCompare?: () => void;
   /** Apply or dismiss the fields drafted for the page's record (1.55.0), by the assistant turn's id. */
   onProposal?: (turnId: string, action: 'apply' | 'dismiss') => void;
+  /** The operation card the approval block is asking about right now (its line key): the transcript says "approve below". */
+  approving?: string | null;
+  /** "Approve it now" on a waiting card the person stepped away from: its assistant turn's id. */
+  onReopenOperation?: (turnId: string) => void;
 }
 
 const CHANGE: Record<string, { mark: string; verb: string }> = {
@@ -149,7 +153,7 @@ function ChangeLine({ change, onElement }: { change: TerminalChange; onElement?:
   );
 }
 
-export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, buildLabel = 'Build this', onToggle, onRetry, asking = null, onReopenQuestions, onSuggestion, onElement, onCompare, onProposal }: TerminalLinesProps): React.JSX.Element {
+export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, buildLabel = 'Build this', onToggle, onRetry, asking = null, onReopenQuestions, onSuggestion, onElement, onCompare, onProposal, approving = null, onReopenOperation }: TerminalLinesProps): React.JSX.Element {
   return (
     <>
       {lines.map((line, index) => {
@@ -283,6 +287,48 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
                 </div>
               </div>
             );
+
+          case 'operation': {
+            // Console-native (1.73.0): the card's rows in the console's marks; approved over the composer.
+            const tone = line.state === 'done' ? (line.partial ? 'text-[var(--term-warn)]' : 'text-[var(--term-ok)]') : line.state === 'cancelled' ? 'text-[var(--term-dim)]' : 'text-[var(--term-accent)]';
+            const rows = operationRows(line.operation);
+            const waiting = line.state === 'open';
+
+            return (
+              <div key={line.key} className={`flex gap-2 ${muted}`}>
+                <span aria-hidden="true" className={`ml-4 ${MARK} ${tone}`}>◆</span>
+                <div className="min-w-0 flex-1 break-words">
+                  <p className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="font-semibold text-[var(--term-text)]">{line.operation.title}</span>
+                    {line.operation.target.label && line.operation.target.label !== line.operation.title ? (
+                      <span className="text-[12px] text-[var(--term-dim)]">{line.operation.target.label}</span>
+                    ) : null}
+                  </p>
+                  {line.open ? (
+                    <>
+                      <ol className="mt-1 space-y-0.5">
+                        {rows.map((row, i) => (
+                          <li key={i} className="whitespace-pre-wrap text-[var(--term-text)]">{row}</li>
+                        ))}
+                      </ol>
+                      {line.operation.notes.map((note, i) => (
+                        <p key={i} className="mt-0.5 flex gap-2 text-[12px] text-[var(--term-dim)]"><span aria-hidden="true">·</span><span>{note}</span></p>
+                      ))}
+                    </>
+                  ) : null}
+                  <p className={`mt-1 ${tone}`}>
+                    {waiting && approving === line.key ? 'Approve or decline below.' : operationResult(line.state, line.summary, line.partial)}
+                    {waiting && line.actionable && approving !== line.key && onReopenOperation ? (
+                      <button type="button" onClick={() => onReopenOperation(line.turnId)} className={`${TOGGLE} ml-2`}>Approve it now</button>
+                    ) : null}
+                    {!waiting && line.state !== 'running' && onToggle ? (
+                      <button type="button" aria-expanded={line.open} onClick={() => onToggle(line.key)} className={`${TOGGLE} ml-2`}>{line.open ? 'Hide' : 'Show what it was'}</button>
+                    ) : null}
+                  </p>
+                </div>
+              </div>
+            );
+          }
 
           case 'finding': {
             const look = FINDING[line.findingKind] ?? { mark: '•', tone: 'text-[var(--term-dim)]', label: 'Note' };
