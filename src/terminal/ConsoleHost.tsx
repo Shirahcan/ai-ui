@@ -72,6 +72,11 @@ export interface ConsoleHostProps {
    * below the product's top bar. Portify passes the larger pair while its own sticky editor header shows.
    */
   offset?: { top: string; height: string };
+  /**
+   * The tab on the canvas edge while closed (1.73.3). Default true. False when the host opens the console from its own
+   * control (Portify's floating assistant button in test mode), so it never sits over a page's own console tab.
+   */
+  showTab?: boolean;
 }
 
 const DEFAULT_OFFSET = { top: '12px', height: 'h-[calc(100dvh-var(--shell-top-bar-h,0px)-24px)]' };
@@ -93,7 +98,7 @@ const mountedHosts: symbol[] = [];
  * above the bottom of the viewport (useConsolePlacement); AssistantTerminal scrolls its transcript inside, so the
  * composer stays reachable on a short screen.
  */
-export function ConsoleHost({ open, onOpenChange, terminal, composer, assistantName, working, offset = DEFAULT_OFFSET }: ConsoleHostProps): React.JSX.Element {
+export function ConsoleHost({ open, onOpenChange, terminal, composer, assistantName, working, offset = DEFAULT_OFFSET, showTab = true }: ConsoleHostProps): React.JSX.Element {
   const { anchor, frame, box } = useConsolePlacement(open);
   const [me] = useState(() => Symbol('console-host'));
 
@@ -126,7 +131,7 @@ export function ConsoleHost({ open, onOpenChange, terminal, composer, assistantN
   return (
     <div ref={anchor} className="pointer-events-none sticky z-30 h-0" style={{ top: offset.top }}>
       <div ref={frame} className="absolute left-0 top-0">
-        {!open ? (
+        {!open && showTab ? (
           <button
             type="button"
             onClick={() => onOpenChange(true)}

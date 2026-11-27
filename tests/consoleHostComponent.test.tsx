@@ -26,6 +26,12 @@ describe('ConsoleHost', () => {
     expect(onOpenChange).toHaveBeenCalledWith(true);
   });
 
+  it('draws no tab when the host opens the console from its own control (1.73.3)', () => {
+    render(<ConsoleHost open={false} onOpenChange={vi.fn()} terminal={terminal} composer={{} as never} assistantName="Porter" working={null} showTab={false} />);
+
+    expect(screen.queryByTitle('Open the Porter console (Ctrl+~)')).toBeNull();
+  });
+
   it('toggles on Ctrl+~ except inside an area that opts out', () => {
     const onOpenChange = vi.fn();
 
