@@ -51,7 +51,10 @@ export function ContextView({ size, assistant, onCompact, onClear, onBack }: { s
             <span className="font-semibold">{size.percent}%</span> of {size.budget.toLocaleString()} used ({size.used.toLocaleString()}). At {size.compact_at}% the session is summarised before the next ask.
           </p>
           <ul className="mt-3 space-y-2">
-            {(Object.keys(PART_LABELS) as (keyof TerminalSize['parts'])[]).map((part) => {
+            {(Object.keys(PART_LABELS) as (keyof TerminalSize['parts'])[])
+              // A console with no design beside it (a test round, a chat) has nothing to count there (1.74.1).
+              .filter((part) => part !== 'design' || size.parts.design > 0)
+              .map((part) => {
               const share = Math.min(100, Math.round((size.parts[part] / Math.max(1, size.budget)) * 100));
 
               return (
