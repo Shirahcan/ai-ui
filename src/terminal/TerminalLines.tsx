@@ -3,6 +3,8 @@ import React from 'react';
 import { LEVEL_LABELS, operationResult, operationRows } from './transcript';
 import { TerminalQuestionLog } from './TerminalQuestion';
 import { ProposalHtml } from './ProposalHtml';
+import { TerminalTableLinks } from './TerminalTableView';
+import { tablesIn } from './terminalTables';
 import type { TerminalChange, TerminalEffort, TerminalLevel, TerminalLine } from './types';
 
 /**
@@ -249,6 +251,8 @@ export function TerminalLines({ lines, onRewind, onBuildPlan, onDismissPlan, bui
                 <div className="min-w-0 flex-1">
                   <p className="whitespace-pre-wrap break-words text-[var(--term-text)]">{emphasised(shown)}</p>
                   {fold.hidden > 0 ? <FoldToggle open={line.open} hidden={fold.hidden} onToggle={onToggle ? toggle(line.key) : undefined} /> : null}
+                  {/* Read from the whole answer, so a table folded out of view still opens. */}
+                  <TerminalTableLinks tables={tablesIn(line.text)} />
                 </div>
               </div>
             );

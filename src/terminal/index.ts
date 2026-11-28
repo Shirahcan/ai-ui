@@ -50,3 +50,5 @@ export type { ConsoleHostProps } from './ConsoleHost';
 export { shortenAsk } from './consoleHostPorts';
 export type { ConsoleAskMode, ConsoleHostOptions, ConsoleRunner, ConsoleRunState, ConsoleSubject, ConsoleTarget } from './consoleHostPorts';
 export type * from './types';
+export { tablesIn, tableAsTsv, type TerminalTable } from './terminalTables';
+export { TerminalTableLinks } from './TerminalTableView';
